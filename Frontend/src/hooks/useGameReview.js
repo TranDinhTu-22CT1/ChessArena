@@ -1,4 +1,5 @@
 import React from 'react';
+import { apiUrl } from '../api/config';
 import { createGameState } from '../game/chessLogic';
 import { REVIEW_LEGEND } from '../data/review';
 import { coachBehaviorFromMode } from '../coach/coach';
@@ -91,7 +92,7 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
     const positions = pendingAnalysis.slice(0, isCoachGame ? 4 : 16);
 
     setStockfishStatus('loading');
-    fetch(`${import.meta.env.VITE_API_URL}/api/analysis/review`, {
+    fetch(apiUrl('/api/analysis/review'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ positions, depth: isCoachGame ? coachReviewDepth : 14 })

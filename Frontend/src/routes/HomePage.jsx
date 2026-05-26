@@ -106,6 +106,8 @@ export default function HomePage({
             onClick={() => {
               if (card.tone === 'review' && history.length) {
                 onReviewGame();
+              } else if (card.tone === 'puzzle') {
+                onNavigate('puzzles');
               } else {
                 onNavigate('bot');
               }

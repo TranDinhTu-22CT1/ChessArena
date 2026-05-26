@@ -1,5 +1,6 @@
 import React from 'react';
 import './styles.css';
+import { apiUrl } from './api/config';
 import { requestStockfishMove } from './api/stockfish';
 import { PIECE_IMAGES } from './game/pieces';
 import {
@@ -47,10 +48,11 @@ import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
 import HomePage from './routes/HomePage';
 import ReviewPage from './routes/ReviewPage';
-import { gameModeFromRoute, isGameRoute, routeFromPath } from './routes/routeConfig';
+import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './routes/routeConfig';
 
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
 const FINISHED_GAME_KEY = 'chess-arena-finished-game';
+const PuzzlePage = React.lazy(() => import('./routes/PuzzlePage'));
 
 function storedFinishedOutcome() {
   const currentRoute = routeFromPath(window.location.pathname);
@@ -148,6 +150,7 @@ export default function App() {
   const { ensureAudioContext, playMoveSound, speakCoachText, stopSpeech } = useGameAudio();
 
   const isActiveGameRoute = isGameRoute(route);
+  const isActivePuzzleRoute = isPuzzleRoute(route);
   const game = gameState.chess;
   const history = gameState.moves;
   const gameFen = game.fen();
@@ -514,7 +517,7 @@ export default function App() {
     resetBotAssistance((BOT_PERSONAS.find((persona) => persona.elo === Number(nextAiElo)) ?? activeBotPersona).chat);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/game/new`, {
+      const response = await fetch(apiUrl('/api/game/new'), {
         method: 'POST'
       });
       const data = await response.json();
@@ -874,7 +877,7 @@ export default function App() {
         onLogout={logout}
       />
 
-      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute ? 'game-route-shell' : ''}`}>
+      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute ? 'game-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
         {authMode && !authUser && (
           <AuthPage
             authMode={authMode}
@@ -935,9 +938,31 @@ export default function App() {
           />
         )}
 
-        {route !== 'home' && (
+        {isActivePuzzleRoute && (
+          <>
+            <TopHeader
+              activeRoute={route}
+              apiOnline={apiOnline}
+              settingsOpen={settingsOpen}
+              theme={theme}
+              pieceSet={pieceSet}
+              authUser={authUser}
+              onToggleSettings={() => setSettingsOpen((value) => !value)}
+              onResetTheme={resetTheme}
+              onUpdateTheme={updateTheme}
+              onApplyBoardPreset={applyBoardPreset}
+              onSetPieceSet={setPieceSet}
+            />
+            <React.Suspense fallback={<div className="puzzle-loading">Đang mở khu luyện câu đố...</div>}>
+              <PuzzlePage activeRoute={route} pieceSet={pieceSet} onNavigate={navigate} />
+            </React.Suspense>
+          </>
+        )}
+
+        {route !== 'home' && !isActivePuzzleRoute && (
         <>
         <TopHeader
+          activeRoute={route}
           apiOnline={apiOnline}
           settingsOpen={settingsOpen}
           theme={theme}

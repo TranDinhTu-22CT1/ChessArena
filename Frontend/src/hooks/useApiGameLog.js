@@ -1,4 +1,5 @@
 import React from 'react';
+import { apiUrl } from '../api/config';
 import { buildMoveLog } from '../game/chessLogic';
 
 export function useApiGameLog({
@@ -17,7 +18,7 @@ export function useApiGameLog({
   const savedServerLogRef = React.useRef(null);
 
   React.useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/health`)
+    fetch(apiUrl('/api/health'))
       .then((response) => setApiOnline(response.ok))
       .catch(() => setApiOnline(false));
   }, []);
@@ -30,7 +31,7 @@ export function useApiGameLog({
     if (!outcomeResult || savedServerLogRef.current === gameId) return;
 
     savedServerLogRef.current = gameId;
-    fetch(`${import.meta.env.VITE_API_URL}/api/game/log`, {
+    fetch(apiUrl('/api/game/log'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(log)

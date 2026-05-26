@@ -2,6 +2,7 @@ import React from 'react';
 import {
   BarChart3,
   Bot,
+  CalendarDays,
   ChevronRight,
   Crown,
   Dumbbell,
@@ -24,7 +25,7 @@ import {
 
 const menuItems = [
   { icon: Swords, label: 'Play', active: true, hasFlyout: true },
-  { icon: Puzzle, label: 'Puzzles' },
+  { icon: Puzzle, label: 'Puzzles', route: 'puzzles', hasPuzzleFlyout: true },
   { icon: GraduationCap, label: 'Learn' },
   { icon: Dumbbell, label: 'Train' },
   { icon: Radio, label: 'Watch' },
@@ -41,6 +42,14 @@ const playMenuItems = [
   { icon: Trophy, label: 'Tournaments' },
   { icon: Zap, label: 'Variants' },
   { icon: History, label: 'Game History' }
+];
+
+const puzzleMenuItems = [
+  { icon: Puzzle, label: 'Puzzles', route: 'puzzles' },
+  { icon: CalendarDays, label: 'Daily Puzzle', route: 'daily-puzzle' },
+  { icon: Zap, label: 'Puzzle Rush', route: 'puzzle-rush' },
+  { icon: Swords, label: 'Puzzle Battle', route: 'puzzle-battle' },
+  { icon: GraduationCap, label: 'Custom Puzzles', route: 'custom-puzzles' }
 ];
 
 export default function Sidebar({
@@ -86,13 +95,20 @@ export default function Sidebar({
       <nav className="main-nav" aria-label="Main navigation">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = item.hasFlyout ? ['bot', 'coach', 'local', 'review'].includes(activeRoute) : item.active;
+          const isActive = item.hasFlyout
+            ? ['bot', 'coach', 'local', 'review'].includes(activeRoute)
+            : item.hasPuzzleFlyout
+              ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
+              : item.active;
           return (
-            <div className={`nav-item ${isActive ? 'active' : ''} ${item.hasFlyout ? 'has-flyout' : ''}`} key={item.label}>
-              <button className={isActive ? 'active' : ''} onClick={() => item.hasFlyout && handleNavigate(activeRoute && activeRoute !== 'home' ? activeRoute : 'bot')}>
+            <div className={`nav-item ${isActive ? 'active' : ''} ${(item.hasFlyout || item.hasPuzzleFlyout) ? 'has-flyout' : ''}`} key={item.label}>
+              <button className={isActive ? 'active' : ''} onClick={() => {
+                if (item.hasFlyout) handleNavigate(activeRoute && activeRoute !== 'home' ? activeRoute : 'bot');
+                else if (item.route) handleNavigate(item.route);
+              }}>
                 <Icon size={20} />
                 <span>{item.label}</span>
-                {item.hasFlyout && <ChevronRight size={17} />}
+                {(item.hasFlyout || item.hasPuzzleFlyout) && <ChevronRight size={17} />}
               </button>
               {item.hasFlyout && (
                 <div className="play-flyout" aria-label="Play menu">
@@ -113,6 +129,19 @@ export default function Sidebar({
                         <PlayIcon size={20} />
                         <span>{playItem.label}</span>
                         {playItem.note && <small>{playItem.note}</small>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {item.hasPuzzleFlyout && (
+                <div className="play-flyout puzzle-flyout" aria-label="Puzzles menu">
+                  {puzzleMenuItems.map((puzzleItem) => {
+                    const PuzzleIcon = puzzleItem.icon;
+                    return (
+                      <button key={puzzleItem.route} onClick={() => handleNavigate(puzzleItem.route)}>
+                        <PuzzleIcon size={20} />
+                        <span>{puzzleItem.label}</span>
                       </button>
                     );
                   })}

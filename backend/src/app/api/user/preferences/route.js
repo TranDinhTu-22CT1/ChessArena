@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { verifyFirebaseSession } from '../../../../lib/firebaseAdmin';
 import { rateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { sanitizeTheme } from '../../../../lib/validation';
+import { readJsonPayload, sanitizeTheme } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -76,7 +76,11 @@ export async function POST(request) {
   const decoded = await currentUser();
   if (!decoded) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
 
-  const payload = await request.json();
+  const payload = await readJsonPayload(request);
+  if (!payload) {
+    return Response.json({ ok: false, error: 'Invalid JSON payload' }, { status: 400 });
+  }
+
   const theme = sanitizeTheme(payload?.theme);
 
   if (!theme) {

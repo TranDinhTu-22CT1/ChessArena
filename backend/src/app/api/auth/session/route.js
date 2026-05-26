@@ -3,7 +3,7 @@ import { authCookieOptions } from '../../../../lib/cookies';
 import { createFirebaseSessionCookie, verifyFirebaseToken } from '../../../../lib/firebaseAdmin';
 import { rateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { validateSessionPayload } from '../../../../lib/validation';
+import { readJsonPayload, validateSessionPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 const ONE_HOUR = 60 * 60;
@@ -53,7 +53,11 @@ export async function POST(request) {
     const blocked = rateLimit(request, { scope: 'auth-session', limit: 12, windowMs: 60_000 });
     if (blocked) return blocked;
 
-    const payload = await request.json();
+    const payload = await readJsonPayload(request);
+    if (!payload) {
+      return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
+    }
+
     const validationError = validateSessionPayload(payload);
 
     if (validationError) {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { apiUrl } from '../api/config';
 import { BOARD_PRESETS, DEFAULT_THEME } from '../game/constants';
 
 function loadStoredTheme() {
@@ -27,7 +28,7 @@ export function useThemeSettings(authUser) {
     }
 
     themeSaveTimerRef.current = window.setTimeout(() => {
-      fetch(`${import.meta.env.VITE_API_URL}/api/user/preferences`, {
+      fetch(apiUrl('/api/user/preferences'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -39,7 +40,7 @@ export function useThemeSettings(authUser) {
   React.useEffect(() => {
     if (!authUser) return;
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/user/preferences`, { credentials: 'include' })
+    fetch(apiUrl('/api/user/preferences'), { credentials: 'include' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (data?.preferences?.theme) {

@@ -1,6 +1,7 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { createStockfish } from '../../../../lib/stockfishEngine';
 import { isOpeningBookMove } from '../../../../lib/openingBook';
+import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -49,7 +50,7 @@ function winningChance(score) {
   return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * score)) - 1);
 }
 
-function classify({ position, winLoss, playedBestMove, bestScore, reply }) {
+function classify({ position, winLoss, playedBestMove, bestScore, playedScore, reply }) {
   if (position.variant === 'standard' && isOpeningBookMove(position.priorMoves, position.move)) {
     return { label: 'Book', tone: 'book' };
   }
@@ -75,7 +76,12 @@ export async function POST(request) {
   const blocked = rateLimit(request, { scope: 'stockfish-review', limit: 120, windowMs: 60_000 });
   if (blocked) return blocked;
 
-  const { positions = [], depth = DEFAULT_DEPTH } = await request.json();
+  const payload = await readJsonPayload(request);
+  if (!payload) {
+    return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
+  }
+
+  const { positions = [], depth = DEFAULT_DEPTH } = payload;
   const limitedPositions = positions.slice(0, 24);
   try {
     const results = await withEngine(async (engine) => {
@@ -117,6 +123,7 @@ export async function POST(request) {
           winLoss,
           playedBestMove,
           bestScore: best.score,
+          playedScore,
           reply: afterPlayed
         });
 

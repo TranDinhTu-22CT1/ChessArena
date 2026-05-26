@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export const STOCKFISH_PATH = process.env.STOCKFISH_PATH
-  || 'stockfish/stockfish-windows-x86-64-avx2.exe';
+  || fileURLToPath(new URL('../../stockfish/stockfish-windows-x86-64-avx2.exe', import.meta.url));
 
 export function parseStockfishScore(line) {
   const mateMatch = line.match(/\bscore mate (-?\d+)/);

@@ -1,8 +1,63 @@
 import React from 'react';
-import { Bell, Search, Settings, Wifi, WifiOff } from 'lucide-react';
+import { Bell, Brain, Flame, Settings, Sparkles, Target, Wifi, WifiOff } from 'lucide-react';
 import { BOARD_PRESETS, PIECE_SETS } from '../game/constants';
 
+const puzzleRoutes = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles']);
+const playRoutes = new Set(['bot', 'player', 'coach', 'custom']);
+
+const puzzleTips = [
+  'Tìm nước chiếu, bắt quân, đe dọa trước.',
+  'Nếu có nhiều nước hay, ưu tiên nước ép vua đối thủ.',
+  'Trong tàn cuộc, kích hoạt vua trước khi đẩy tốt.',
+  'Ở trung cuộc, hãy nhìn các quân đang bị ghim hoặc quá tải.'
+];
+
+const playTips = [
+  'Phát triển quân nhẹ trước khi mở trung tâm.',
+  'Khi đối thủ đe dọa, tìm nước phản công có tempo.',
+  'Nhìn an toàn vua trước khi tham quân.',
+  'Đừng đổi quân khi bạn đang tấn công mạnh.'
+];
+
+const reviewTips = [
+  'Tập trung vào nước làm đổi đánh giá nhiều nhất.',
+  'So sánh nước đã đi với gợi ý engine ở cùng thế.',
+  'Ghi nhớ mẫu sai lặp lại để sửa ở ván sau.'
+];
+
+function dailyPick(items) {
+  return items[new Date().getDate() % items.length];
+}
+
+function headerInsights(activeRoute) {
+  if (puzzleRoutes.has(activeRoute)) {
+    return [
+      { icon: Target, label: 'Puzzle focus', text: dailyPick(puzzleTips) },
+      { icon: Flame, label: 'Streak', text: activeRoute === 'puzzle-rush' ? '3 phút, tối đa 3 lỗi.' : 'Giải đúng liên tiếp để tăng điểm nhanh.' }
+    ];
+  }
+
+  if (playRoutes.has(activeRoute)) {
+    return [
+      { icon: activeRoute === 'coach' ? Sparkles : Brain, label: activeRoute === 'coach' ? 'Coach' : 'Game plan', text: activeRoute === 'coach' ? 'Coach sẽ nhắc kế hoạch theo thế cờ.' : dailyPick(playTips) }
+    ];
+  }
+
+  if (activeRoute === 'review') {
+    return [
+      { icon: Brain, label: 'Review', text: dailyPick(reviewTips) },
+      { icon: Target, label: 'Goal', text: 'Tìm một lỗi chính và một nước tốt nhất.' }
+    ];
+  }
+
+  return [
+    { icon: Sparkles, label: 'Today', text: 'Chọn chế độ luyện và bắt đầu một ván mới.' },
+    { icon: Target, label: 'Board', text: 'Có thể đổi màu bàn cờ trong Settings.' }
+  ];
+}
+
 export default function TopHeader({
+  activeRoute,
   apiOnline,
   settingsOpen,
   theme,
@@ -14,11 +69,23 @@ export default function TopHeader({
   onApplyBoardPreset,
   onSetPieceSet
 }) {
+  const insights = headerInsights(activeRoute);
+
   return (
     <header className="top-header">
-      <div className="search-box">
-        <Search size={18} />
-        <span>Search players, games, openings</span>
+      <div className="top-insight-cluster" aria-label="Page insights">
+        {insights.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div className="top-insight" key={item.label}>
+              <Icon size={18} />
+              <span>
+                <strong>{item.label}</strong>
+                {item.text}
+              </span>
+            </div>
+          );
+        })}
       </div>
       <div className="header-actions">
         <span className={`api-pill ${apiOnline ? 'online' : 'offline'}`}>

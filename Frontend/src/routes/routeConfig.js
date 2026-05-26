@@ -3,17 +3,32 @@ export const ROUTES = {
   bot: '/play/bot',
   coach: '/coach',
   local: '/play/local',
-  review: '/review'
+  review: '/review',
+  puzzles: '/puzzles',
+  'daily-puzzle': '/puzzles/daily',
+  'puzzle-rush': '/puzzles/rush',
+  'puzzle-battle': '/puzzles/battle',
+  'custom-puzzles': '/puzzles/custom'
 };
 
 const GAME_ROUTES = new Set(['bot', 'coach', 'local']);
+const PUZZLE_ROUTES = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles']);
 
 export function isGameRoute(route) {
   return GAME_ROUTES.has(route);
 }
 
+export function isPuzzleRoute(route) {
+  return PUZZLE_ROUTES.has(route);
+}
+
 export function routeFromPath(pathname) {
   if (pathname === '/review') return 'review';
+  if (pathname === '/puzzles/daily') return 'daily-puzzle';
+  if (pathname === '/puzzles/rush') return 'puzzle-rush';
+  if (pathname === '/puzzles/battle') return 'puzzle-battle';
+  if (pathname === '/puzzles/custom') return 'custom-puzzles';
+  if (pathname === '/puzzles') return 'puzzles';
   if (pathname === '/coach' || pathname === '/learn/coach' || pathname === '/play/coach') return 'coach';
   if (pathname === '/play/local' || pathname === '/play/friend') return 'local';
   if (pathname === '/play/bot' || pathname === '/game') return 'bot';

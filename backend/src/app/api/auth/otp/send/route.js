@@ -2,6 +2,7 @@ import { firebaseUserExists } from '../../../../../lib/firebaseAdmin';
 import { sendOtpEmail } from '../../../../../lib/mailer';
 import { createOtpCode, normalizeOtpEmail, storeOtp } from '../../../../../lib/otp';
 import { rateLimit } from '../../../../../lib/rateLimit';
+import { readJsonPayload } from '../../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +17,11 @@ export async function POST(request) {
     const blocked = rateLimit(request, { scope: 'otp-send', limit: 8, windowMs: 60_000 });
     if (blocked) return blocked;
 
-    const payload = await request.json();
+    const payload = await readJsonPayload(request);
+    if (!payload) {
+      return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
+    }
+
     const email = normalizeOtpEmail(payload?.email);
     const purpose = payload?.purpose;
 

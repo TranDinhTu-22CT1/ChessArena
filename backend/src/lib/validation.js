@@ -4,6 +4,14 @@ export function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+export async function readJsonPayload(request) {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
+
 export function validateSessionPayload(payload) {
   if (!isPlainObject(payload) || typeof payload.idToken !== 'string' || payload.idToken.length < 20) {
     return 'Missing or invalid Firebase ID token';

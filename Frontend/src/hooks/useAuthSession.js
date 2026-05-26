@@ -1,4 +1,5 @@
 import React from 'react';
+import { apiUrl } from '../api/config';
 import {
   auth,
   fetchSignInMethodsForEmail,
@@ -78,7 +79,7 @@ export function useAuthSession() {
   }, []);
 
   React.useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, { credentials: 'include' })
+    fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!data?.user) return;
@@ -103,7 +104,7 @@ export function useAuthSession() {
 
   const createBackendSession = async (firebaseUser, providerProfile = {}) => {
     const token = await firebaseUser.getIdToken();
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/session`, {
+    const response = await fetch(apiUrl('/api/auth/session'), {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -235,7 +236,7 @@ export function useAuthSession() {
   };
 
   const sendOtp = async (purpose) => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/otp/send`, {
+    const response = await fetch(apiUrl('/api/auth/otp/send'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -299,7 +300,7 @@ export function useAuthSession() {
     try {
       if (!otpState) return;
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/otp/verify`, {
+      const response = await fetch(apiUrl('/api/auth/otp/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -366,7 +367,7 @@ export function useAuthSession() {
   };
 
   const logout = async () => {
-    await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, {
+    await fetch(apiUrl('/api/auth/logout'), {
       method: 'POST',
       credentials: 'include'
     }).catch(() => {});

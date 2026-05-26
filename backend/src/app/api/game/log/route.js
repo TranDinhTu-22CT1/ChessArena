@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { rateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { validateGameLogPayload } from '../../../../lib/validation';
+import { readJsonPayload, validateGameLogPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -169,7 +169,11 @@ export async function POST(request) {
   const blocked = rateLimit(request, { scope: 'game-log', limit: 120, windowMs: 60_000 });
   if (blocked) return blocked;
 
-  const log = await request.json();
+  const log = await readJsonPayload(request);
+  if (!log) {
+    return Response.json({ ok: false, error: 'Invalid JSON payload' }, { status: 400 });
+  }
+
   const validationError = validateGameLogPayload(log);
 
   if (validationError) {

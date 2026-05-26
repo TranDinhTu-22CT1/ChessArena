@@ -1,6 +1,7 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { createStockfish } from '../../../../lib/stockfishEngine';
 import { chooseOpeningBookMove } from '../../../../lib/openingBook';
+import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 let sharedEngine = null;
@@ -63,7 +64,11 @@ export async function POST(request) {
   const blocked = rateLimit(request, { scope: 'stockfish-move', limit: 80, windowMs: 60_000 });
   if (blocked) return blocked;
 
-  const payload = await request.json();
+  const payload = await readJsonPayload(request);
+  if (!payload) {
+    return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
+  }
+
   const fen = payload?.fen;
 
   if (!validFen(fen)) {
