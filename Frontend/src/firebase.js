@@ -1,11 +1,13 @@
 import { initializeApp } from 'firebase/app';
 import {
+  browserSessionPersistence,
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   GithubAuthProvider,
   getAdditionalUserInfo,
   GoogleAuthProvider,
   getAuth,
-  inMemoryPersistence,
+  linkWithCredential,
   reload,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -28,13 +30,18 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-setPersistence(auth, inMemoryPersistence).catch(() => {});
+setPersistence(auth, browserSessionPersistence).catch(() => {});
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
+githubProvider.addScope('user:email');
 
 export {
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
+  GithubAuthProvider,
   getAdditionalUserInfo,
+  GoogleAuthProvider,
+  linkWithCredential,
   reload,
   sendEmailVerification,
   sendPasswordResetEmail,

@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { createStockfish } from '../../../../lib/stockfishEngine';
+import { chooseOpeningBookMove } from '../../../../lib/openingBook';
 
 export const runtime = 'nodejs';
 let sharedEngine = null;
@@ -7,13 +8,14 @@ let engineReady = null;
 let engineQueue = Promise.resolve();
 
 function botStrength(elo) {
-  const rating = Math.max(400, Math.min(2400, Number(elo) || 1200));
+  const rating = Math.max(1320, Math.min(3190, Number(elo) || 1600));
 
-  if (rating <= 800) return { skillLevel: 3, depth: 3, movetime: 120, noise: 0.28 };
-  if (rating <= 1200) return { skillLevel: 7, depth: 5, movetime: 220, noise: 0.16 };
-  if (rating <= 1600) return { skillLevel: 11, depth: 7, movetime: 360, noise: 0.08 };
-  if (rating <= 2000) return { skillLevel: 16, depth: 9, movetime: 520, noise: 0.025 };
-  return { skillLevel: 20, depth: 11, movetime: 760, noise: 0 };
+  if (rating <= 1320) return { skillLevel: 3, elo: rating, movetime: 350 };
+  if (rating <= 1600) return { skillLevel: 8, elo: rating, movetime: 500 };
+  if (rating <= 2000) return { skillLevel: 13, elo: rating, movetime: 700 };
+  if (rating <= 2400) return { skillLevel: 17, elo: rating, movetime: 950 };
+  if (rating < 3190) return { skillLevel: 20, elo: rating, movetime: 1300 };
+  return { skillLevel: 20, elo: null, movetime: 1800 };
 }
 
 function validFen(value) {
@@ -68,18 +70,31 @@ export async function POST(request) {
     return Response.json({ ok: false, error: 'Invalid FEN.' }, { status: 400 });
   }
 
-  const elo = Number(payload?.elo || 1200);
+  const elo = Math.max(1320, Math.min(3190, Number(payload?.elo) || 1600));
+  const moves = Array.isArray(payload?.moves) ? payload.moves.slice(0, 40) : [];
+  const bookMove = payload?.variant !== 'chess960' ? chooseOpeningBookMove(moves, fen) : null;
   const strength = botStrength(elo);
+
+  if (bookMove) {
+    return Response.json({
+      ok: true,
+      engine: 'opening-book',
+      elo,
+      strength,
+      book: true,
+      move: parseMove(bookMove)
+    });
+  }
+
   try {
     const result = await withEngine(async (engine) => {
       await engine.configure({
         skillLevel: strength.skillLevel,
-        elo: Math.max(1320, Math.min(2400, elo))
+        elo: strength.elo
       });
 
       return engine.analyze({
         fen,
-        depth: strength.depth,
         movetime: strength.movetime
       });
     });

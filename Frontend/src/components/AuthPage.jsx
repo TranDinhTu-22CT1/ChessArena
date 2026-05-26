@@ -21,8 +21,8 @@ const text = {
   exampleName: 'V\u00ed d\u1ee5: Minh Chess',
   password: 'M\u1eadt kh\u1ea9u',
   enterPassword: 'Nh\u1eadp m\u1eadt kh\u1ea9u',
-  remember: 'Ghi nh\u1edb t\u00e0i kho\u1ea3n tr\u00ean thi\u1ebft b\u1ecb n\u00e0y',
-  rememberNote: 'T\u1ef1 \u0111\u1ed9ng h\u1ebft phi\u00ean n\u1ebfu kh\u00f4ng truy c\u1eadp web trong 48 gi\u1edd.',
+  remember: 'Duy tr\u00ec phi\u00ean \u0111\u0103ng nh\u1eadp 48 gi\u1edd',
+  rememberNote: 'Ch\u1ec9 d\u00f9ng cookie HttpOnly ph\u00eda server, kh\u00f4ng l\u01b0u phi\u00ean trong tr\u00ecnh duy\u1ec7t.',
   orContinue: 'ho\u1eb7c ti\u1ebfp t\u1ee5c v\u1edbi',
   createNew: 'T\u1ea1o t\u00e0i kho\u1ea3n m\u1edbi',
   backToLogin: 'Quay l\u1ea1i \u0111\u0103ng nh\u1eadp',
@@ -39,6 +39,8 @@ export default function AuthPage({
   authMode,
   authForm,
   authMessage,
+  authMessageTone = 'error',
+  authBusy = false,
   otpState,
   otpSecondsLeft,
   onAuthFormChange,
@@ -98,7 +100,7 @@ export default function AuthPage({
         </div>
       </div>
 
-      <form className="auth-card" onSubmit={onSubmitAuth}>
+      <form className="auth-card" onSubmit={onSubmitAuth} noValidate>
         <div className="auth-card-header">
           <span>{isOtpStep ? text.secureAccount : isRegister ? text.newPlayer : isForgot ? text.accountHelp : text.welcomeBack}</span>
           <h1>{title}</h1>
@@ -141,10 +143,10 @@ export default function AuthPage({
                 </div>
               </label>
             )}
-            <button className="auth-primary" type="button" onClick={onVerifyOtp} disabled={otpSecondsLeft <= 0 || authForm.otp.length !== 6}>
-              {text.completeOtp}
+            <button className="auth-primary" type="button" onClick={onVerifyOtp} disabled={authBusy || otpSecondsLeft <= 0 || authForm.otp.length !== 6}>
+              {authBusy ? 'Đang xử lý...' : text.completeOtp}
             </button>
-            <button className="auth-secondary" type="button" onClick={onResendOtp}>
+            <button className="auth-secondary" type="button" onClick={onResendOtp} disabled={authBusy}>
               {text.resendOtp}
             </button>
           </div>
@@ -173,7 +175,6 @@ export default function AuthPage({
                   value={authForm.email}
                   onChange={(event) => onAuthFormChange({ email: event.target.value })}
                   placeholder="ban@example.com"
-                  required
                 />
               </div>
             </label>
@@ -188,7 +189,6 @@ export default function AuthPage({
                     value={authForm.password}
                     onChange={(event) => onAuthFormChange({ password: event.target.value })}
                     placeholder={text.enterPassword}
-                    required
                   />
                 </div>
               </label>
@@ -208,19 +208,19 @@ export default function AuthPage({
               </label>
             )}
 
-            <button className="auth-primary" type="submit">
-              {isRegister ? text.createAccount : isForgot ? 'G\u1eedi m\u00e3 OTP' : text.signIn}
+            <button className="auth-primary" type="submit" disabled={authBusy}>
+              {authBusy ? 'Đang xử lý...' : isRegister ? text.createAccount : isForgot ? 'G\u1eedi m\u00e3 OTP' : text.signIn}
             </button>
 
             {!isForgot && (
               <>
                 <div className="auth-divider"><span>{text.orContinue}</span></div>
                 <div className="auth-providers">
-                  <button type="button" onClick={() => onProviderSignIn('google')}>
+                  <button type="button" onClick={() => onProviderSignIn('google')} disabled={authBusy}>
                     <Chrome size={17} />
                     Google
                   </button>
-                  <button type="button" onClick={() => onProviderSignIn('github')}>
+                  <button type="button" onClick={() => onProviderSignIn('github')} disabled={authBusy}>
                     <Github size={17} />
                     GitHub
                   </button>
@@ -230,14 +230,18 @@ export default function AuthPage({
           </>
         )}
 
-        {authMessage && <small className="auth-message">{authMessage}</small>}
+        {authMessage && (
+          <small className={`auth-message ${authMessageTone}`} role={authMessageTone === 'error' ? 'alert' : 'status'}>
+            {authMessage}
+          </small>
+        )}
 
         <div className="auth-links">
-          <button type="button" onClick={() => onSetAuthMode(authMode === 'login' ? 'register' : 'login')}>
+          <button type="button" onClick={() => onSetAuthMode(authMode === 'login' ? 'register' : 'login')} disabled={authBusy}>
             {authMode === 'login' ? text.createNew : text.backToLogin}
           </button>
           {!isForgot && !isOtpStep && (
-            <button type="button" onClick={() => onSetAuthMode('forgot')}>{text.forgotPassword}</button>
+            <button type="button" onClick={() => onSetAuthMode('forgot')} disabled={authBusy}>{text.forgotPassword}</button>
           )}
         </div>
       </form>

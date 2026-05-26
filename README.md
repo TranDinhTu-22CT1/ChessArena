@@ -42,7 +42,7 @@ Khi backend local đang chạy, frontend sẽ gửi log ván cờ về:
 - `backend/logs/<gameId>.pgn`: PGN/SAN theo chuẩn cờ vua để xem lại ván.
 - `backend/logs/<gameId>.json`: FEN hiện tại, move list chi tiết, SAN/LAN, capture, promotion.
 
-Frontend cũng lưu bản dự phòng trong `localStorage` theo key `chess-arena-log-<gameId>`.
+Frontend khong luu phien, token hay log van dau trong trinh duyet; phien dang nhap duoc bao ve bang cookie HttpOnly phia backend.
 
 ## Supabase
 

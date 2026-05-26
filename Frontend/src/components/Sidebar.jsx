@@ -33,9 +33,9 @@ const menuItems = [
 ];
 
 const playMenuItems = [
-  { icon: Swords, label: 'Play Online', disabled: true, note: 'Sắp có' },
-  { icon: Bot, label: 'Play Bots' },
-  { icon: MessageSquare, label: 'Play Coach' },
+  { icon: Swords, label: 'Chơi online', disabled: true, note: 'S\u1eafp c\u00f3' },
+  { icon: Bot, label: 'Chơi với bot', route: 'bot' },
+  { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
   { icon: BarChart3, label: 'Stats' },
   { icon: Trophy, label: 'Tournaments' },
@@ -51,6 +51,7 @@ export default function Sidebar({
   onToggleMobile,
   onCloseMobile,
   onNavigate,
+  onSelectPlayMode,
   onLogin,
   onRegister,
   onLogout
@@ -62,13 +63,13 @@ export default function Sidebar({
 
   return (
     <>
-      <button className="mobile-sidebar-toggle" onClick={onToggleMobile} aria-label={mobileOpen ? 'Đóng menu' : 'Mở menu'}>
+      <button className="mobile-sidebar-toggle" onClick={onToggleMobile} aria-label={mobileOpen ? '\u0110\u00f3ng menu' : 'M\u1edf menu'}>
         {mobileOpen ? <X size={22} /> : <Menu size={22} />}
       </button>
       <button
         className={`sidebar-backdrop ${mobileOpen ? 'open' : ''}`}
         onClick={onCloseMobile}
-        aria-label="Đóng menu"
+        aria-label="\u0110\u00f3ng menu"
         tabIndex={mobileOpen ? 0 : -1}
       />
       <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
@@ -85,10 +86,10 @@ export default function Sidebar({
       <nav className="main-nav" aria-label="Main navigation">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = item.hasFlyout ? activeRoute === 'game' : item.active;
+          const isActive = item.hasFlyout ? ['bot', 'coach', 'local', 'review'].includes(activeRoute) : item.active;
           return (
             <div className={`nav-item ${isActive ? 'active' : ''} ${item.hasFlyout ? 'has-flyout' : ''}`} key={item.label}>
-              <button className={isActive ? 'active' : ''} onClick={() => item.hasFlyout && handleNavigate('game')}>
+              <button className={isActive ? 'active' : ''} onClick={() => item.hasFlyout && handleNavigate(activeRoute && activeRoute !== 'home' ? activeRoute : 'bot')}>
                 <Icon size={20} />
                 <span>{item.label}</span>
                 {item.hasFlyout && <ChevronRight size={17} />}
@@ -105,7 +106,8 @@ export default function Sidebar({
                         title={playItem.note}
                         onClick={() => {
                           if (playItem.disabled) return;
-                          handleNavigate(playItem.label === 'Game History' ? 'review' : 'game');
+                          if (playItem.route) onSelectPlayMode?.(playItem.route);
+                          handleNavigate(playItem.label === 'Game History' ? 'review' : playItem.route ?? 'bot');
                         }}
                       >
                         <PlayIcon size={20} />

@@ -1,9 +1,40 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { createStockfish } from '../../../../lib/stockfishEngine';
+import { isOpeningBookMove } from '../../../../lib/openingBook';
 
 export const runtime = 'nodejs';
 
 const DEFAULT_DEPTH = Number(process.env.STOCKFISH_DEPTH || 12);
+let sharedEngine = null;
+let engineReady = null;
+let engineQueue = Promise.resolve();
+
+async function getSharedEngine() {
+  if (!sharedEngine) {
+    sharedEngine = createStockfish();
+    engineReady = sharedEngine.init({ threads: 2, hash: 96, skillLevel: 20 });
+  }
+
+  await engineReady;
+  return sharedEngine;
+}
+
+function withEngine(task) {
+  const run = engineQueue.then(async () => {
+    try {
+      const engine = await getSharedEngine();
+      return await task(engine);
+    } catch (error) {
+      sharedEngine?.close?.();
+      sharedEngine = null;
+      engineReady = null;
+      throw error;
+    }
+  });
+
+  engineQueue = run.catch(() => {});
+  return run;
+}
 
 function sideToMove(fen) {
   return fen.split(/\s+/)[1] === 'b' ? 'b' : 'w';
@@ -18,7 +49,19 @@ function winningChance(score) {
   return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * score)) - 1);
 }
 
-function classify({ loss, winLoss, playedBestMove, bestScore, playedScore }) {
+function classify({ position, winLoss, playedBestMove, bestScore, reply }) {
+  if (position.variant !== 'chess960' && isOpeningBookMove(position.priorMoves, position.move)) {
+    return { label: 'Book', tone: 'book' };
+  }
+
+  const movedPieceValue = { p: 1, n: 3, b: 3, r: 5, q: 9 }[position.piece] ?? 0;
+  const capturedValue = { p: 1, n: 3, b: 3, r: 5, q: 9 }[position.captured] ?? 0;
+  const offersMaterial = movedPieceValue > capturedValue
+    && reply?.bestMove?.slice(2, 4) === position.move.slice(2, 4);
+  const winning = winningChance(bestScore) >= 62;
+
+  if (playedBestMove && offersMaterial && winning) return { label: 'Brilliant', tone: 'brilliant' };
+  if (playedBestMove && (Math.abs(bestScore) > 90000 || winningChance(bestScore) >= 82)) return { label: 'Great', tone: 'great' };
   if (playedBestMove || winLoss <= 0.8) return { label: 'Best', tone: 'best' };
   if (winLoss <= 1.8) return { label: 'Excellent', tone: 'excellent' };
   if (winLoss <= 4.5) return { label: 'Good', tone: 'good' };
@@ -29,54 +72,73 @@ function classify({ loss, winLoss, playedBestMove, bestScore, playedScore }) {
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'stockfish-review', limit: 20, windowMs: 60_000 });
+  const blocked = rateLimit(request, { scope: 'stockfish-review', limit: 120, windowMs: 60_000 });
   if (blocked) return blocked;
 
   const { positions = [], depth = DEFAULT_DEPTH } = await request.json();
   const limitedPositions = positions.slice(0, 24);
-  const engine = createStockfish();
-
   try {
-    await engine.init();
-    const results = [];
+    const results = await withEngine(async (engine) => {
+      const analyzed = [];
 
-    for (const position of limitedPositions) {
-      if (!position?.fen || !position?.move) continue;
+      for (const position of limitedPositions) {
+        if (!position?.fen || !position?.move) continue;
 
-      const mover = sideToMove(position.fen);
-      const best = await engine.analyze({ fen: position.fen, depth });
-      const afterPlayed = await engine.analyze({ fen: position.fen, moves: [position.move], depth });
-      const playedScore = -afterPlayed.score;
-      const whiteScore = mover === 'w' ? playedScore : -playedScore;
-      const loss = Math.max(0, best.score - playedScore);
-      const bestWinChance = winningChance(best.score);
-      const playedWinChance = winningChance(playedScore);
-      const winLoss = Math.max(0, bestWinChance - playedWinChance);
-      const playedBestMove = sameMove(position.move, best.bestMove);
-      const classification = classify({
-        loss,
-        winLoss,
-        playedBestMove,
-        bestScore: best.score,
-        playedScore
-      });
+        const mover = sideToMove(position.fen);
+        if (position.variant !== 'chess960' && isOpeningBookMove(position.priorMoves, position.move)) {
+          analyzed.push({
+            ply: position.ply,
+            san: position.san,
+            move: position.move,
+            mover,
+            bestMove: position.move,
+            centipawnLoss: 0,
+            winLoss: 0,
+            bestWinChance: 50,
+            playedWinChance: 50,
+            score: 0,
+            label: 'Book',
+            tone: 'book'
+          });
+          continue;
+        }
 
-      results.push({
-        ply: position.ply,
-        san: position.san,
-        move: position.move,
-        mover,
-        bestMove: best.bestMove,
-        centipawnLoss: Math.round(loss),
-        winLoss: Number(winLoss.toFixed(1)),
-        bestWinChance: Number(bestWinChance.toFixed(1)),
-        playedWinChance: Number(playedWinChance.toFixed(1)),
-        score: Math.round(playedScore),
-        whiteScore: Math.round(whiteScore),
-        bestScore: Math.round(best.score),
-        ...classification
-      });
-    }
+        const best = await engine.analyze({ fen: position.fen, depth });
+        const afterPlayed = await engine.analyze({ fen: position.fen, moves: [position.move], depth });
+        const playedScore = -afterPlayed.score;
+        const whiteScore = mover === 'w' ? playedScore : -playedScore;
+        const loss = Math.max(0, best.score - playedScore);
+        const bestWinChance = winningChance(best.score);
+        const playedWinChance = winningChance(playedScore);
+        const winLoss = Math.max(0, bestWinChance - playedWinChance);
+        const playedBestMove = sameMove(position.move, best.bestMove);
+        const classification = classify({
+          position,
+          winLoss,
+          playedBestMove,
+          bestScore: best.score,
+          reply: afterPlayed
+        });
+
+        analyzed.push({
+          ply: position.ply,
+          san: position.san,
+          move: position.move,
+          mover,
+          bestMove: best.bestMove,
+          centipawnLoss: Math.round(loss),
+          winLoss: Number(winLoss.toFixed(1)),
+          bestWinChance: Number(bestWinChance.toFixed(1)),
+          playedWinChance: Number(playedWinChance.toFixed(1)),
+          score: Math.round(playedScore),
+          whiteScore: Math.round(whiteScore),
+          bestScore: Math.round(best.score),
+          ...classification
+        });
+      }
+
+      return analyzed;
+    });
 
     return Response.json({ ok: true, engine: 'stockfish-avx2', depth, results });
   } catch (error) {
@@ -84,8 +146,6 @@ export async function POST(request) {
       { ok: false, error: error.message || 'Stockfish review failed.' },
       { status: 500 }
     );
-  } finally {
-    engine.close();
   }
 }
 

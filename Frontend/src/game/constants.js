@@ -1,12 +1,12 @@
 export const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
 export const AI_LEVELS = [
-  { elo: 400, label: '400 Beginner', depth: 1, blunderRate: 0.48, candidatePool: 7 },
-  { elo: 800, label: '800 Casual', depth: 1, blunderRate: 0.28, candidatePool: 5 },
-  { elo: 1200, label: '1200 Club', depth: 2, blunderRate: 0.18, candidatePool: 4 },
-  { elo: 1600, label: '1600 Strong', depth: 2, blunderRate: 0.08, candidatePool: 3 },
-  { elo: 2000, label: '2000 Expert', depth: 3, blunderRate: 0.03, candidatePool: 2 },
-  { elo: 2400, label: '2400 Master', depth: 3, blunderRate: 0, candidatePool: 1 }
+  { elo: 1320, label: '1320 Stockfish Club', search: 'UCI limited strength' },
+  { elo: 1600, label: '1600 Stockfish Strong', search: 'UCI limited strength' },
+  { elo: 2000, label: '2000 Stockfish Expert', search: 'UCI limited strength' },
+  { elo: 2400, label: '2400 Stockfish Master', search: 'UCI limited strength' },
+  { elo: 2800, label: '2800 Stockfish Elite', search: 'UCI limited strength' },
+  { elo: 3190, label: 'Maximum Stockfish', search: 'Unlimited engine strength' }
 ];
 
 export const PIECE_VALUES = {
