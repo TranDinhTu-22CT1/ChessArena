@@ -31,7 +31,9 @@ import ResultDialog from './components/ResultDialog';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import {
-  buildCoachInsight
+  buildCoachInsight,
+  coachBehaviorFromMode,
+  coachLessonFromMode
 } from './coach/coach';
 import { BOT_PERSONAS } from './data/bots';
 import { useAuthSession } from './hooks/useAuthSession';
@@ -48,6 +50,19 @@ import ReviewPage from './routes/ReviewPage';
 import { gameModeFromRoute, isGameRoute, routeFromPath } from './routes/routeConfig';
 
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
+const FINISHED_GAME_KEY = 'chess-arena-finished-game';
+
+function storedFinishedOutcome() {
+  const currentRoute = routeFromPath(window.location.pathname);
+  if (!isGameRoute(currentRoute)) return null;
+
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(FINISHED_GAME_KEY) ?? 'null');
+    return saved?.route === currentRoute ? saved.outcome ?? null : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const [gameState, setGameState] = React.useState(() => createGameState());
@@ -65,11 +80,12 @@ export default function App() {
   const [clocks, setClocks] = React.useState(() => ({ w: DEFAULT_TIME_CONTROL.baseSeconds, b: DEFAULT_TIME_CONTROL.baseSeconds }));
   const [timeWinner, setTimeWinner] = React.useState(null);
   const [gameMode, setGameMode] = React.useState(() => gameModeFromRoute(routeFromPath(window.location.pathname)) ?? 'bot');
-  const [coachMode, setCoachMode] = React.useState('beginner');
+  const [coachMode, setCoachMode] = React.useState('basic');
   const [gameVariant, setGameVariant] = React.useState('standard');
   const [initialFen, setInitialFen] = React.useState(null);
+  const [coachLesson, setCoachLesson] = React.useState(() => coachLessonFromMode('basic'));
   const [botGameStarted, setBotGameStarted] = React.useState(false);
-  const [manualResult, setManualResult] = React.useState(null);
+  const [manualResult, setManualResult] = React.useState(() => storedFinishedOutcome());
   const [hintMove, setHintMove] = React.useState(null);
   const [premoveQueue, setPremoveQueue] = React.useState([]);
   const [suggestionMove, setSuggestionMove] = React.useState(null);
@@ -84,6 +100,7 @@ export default function App() {
   });
   const [isAiThinking, setIsAiThinking] = React.useState(false);
   const [engineError, setEngineError] = React.useState('');
+  const [coachAudioEnabled, setCoachAudioEnabled] = React.useState(true);
   const [showHints, setShowHints] = React.useState(true);
   const [dragEnabled, setDragEnabled] = React.useState(true);
   const [promotionRequest, setPromotionRequest] = React.useState(null);
@@ -141,6 +158,7 @@ export default function App() {
   const isCoachGame = gameMode === 'coach';
   const usesAiOpponent = gameMode === 'bot' || isCoachGame;
   const isPlayerTurn = gameMode === 'local' || game.turn() === playerColor;
+  const coachBehavior = coachBehaviorFromMode(coachMode);
   const {
     reviewMode,
     setReviewMode,
@@ -159,7 +177,7 @@ export default function App() {
     reviewStats,
     queueMissingReviewAnalysis,
     reviewStep
-  } = useGameReview({ game, history, initialFen, gameVariant, isCoachGame });
+  } = useGameReview({ game, history, initialFen, gameVariant, isCoachGame, coachMode });
   const displayGame = reviewMode ? replayGameAt(history, reviewPly, initialFen) : game;
   const displayHistory = displayGame.history({ verbose: true });
   const timeOutcome = timeWinner
@@ -170,7 +188,16 @@ export default function App() {
       }
     : null;
   const outcome = manualResult ?? timeOutcome ?? gameOutcome(game, playerColor);
-  const showResultDialog = outcome && !resultDismissed;
+  const gameFinished = Boolean(outcome);
+  const showResultDialog = gameFinished && isActiveGameRoute;
+  React.useEffect(() => {
+    if (!outcome || !isActiveGameRoute) return;
+
+    window.sessionStorage.setItem(FINISHED_GAME_KEY, JSON.stringify({
+      route: gameMode,
+      outcome
+    }));
+  }, [gameMode, isActiveGameRoute, outcome]);
   const capturedWhite = displayHistory
     .filter((move) => move.captured && move.color === 'w')
     .map((move) => ({ type: move.captured, src: PIECE_IMAGES[`b${move.captured}`], alt: `Captured black ${move.captured}` }));
@@ -227,6 +254,7 @@ export default function App() {
     coachMode
   });
   const coachSpeechText = coachInsight.messages.filter(Boolean).join(' ');
+  const coachVoiceText = (coachInsight.voiceMessages ?? coachInsight.messages).filter(Boolean).join(' ');
   const { botChatLine, resetBotAssistance } = useBotAssistance({
     activeBotPersona,
     history,
@@ -234,7 +262,7 @@ export default function App() {
     playerColor,
     isCoachGame,
     botGameStarted,
-    coachSpeechText,
+    coachSpeechText: coachAudioEnabled ? coachVoiceText : '',
     latestAnalyzedPlayerMoveIndex: latestPlayerMoveIndex,
     speakCoachText,
     botOptions,
@@ -268,6 +296,7 @@ export default function App() {
   useGameClock({
     reviewMode,
     game,
+    gameFinished,
     timeWinner,
     historyLength: history.length,
     setClocks,
@@ -279,11 +308,14 @@ export default function App() {
     reviewMode,
     game,
     gameFen,
+    gameFinished,
     timeWinner,
     isMoveAnimating,
     botOptions,
     playerColor,
     aiElo: aiLevel.elo,
+    isCoachGame,
+    coachMode,
     history,
     gameVariant,
     setSuggestionMove,
@@ -295,7 +327,7 @@ export default function App() {
   }, [premoveQueue]);
 
   React.useEffect(() => {
-    if (game.isGameOver() || timeWinner || game.turn() !== aiColor || isAiThinking || isMoveAnimating || !usesAiOpponent) return;
+    if (gameFinished || game.turn() !== aiColor || isAiThinking || isMoveAnimating || !usesAiOpponent) return;
 
     let cancelled = false;
     setSelected(null);
@@ -363,7 +395,7 @@ export default function App() {
       }
     };
  
-  }, [aiColor, aiLevel, game, gameVariant, history, initialFen, isMoveAnimating, timeWinner, usesAiOpponent]);
+  }, [aiColor, aiLevel, game, gameFinished, gameVariant, history, initialFen, isMoveAnimating, usesAiOpponent]);
 
   React.useEffect(() => {
     return () => {
@@ -426,21 +458,34 @@ export default function App() {
     }, 170);
   };
 
-  const startNewGame = async ({ nextSideChoice = sideChoice, nextAiElo = aiElo, nextTimeControl = timeControl, nextBotGameStarted = false, nextVariant = gameVariant } = {}) => {
+  const startNewGame = async ({
+    nextSideChoice = sideChoice,
+    nextAiElo = aiElo,
+    nextTimeControl = timeControl,
+    nextBotGameStarted = false,
+    nextVariant = gameVariant,
+    nextInitialFen = undefined,
+    nextPlayerColor = undefined,
+    nextCoachLesson = null
+  } = {}) => {
+    window.sessionStorage.removeItem(FINISHED_GAME_KEY);
     if (aiTimerRef.current) {
       window.clearTimeout(aiTimerRef.current);
       aiTimerRef.current = null;
     }
 
-    const nextPlayerColor = resolvePlayerColor(nextSideChoice);
-    const nextInitialFen = nextVariant === 'chess960' ? generateChess960Fen() : null;
-    setInitialFen(nextInitialFen);
+    const resolvedInitialFen = nextInitialFen !== undefined
+      ? nextInitialFen
+      : nextVariant === 'chess960' ? generateChess960Fen() : null;
+    const resolvedPlayerColor = nextPlayerColor ?? resolvePlayerColor(nextSideChoice);
+    setInitialFen(resolvedInitialFen);
     setGameVariant(nextVariant);
-    setGameState(createGameState([], nextInitialFen));
-    setPlayerColor(nextPlayerColor);
+    setCoachLesson(nextCoachLesson ?? (nextVariant === 'lesson' ? coachLesson : coachLessonFromMode(coachMode)));
+    setGameState(createGameState([], resolvedInitialFen));
+    setPlayerColor(resolvedPlayerColor);
     setSideChoice(nextSideChoice);
     setAiElo(Number(nextAiElo));
-    setFlipped(nextPlayerColor === 'b');
+    setFlipped(resolvedPlayerColor === 'b');
     setSelected(null);
     setLegalTargets([]);
     setHintMove(null);
@@ -489,20 +534,30 @@ export default function App() {
     startNewGame({ nextSideChoice: sideChoice, nextAiElo: aiElo, nextTimeControl: timeControl, nextBotGameStarted: true });
   };
 
-  const startCoachMatch = () => {
-    ensureAudioContext();
-    setGameMode('coach');
-    if (route !== 'coach') navigate('coach');
-    setBotGameStarted(true);
+  const resetCoachMatch = ({
+    nextCoachMode = coachMode,
+    nextAiElo = aiElo,
+    nextTimeControl = timeControl,
+    nextLesson = coachLessonFromMode(nextCoachMode)
+  } = {}) => {
+    const nextBehavior = coachBehaviorFromMode(nextCoachMode);
     setBotOptions((current) => ({
       ...current,
       botChat: false,
-      moveFeedback: true,
-      suggestionArrows: true,
-      threatArrows: true,
-      engine: true
+      moveFeedback: nextBehavior.moveFeedback,
+      suggestionArrows: nextBehavior.suggestionArrows,
+      threatArrows: nextBehavior.threatArrows
     }));
-    startNewGame({ nextSideChoice: sideChoice, nextAiElo: 3190, nextTimeControl: timeControl, nextBotGameStarted: true });
+    startNewGame({
+      nextSideChoice: nextLesson.playerColor,
+      nextAiElo,
+      nextTimeControl,
+      nextBotGameStarted: true,
+      nextVariant: nextLesson.variant,
+      nextInitialFen: nextLesson.fen,
+      nextPlayerColor: nextLesson.playerColor,
+      nextCoachLesson: nextLesson
+    });
   };
 
   const resignGame = () => {
@@ -515,7 +570,7 @@ export default function App() {
   };
 
   const showHintMove = async () => {
-    if (reviewMode || game.isGameOver() || timeWinner || isAiThinking || isMoveAnimating) return;
+    if (reviewMode || gameFinished || isAiThinking || isMoveAnimating) return;
     try {
       const suggestedMove = suggestionMove ?? await requestStockfishMove(game.fen(), aiLevel.elo, {
         moves: history.map((item) => `${item.from}${item.to}${item.promotion ?? ''}`),
@@ -532,11 +587,47 @@ export default function App() {
     setBotOptions((current) => ({ ...current, [key]: !current[key] }));
   };
 
+  const toggleCoachAudio = () => {
+    setCoachAudioEnabled((enabled) => {
+      if (enabled) stopSpeech();
+      return !enabled;
+    });
+  };
+
+  const changeCoachMode = (nextCoachMode) => {
+    const nextBehavior = coachBehaviorFromMode(nextCoachMode);
+    const nextLesson = coachLessonFromMode(nextCoachMode);
+    setCoachMode(nextCoachMode);
+    setCoachLesson(nextLesson);
+    setBotOptions((current) => ({
+      ...current,
+      moveFeedback: nextBehavior.moveFeedback,
+      suggestionArrows: nextBehavior.suggestionArrows,
+      threatArrows: nextBehavior.threatArrows
+    }));
+    if (isCoachGame) {
+      resetCoachMatch({ nextCoachMode, nextAiElo: aiElo, nextLesson });
+    }
+  };
+
   const changeSideChoice = (choice) => {
+    if (isCoachGame) {
+      resetCoachMatch({
+        nextLesson: {
+          ...coachLesson,
+          playerColor: resolvePlayerColor(choice)
+        }
+      });
+      return;
+    }
     startNewGame({ nextSideChoice: choice });
   };
 
   const changeAiElo = (elo) => {
+    if (isCoachGame) {
+      resetCoachMatch({ nextAiElo: Number(elo), nextLesson: coachLesson });
+      return;
+    }
     startNewGame({ nextSideChoice: sideChoice, nextAiElo: Number(elo) });
   };
 
@@ -544,6 +635,10 @@ export default function App() {
     const nextControl = TIME_CONTROLS.find((control) => control.id === controlId) ?? DEFAULT_TIME_CONTROL;
     setTimeControlId(nextControl.id);
     setClocks({ w: nextControl.baseSeconds, b: nextControl.baseSeconds });
+    if (isCoachGame) {
+      resetCoachMatch({ nextTimeControl: nextControl, nextLesson: coachLesson });
+      return;
+    }
     startNewGame({ nextSideChoice: sideChoice, nextAiElo: aiElo, nextTimeControl: nextControl });
   };
 
@@ -590,7 +685,7 @@ export default function App() {
   };
 
   const playMove = ({ from, to, promotion = 'q' }) => {
-    if (isMoveAnimating || isAiThinking || game.isGameOver() || timeWinner || !isPlayerTurn) return false;
+    if (isMoveAnimating || isAiThinking || gameFinished || !isPlayerTurn) return false;
 
     const nextGame = createGameState(history, initialFen).chess;
     const move = nextGame.move({ from, to, promotion });
@@ -606,7 +701,7 @@ export default function App() {
 
   const executePremove = (queuedMove, baseHistory) => {
     const nextPremove = Array.isArray(queuedMove) ? queuedMove[0] : queuedMove;
-    if (!nextPremove || !usesAiOpponent || reviewMode || timeWinner) return false;
+    if (!nextPremove || !usesAiOpponent || reviewMode || gameFinished) return false;
 
     const nextGame = createGameState(baseHistory, initialFen).chess;
     if (nextGame.isGameOver() || nextGame.turn() !== playerColor) {
@@ -640,7 +735,7 @@ export default function App() {
   };
 
   const queuePremove = (from, to) => {
-    if (!usesAiOpponent || reviewMode || game.isGameOver() || timeWinner || game.turn() === playerColor) return false;
+    if (!usesAiOpponent || reviewMode || gameFinished || game.turn() === playerColor) return false;
 
     const piece = game.get(from);
     if (!piece || piece.color !== playerColor) return false;
@@ -652,7 +747,7 @@ export default function App() {
   };
 
   const selectSquare = (square) => {
-    if (reviewMode || isMoveAnimating || game.isGameOver() || timeWinner) return;
+    if (reviewMode || isMoveAnimating || gameFinished) return;
 
     const piece = game.get(square);
 
@@ -694,7 +789,7 @@ export default function App() {
   const handleDragStart = (event, square, piece) => {
     const canPremoveDrag = usesAiOpponent && !isPlayerTurn && piece?.color === playerColor;
 
-    if (reviewMode || isMoveAnimating || !dragEnabled || game.isGameOver() || timeWinner || !piece || (gameMode !== 'local' && piece.color !== playerColor) || (!isPlayerTurn && !canPremoveDrag)) {
+    if (reviewMode || isMoveAnimating || !dragEnabled || gameFinished || !piece || (gameMode !== 'local' && piece.color !== playerColor) || (!isPlayerTurn && !canPremoveDrag)) {
       event.preventDefault();
       return;
     }
@@ -749,11 +844,27 @@ export default function App() {
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onSelectPlayMode={(mode) => {
           setGameMode(mode);
-          setBotGameStarted(false);
           setReviewMode(false);
+          if (mode === 'coach') {
+            ensureAudioContext();
+            resetCoachMatch();
+            return;
+          }
+          if (mode === 'bot') {
+            startNewGame({
+              nextSideChoice: sideChoice,
+              nextAiElo: aiElo,
+              nextTimeControl: timeControl,
+              nextBotGameStarted: false,
+              nextVariant: 'standard',
+              nextInitialFen: null
+            });
+            return;
+          }
+          setBotGameStarted(false);
         }}
         onNavigate={(nextRoute) => {
-          if (isGameRoute(nextRoute) && (route === 'review' || game.isGameOver() || manualResult || timeWinner)) {
+          if (nextRoute !== 'coach' && isGameRoute(nextRoute) && (route === 'review' || game.isGameOver() || manualResult || timeWinner)) {
             startNewGame({ nextBotGameStarted: false });
           }
           navigate(nextRoute);
@@ -812,8 +923,9 @@ export default function App() {
             reviewStats={reviewStats}
             whiteName={whiteName}
             blackName={blackName}
+            returnRoute={gameMode}
             onNavigate={navigate}
-            onStartNewGame={startNewGame}
+            onStartNewGame={isCoachGame ? () => resetCoachMatch({ nextLesson: coachLesson }) : startNewGame}
             onReviewStep={reviewStep}
             onSetReviewMode={setReviewMode}
             onSetReviewStarted={setReviewStarted}
@@ -901,6 +1013,8 @@ export default function App() {
             botOptions={botOptions}
             botChatText={botChatText}
             coachMode={coachMode}
+            coachLesson={coachLesson}
+            coachAudioEnabled={coachAudioEnabled}
             timeControlId={timeControlId}
             gameVariant={gameVariant}
             history={history}
@@ -920,16 +1034,17 @@ export default function App() {
             reviewPly={reviewPly}
             stockfishReview={stockfishReview}
             onChangeAiElo={changeAiElo}
-            onSetCoachMode={setCoachMode}
+            onSetCoachMode={changeCoachMode}
+            onToggleCoachAudio={toggleCoachAudio}
             onChangeTimeControl={changeTimeControl}
             onChangeVariant={changeVariant}
             onUpdateBotOption={updateBotOption}
-            onStartCoachMatch={startCoachMatch}
             onStartBotMatch={startBotMatch}
             onResignGame={resignGame}
             onShowHintMove={showHintMove}
             onUndoMove={undoMove}
-            onStartNewGame={startNewGame}
+            onReviewGame={reviewGame}
+            onStartNewGame={isCoachGame ? () => resetCoachMatch({ nextLesson: coachLesson }) : startNewGame}
             onSetFlipped={setFlipped}
             onSetReviewMode={setReviewMode}
             onSetReviewPly={setReviewPly}
@@ -949,7 +1064,6 @@ export default function App() {
           outcome={outcome}
           activeBotPersona={activeBotPersona}
           reviewStats={reviewStats}
-          onClose={() => setResultDismissed(true)}
           onReviewGame={reviewGame}
           onNewBot={() => {
             setResultDismissed(true);

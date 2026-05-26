@@ -4,7 +4,6 @@ export default function ResultDialog({
   outcome,
   activeBotPersona,
   reviewStats,
-  onClose,
   onReviewGame,
   onNewBot,
   onRematch
@@ -15,7 +14,6 @@ export default function ResultDialog({
     <div className="result-backdrop" role="dialog" aria-modal="true" aria-label="Game result">
       <div className="result-dialog compact-result" data-result={outcome.type}>
         <button className="result-share" aria-label="Share result">?</button>
-        <button className="result-close" aria-label="Close result" onClick={onClose}>x</button>
         <h2>{outcome.type === 'win' ? `You Beat ${activeBotPersona.name}!` : outcome.type === 'loss' ? `${activeBotPersona.name} Won` : 'Draw Game'}</h2>
         <small>{outcome.detail}</small>
         <div className="result-coach">

@@ -3,6 +3,7 @@ import React from 'react';
 export function useGameClock({
   reviewMode,
   game,
+  gameFinished,
   timeWinner,
   historyLength,
   setClocks,
@@ -10,7 +11,7 @@ export function useGameClock({
   setResultDismissed
 }) {
   React.useEffect(() => {
-    if (reviewMode || game.isGameOver() || timeWinner || historyLength === 0) return undefined;
+    if (reviewMode || gameFinished || timeWinner || historyLength === 0) return undefined;
 
     const activeColor = game.turn();
     const timer = window.setInterval(() => {
@@ -28,5 +29,5 @@ export function useGameClock({
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [game, historyLength, reviewMode, setClocks, setResultDismissed, setTimeWinner, timeWinner]);
+  }, [game, gameFinished, historyLength, reviewMode, setClocks, setResultDismissed, setTimeWinner, timeWinner]);
 }

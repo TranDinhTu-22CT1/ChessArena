@@ -229,8 +229,8 @@ function BoardArrow({ className = '', markerId, from, to }) {
   return (
     <svg className={`best-move-arrow ${className}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <marker id={markerId} markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
-          <polygon points="0 0, 5 2.5, 0 5" />
+        <marker id={markerId} markerWidth="4.2" markerHeight="4.2" refX="3.7" refY="2.1" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L4.2,2.1 L0,4.2 Z" />
         </marker>
       </defs>
       <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={`url(#${markerId})`} />

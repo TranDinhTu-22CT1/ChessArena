@@ -2259,12 +2259,11 @@ h2 {
 
 .best-move-arrow line {
   stroke: rgba(115, 190, 75, 0.74);
-  stroke-width: 2.4;
+  stroke-width: 1.7;
   stroke-linecap: round;
-  marker-end: url("#best-arrow-head");
 }
 
-.best-move-arrow marker polygon {
+.best-move-arrow marker path {
   fill: rgba(115, 190, 75, 0.78);
 }
 
@@ -2274,11 +2273,11 @@ h2 {
 
 .hint-arrow line {
   stroke: rgba(167, 201, 87, 0.76);
-  stroke-width: 3;
+  stroke-width: 1.9;
   animation: hintLinePulse 1400ms ease-in-out infinite;
 }
 
-.hint-arrow marker polygon {
+.hint-arrow marker path {
   fill: rgba(167, 201, 87, 0.82);
 }
 
@@ -2288,12 +2287,12 @@ h2 {
 
 .threat-arrow line {
   stroke: rgba(255, 92, 92, 0.76);
-  stroke-width: 3;
+  stroke-width: 1.9;
   stroke-dasharray: 4 3;
   animation: hintLinePulse 1200ms ease-in-out infinite;
 }
 
-.threat-arrow marker polygon {
+.threat-arrow marker path {
   fill: rgba(255, 92, 92, 0.82);
 }
 
@@ -2310,6 +2309,25 @@ h2 {
 
 .premove-arrow marker polygon {
   fill: rgba(86, 190, 255, 0.86);
+}
+
+.coach-audio-toggle {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  color: #edf4e8;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+.coach-audio-toggle[aria-pressed="true"] {
+  color: #17200f;
+  background: var(--accent);
 }
 
 .move-badge {
@@ -2534,6 +2552,10 @@ h2 {
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
 }
 
+.bot-live-panel[aria-label="Live bot game"] {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
+
 .bot-play-button {
   min-height: 64px;
   margin: 10px 12px 0;
@@ -2550,6 +2572,10 @@ h2 {
     inset 0 -4px 0 rgba(0, 0, 0, 0.18),
     0 14px 28px rgba(74, 153, 57, 0.22);
   transition: transform 180ms ease, filter 180ms ease, background-position 420ms ease;
+}
+
+.bot-play-button svg {
+  flex: 0 0 auto;
 }
 
 .bot-play-button:hover {
@@ -2922,6 +2948,10 @@ h2 {
   background: rgba(0, 0, 0, 0.16);
 }
 
+.bot-live-actions.with-review {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .bot-live-actions button {
   display: grid;
   place-items: center;
@@ -2942,6 +2972,23 @@ h2 {
 .bot-live-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.bot-live-panel[aria-label="Live bot game"] .bot-live-actions {
+  grid-template-columns: repeat(3, 42px);
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.bot-live-panel[aria-label="Live bot game"] .bot-live-actions button {
+  width: 42px;
+  min-height: 42px;
+}
+
+.bot-live-panel[aria-label="Live bot game"] .bot-live-actions svg {
+  width: 18px;
+  height: 18px;
 }
 
 .match-heading {

@@ -50,7 +50,7 @@ function winningChance(score) {
 }
 
 function classify({ position, winLoss, playedBestMove, bestScore, reply }) {
-  if (position.variant !== 'chess960' && isOpeningBookMove(position.priorMoves, position.move)) {
+  if (position.variant === 'standard' && isOpeningBookMove(position.priorMoves, position.move)) {
     return { label: 'Book', tone: 'book' };
   }
 
@@ -85,7 +85,7 @@ export async function POST(request) {
         if (!position?.fen || !position?.move) continue;
 
         const mover = sideToMove(position.fen);
-        if (position.variant !== 'chess960' && isOpeningBookMove(position.priorMoves, position.move)) {
+        if (position.variant === 'standard' && isOpeningBookMove(position.priorMoves, position.move)) {
           analyzed.push({
             ply: position.ply,
             san: position.san,

@@ -1,29 +1,37 @@
 import React from 'react';
 import { requestStockfishMove } from '../api/stockfish';
+import { coachBehaviorFromMode } from '../coach/coach';
 
 export function useMoveGuidance({
   botGameStarted,
   reviewMode,
   game,
   gameFen,
+  gameFinished,
   timeWinner,
   isMoveAnimating,
   botOptions,
   playerColor,
   aiElo,
+  isCoachGame,
+  coachMode,
   history,
   gameVariant,
   setSuggestionMove,
   setThreatMove
 }) {
   React.useEffect(() => {
-    if (!botGameStarted || reviewMode || game.isGameOver() || timeWinner || isMoveAnimating) {
+    if (!botGameStarted || reviewMode || gameFinished || timeWinner || isMoveAnimating) {
       setSuggestionMove(null);
       setThreatMove(null);
       return;
     }
 
-    if (!botOptions.suggestionArrows && !botOptions.threatArrows) {
+    const coachBehavior = coachBehaviorFromMode(coachMode);
+    const suggestionArrows = isCoachGame ? coachBehavior.suggestionArrows : botOptions.suggestionArrows;
+    const threatArrows = isCoachGame ? coachBehavior.threatArrows : botOptions.threatArrows;
+
+    if (!suggestionArrows && !threatArrows) {
       setSuggestionMove(null);
       setThreatMove(null);
       return;
@@ -35,12 +43,15 @@ export function useMoveGuidance({
     requestStockfishMove(gameFen, aiElo, { moves: historyMoves, variant: gameVariant })
       .then((bestMove) => {
         if (cancelled) return;
-        if (game.turn() === playerColor) {
+        if (game.turn() === playerColor && suggestionArrows) {
           setSuggestionMove({ from: bestMove.from, to: bestMove.to });
           setThreatMove(null);
-        } else {
+        } else if (game.turn() !== playerColor && threatArrows) {
           setThreatMove({ from: bestMove.from, to: bestMove.to });
           setSuggestionMove(null);
+        } else {
+          setSuggestionMove(null);
+          setThreatMove(null);
         }
       })
       .catch(() => {
@@ -57,10 +68,13 @@ export function useMoveGuidance({
     botGameStarted,
     botOptions.suggestionArrows,
     botOptions.threatArrows,
+    coachMode,
     game,
     gameFen,
+    gameFinished,
     gameVariant,
     history,
+    isCoachGame,
     isMoveAnimating,
     playerColor,
     reviewMode,

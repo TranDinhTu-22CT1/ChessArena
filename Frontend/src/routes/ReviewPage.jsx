@@ -12,6 +12,7 @@ export default function ReviewPage({
   reviewStats,
   whiteName,
   blackName,
+  returnRoute,
   onNavigate,
   onStartNewGame,
   onReviewStep,
@@ -24,13 +25,17 @@ export default function ReviewPage({
   return (
     <section className="review-dashboard">
       <div className="review-topbar">
-        <button onClick={() => onNavigate('bot')}>Back to game</button>
+        <button onClick={() => {
+          onSetReviewMode(false);
+          onStartNewGame();
+          onNavigate(returnRoute);
+        }}>Back to game</button>
         <h1>Game Review</h1>
         <div className="review-topbar-actions">
           <span>{stockfishStatus === 'loading' ? 'Stockfish analyzing...' : 'Stockfish ready'}</span>
           <button onClick={() => {
             onStartNewGame();
-            onNavigate('bot');
+            onNavigate(returnRoute);
           }}>New game</button>
         </div>
       </div>

@@ -3,11 +3,11 @@ export const REVIEW_LEGEND = [
   { tone: 'great', icon: '!', label: 'Great', detail: 'Nước rất mạnh' },
   { tone: 'book', icon: 'B', label: 'Book', detail: 'Nước khai cuộc lý thuyết' },
   { tone: 'best', icon: '*', label: 'Best', detail: 'Nước tốt nhất hoặc gần như tốt nhất' },
-  { tone: 'excellent', icon: '^', label: 'Excellent', detail: 'Rất mạnh, mất rất ít lợi thế' },
-  { tone: 'good', icon: 'OK', label: 'Good', detail: 'Chơi ổn, vẫn giữ thế trận' },
+  { tone: 'excellent', icon: '++', label: 'Excellent', detail: 'Rất mạnh, mất rất ít lợi thế' },
+  { tone: 'good', icon: '+', label: 'Good', detail: 'Chơi ổn, vẫn giữ thế trận' },
   { tone: 'inaccuracy', icon: '?!', label: 'Inaccuracy', detail: 'Chưa chính xác, mất một phần lợi thế' },
   { tone: 'mistake', icon: '?', label: 'Mistake', detail: 'Sai lầm rõ ràng' },
-  { tone: 'miss', icon: 'x', label: 'Miss', detail: 'Bỏ lỡ cơ hội lớn' },
+  { tone: 'miss', icon: 'X', label: 'Miss', detail: 'Bỏ lỡ cơ hội lớn' },
   { tone: 'blunder', icon: '??', label: 'Blunder', detail: 'Nước đi làm hỏng thế trận nghiêm trọng' }
 ];
 
@@ -16,11 +16,11 @@ const REVIEW_ICON_BY_TONE = {
   great: '!',
   book: 'B',
   best: '*',
-  excellent: '^',
-  good: 'OK',
+  excellent: '++',
+  good: '+',
   inaccuracy: '?!',
   mistake: '?',
-  miss: 'x',
+  miss: 'X',
   blunder: '??',
   loading: '...'
 };

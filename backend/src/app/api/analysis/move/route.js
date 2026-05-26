@@ -72,7 +72,7 @@ export async function POST(request) {
 
   const elo = Math.max(1320, Math.min(3190, Number(payload?.elo) || 1600));
   const moves = Array.isArray(payload?.moves) ? payload.moves.slice(0, 40) : [];
-  const bookMove = payload?.variant !== 'chess960' ? chooseOpeningBookMove(moves, fen) : null;
+  const bookMove = payload?.variant === 'standard' ? chooseOpeningBookMove(moves, fen) : null;
   const strength = botStrength(elo);
 
   if (bookMove) {

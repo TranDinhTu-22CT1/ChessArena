@@ -1,6 +1,7 @@
 import React from 'react';
 import { createGameState } from '../game/chessLogic';
 import { REVIEW_LEGEND } from '../data/review';
+import { coachBehaviorFromMode } from '../coach/coach';
 
 function moveToLan(move) {
   return `${move.from}${move.to}${move.promotion ?? ''}`;
@@ -51,7 +52,7 @@ function calculateReviewStats(stockfishReview) {
   return { stats, totals, accuracy };
 }
 
-export function useGameReview({ game, history, initialFen, gameVariant, isCoachGame }) {
+export function useGameReview({ game, history, initialFen, gameVariant, isCoachGame, coachMode }) {
   const [reviewMode, setReviewMode] = React.useState(false);
   const [reviewPly, setReviewPly] = React.useState(0);
   const [stockfishReview, setStockfishReview] = React.useState([]);
@@ -63,6 +64,7 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
   const currentReviewAnalysis = reviewMode ? stockfishReview[reviewPly - 1] : null;
   const reviewBadge = currentReviewAnalysis ?? (reviewMode && reviewPly > 0 ? { label: 'Analyzing', tone: 'loading' } : null);
   const reviewStats = React.useMemo(() => calculateReviewStats(stockfishReview), [stockfishReview]);
+  const coachReviewDepth = coachBehaviorFromMode(coachMode).reviewDepth;
 
   const queueMissingReviewAnalysis = React.useCallback(() => {
     setPendingAnalysis((current) => {
@@ -92,7 +94,7 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
     fetch(`${import.meta.env.VITE_API_URL}/api/analysis/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positions, depth: isCoachGame ? 10 : 14 })
+      body: JSON.stringify({ positions, depth: isCoachGame ? coachReviewDepth : 14 })
     })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -114,7 +116,7 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
     return () => {
       cancelled = true;
     };
-  }, [isCoachGame, pendingAnalysisKey, stockfishReview]);
+  }, [coachReviewDepth, isCoachGame, pendingAnalysisKey, stockfishReview]);
 
   React.useEffect(() => {
     if (!game.isGameOver() || history.length === 0) return;

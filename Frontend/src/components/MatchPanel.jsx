@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, Flag, Gamepad2, Lightbulb, MessageSquare, RotateCcw, SkipBack, Undo2, VolumeX } from 'lucide-react';
+import { Bot, ClipboardList, Flag, Gamepad2, Lightbulb, MessageSquare, Play, RotateCcw, SkipBack, Undo2, Volume2, VolumeX } from 'lucide-react';
 import { TIME_CONTROLS } from '../game/constants';
 import { statusText } from '../game/chessLogic';
 import { BOT_PERSONAS } from '../data/bots';
@@ -17,6 +17,8 @@ export default function MatchPanel({
   botOptions,
   botChatText,
   coachMode,
+  coachLesson,
+  coachAudioEnabled,
   timeControlId,
   gameVariant,
   history,
@@ -37,14 +39,15 @@ export default function MatchPanel({
   stockfishReview,
   onChangeAiElo,
   onSetCoachMode,
+  onToggleCoachAudio,
   onChangeTimeControl,
   onChangeVariant,
   onUpdateBotOption,
-  onStartCoachMatch,
   onStartBotMatch,
   onResignGame,
   onShowHintMove,
   onUndoMove,
+  onReviewGame,
   onStartNewGame,
   onSetFlipped,
   onSetReviewMode,
@@ -53,9 +56,12 @@ export default function MatchPanel({
   onNavigate,
   onSetResultDismissed
 }) {
+  const hasCoachMoves = isCoachGame && history.length > 0;
+  const showSetup = isCoachGame ? !hasCoachMoves : !botGameStarted;
+
   return (
-    <aside className={`match-panel compact-bot-panel ${botGameStarted ? 'bot-started' : 'bot-setup'}`}>
-      {!botGameStarted ? (
+    <aside className={`match-panel compact-bot-panel ${showSetup ? 'bot-setup' : 'bot-started'}`}>
+      {showSetup ? (
         <BotSetup
           isCoachGame={isCoachGame}
           coachSpeechText={coachSpeechText}
@@ -66,24 +72,28 @@ export default function MatchPanel({
           botOptions={botOptions}
           botChatText={botChatText}
           coachMode={coachMode}
+          coachLesson={coachLesson}
+          coachAudioEnabled={coachAudioEnabled}
           timeControlId={timeControlId}
           gameVariant={gameVariant}
           onChangeAiElo={onChangeAiElo}
           onSetCoachMode={onSetCoachMode}
+          onToggleCoachAudio={onToggleCoachAudio}
           onChangeTimeControl={onChangeTimeControl}
           onChangeVariant={onChangeVariant}
           onUpdateBotOption={onUpdateBotOption}
-          onStartCoachMatch={onStartCoachMatch}
           onStartBotMatch={onStartBotMatch}
         />
       ) : (
         <BotLive
           isCoachGame={isCoachGame}
           coachSpeechText={coachSpeechText}
+          coachAudioEnabled={coachAudioEnabled}
           coachInsight={coachInsight}
           activeBotPersona={activeBotPersona}
           botOptions={botOptions}
           botChatText={botChatText}
+          coachLesson={coachLesson}
           history={history}
           playerColor={playerColor}
           stockfishReview={stockfishReview}
@@ -92,6 +102,8 @@ export default function MatchPanel({
           onResignGame={onResignGame}
           onShowHintMove={onShowHintMove}
           onUndoMove={onUndoMove}
+          onReviewGame={onReviewGame}
+          onToggleCoachAudio={onToggleCoachAudio}
         />
       )}
 
@@ -138,6 +150,8 @@ export default function MatchPanel({
         <button disabled title="Cần realtime server hoặc Supabase Realtime">Online</button>
       </div>
 
+      {!hasCoachMoves && (
+        <>
       <ModeLobby
         gameMode={gameMode}
         activeBotPersona={activeBotPersona}
@@ -164,6 +178,8 @@ export default function MatchPanel({
           <span>{usesAiOpponent ? `${isCoachGame ? coachInsight.mode.depth : activeBotPersona.mood}. ${aiLevel.search}` : 'Hai người chơi cùng một thiết bị.'}</span>
         </div>
       </div>
+        </>
+      )}
 
       {reviewMode && (
         <div className="review-panel">
@@ -186,13 +202,15 @@ export default function MatchPanel({
         </div>
       )}
 
-      <MoveList
-        history={history}
-        stockfishReview={stockfishReview}
-        onSetReviewMode={onSetReviewMode}
-        onSetResultDismissed={onSetResultDismissed}
-        onSetReviewPly={onSetReviewPly}
-      />
+      {(history.length > 0 || reviewMode) && (
+        <MoveList
+          history={history}
+          stockfishReview={stockfishReview}
+          onSetReviewMode={onSetReviewMode}
+          onSetResultDismissed={onSetResultDismissed}
+          onSetReviewPly={onSetReviewPly}
+        />
+      )}
 
       <div className="analysis-card">
         <Gamepad2 size={20} />
@@ -216,14 +234,16 @@ function BotSetup(props) {
     botOptions,
     botChatText,
     coachMode,
+    coachLesson,
+    coachAudioEnabled,
     timeControlId,
     gameVariant,
     onChangeAiElo,
     onSetCoachMode,
+    onToggleCoachAudio,
     onChangeTimeControl,
     onChangeVariant,
     onUpdateBotOption,
-    onStartCoachMatch,
     onStartBotMatch
   } = props;
 
@@ -232,7 +252,18 @@ function BotSetup(props) {
       <div className="bot-lobby-title">
         {isCoachGame ? <MessageSquare size={19} /> : <Bot size={19} />}
         <strong>{isCoachGame ? 'Coach tiếng Việt' : 'Play Bots'}</strong>
-        {isCoachGame && <VolumeX size={19} />}
+        {isCoachGame && (
+          <button
+            className="coach-audio-toggle"
+            type="button"
+            onClick={onToggleCoachAudio}
+            title={coachAudioEnabled ? 'Tắt giọng coach' : 'Bật giọng coach'}
+            aria-pressed={coachAudioEnabled}
+            aria-label={coachAudioEnabled ? 'Tắt giọng coach' : 'Bật giọng coach'}
+          >
+            {coachAudioEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}
+          </button>
+        )}
       </div>
       {isCoachGame ? (
         <div className="coach-setup-stack">
@@ -274,7 +305,7 @@ function BotSetup(props) {
       )}
       {isCoachGame ? (
         <div className="coach-mode-card">
-          <strong>Chọn phong cách huấn luyện</strong>
+          <strong>Chọn bài học huấn luyện</strong>
           <div>
             {COACH_MODES.map((mode) => (
               <button
@@ -288,7 +319,7 @@ function BotSetup(props) {
               </button>
             ))}
           </div>
-          <small>{coachInsight.mode.depth}</small>
+          <small>{coachLesson?.title ? `${coachLesson.title}: ${coachLesson.goal}` : coachInsight.mode.depth}</small>
         </div>
       ) : null}
       <details className="bot-options compact-options">
@@ -309,18 +340,34 @@ function BotSetup(props) {
           ))}
         </div>
       </details>
-      <button className="bot-play-button" onClick={isCoachGame ? onStartCoachMatch : onStartBotMatch}>{isCoachGame ? 'Bắt đầu luyện' : 'Play'}</button>
+      {!isCoachGame && (
+        <button className="bot-play-button" onClick={onStartBotMatch}>
+          <Play size={20} />
+          Play
+        </button>
+      )}
     </section>
   );
 }
 
-function BotLive({ isCoachGame, coachSpeechText, coachInsight, activeBotPersona, botOptions, botChatText, history, playerColor, stockfishReview, game, isPlayerTurn, onResignGame, onShowHintMove, onUndoMove }) {
+function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight, activeBotPersona, botOptions, botChatText, coachLesson, history, playerColor, stockfishReview, game, isPlayerTurn, onResignGame, onShowHintMove, onUndoMove, onReviewGame, onToggleCoachAudio }) {
   return (
     <section className="bot-live-panel" aria-label={isCoachGame ? 'Coach đang hướng dẫn' : 'Live bot game'}>
       <div className="bot-lobby-title">
         {isCoachGame ? <MessageSquare size={19} /> : <Bot size={19} />}
         <strong>{isCoachGame ? 'Coach tiếng Việt' : 'Play Bots'}</strong>
-        {isCoachGame && <VolumeX size={19} />}
+        {isCoachGame && (
+          <button
+            className="coach-audio-toggle"
+            type="button"
+            onClick={onToggleCoachAudio}
+            title={coachAudioEnabled ? 'Tắt giọng coach' : 'Bật giọng coach'}
+            aria-pressed={coachAudioEnabled}
+            aria-label={coachAudioEnabled ? 'Tắt giọng coach' : 'Bật giọng coach'}
+          >
+            {coachAudioEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}
+          </button>
+        )}
       </div>
       {isCoachGame ? (
         <>
@@ -353,8 +400,9 @@ function BotLive({ isCoachGame, coachSpeechText, coachInsight, activeBotPersona,
         </div>
       )}
       <div className="opening-row">
-        <span>{history.length ? 'Biên bản' : 'Sẵn sàng'}</span>
+        <span>{isCoachGame && coachLesson?.title ? coachLesson.title : history.length ? 'Biên bản' : 'Sẵn sàng'}</span>
         <strong>{statusText(game)}</strong>
+        {isCoachGame && coachLesson?.goal ? <small>{coachLesson.goal}</small> : null}
       </div>
       <div className="compact-move-list">
         {Array.from({ length: Math.max(1, Math.ceil(history.length / 2)) }).map((_, index) => (
@@ -379,10 +427,15 @@ function BotLive({ isCoachGame, coachSpeechText, coachInsight, activeBotPersona,
           </div>
         ))}
       </div>
-      <div className="bot-live-actions">
+      <div className={`bot-live-actions ${isCoachGame ? 'with-review' : ''}`}>
         <button onClick={onResignGame} title="Đầu hàng"><Flag size={20} /></button>
         <button onClick={onShowHintMove} disabled={!isPlayerTurn || game.isGameOver()} title="Hint"><Lightbulb size={20} /></button>
         <button onClick={onUndoMove} disabled={history.length === 0} title="Undo"><Undo2 size={20} /></button>
+        {isCoachGame && (
+          <button onClick={onReviewGame} disabled={history.length === 0} title="Review toàn ván">
+            <ClipboardList size={20} />
+          </button>
+        )}
       </div>
     </section>
   );
@@ -439,7 +492,7 @@ function ModeLobby({ gameMode, activeBotPersona, aiElo, aiLevel, coachInsight, c
           <small>{coachInsight.plan}</small>
         </div>
         <div className="coach-mode-card">
-          <strong>Chế độ coach</strong>
+          <strong>Bài học coach</strong>
           <div>
             {COACH_MODES.map((mode) => (
               <button

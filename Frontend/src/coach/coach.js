@@ -1,11 +1,129 @@
 export const COACH_MODES = [
-  { id: 'beginner', label: 'Cơ bản', focus: 'Nền tảng', depth: 'Nhắc quân treo, nhập thành và kiểm soát trung tâm.' },
-  { id: 'tactical', label: 'Chiến thuật', focus: 'Đòn phối hợp', depth: 'Tìm đòn đôi, ghim, xiên và mối đe dọa chiếu hết.' },
-  { id: 'positional', label: 'Thế trận', focus: 'Kế hoạch', depth: 'Đánh giá không gian, cấu trúc tốt và ô yếu.' },
-  { id: 'aggressive', label: 'Tấn công', focus: 'Áp lực vua', depth: 'Ưu tiên thế chủ động và đưa thêm quân vào tấn công vua.' },
-  { id: 'endgame', label: 'Tàn cuộc', focus: 'Kỹ thuật', depth: 'Đưa vua lên, tạo tốt thông và đổi quân đúng lúc.' },
-  { id: 'silent', label: 'Ít lời', focus: 'Cảnh báo', depth: 'Chỉ nhắc khi có sai lầm hoặc cơ hội lớn.' }
+  { id: 'basic', label: 'Cơ bản', focus: 'Nền tảng', depth: 'Ván đầy đủ: quân treo, nhập thành, trung tâm và nước an toàn.' },
+  { id: 'opening', label: 'Khai cuộc', focus: 'Mở ván', depth: 'Bắt đầu từ đầu ván, ưu tiên phát triển quân, trung tâm và vua an toàn.' },
+  { id: 'middlegame', label: 'Trung cuộc', focus: 'Chiến thuật', depth: 'Bắt đầu từ một thế trung cuộc ngẫu nhiên để luyện kế hoạch và đòn phối hợp.' },
+  { id: 'endgame', label: 'Tàn cuộc', focus: 'Kỹ thuật', depth: 'Bắt đầu từ một thế tàn cuộc ngẫu nhiên để luyện vua, tốt thông và phong cấp.' }
 ];
+
+export const COACH_MODE_BEHAVIOR = {
+  basic: {
+    reviewDepth: 8,
+    suggestionArrows: true,
+    threatArrows: false,
+    moveFeedback: true,
+    speech: 'normal',
+    messageGroups: ['principle', 'safety'],
+    start: 'standard'
+  },
+  opening: {
+    reviewDepth: 10,
+    suggestionArrows: true,
+    threatArrows: false,
+    moveFeedback: true,
+    speech: 'normal',
+    messageGroups: ['opening', 'principle'],
+    start: 'standard'
+  },
+  middlegame: {
+    reviewDepth: 12,
+    suggestionArrows: true,
+    threatArrows: true,
+    moveFeedback: true,
+    speech: 'normal',
+    messageGroups: ['tactics', 'positional', 'forcing'],
+    start: 'middlegame'
+  },
+  endgame: {
+    reviewDepth: 14,
+    suggestionArrows: true,
+    threatArrows: false,
+    moveFeedback: true,
+    speech: 'normal',
+    messageGroups: ['endgame', 'conversion'],
+    start: 'endgame'
+  }
+};
+
+export function coachBehaviorFromMode(coachMode) {
+  return COACH_MODE_BEHAVIOR[coachMode] ?? COACH_MODE_BEHAVIOR.basic;
+}
+
+export const COACH_LESSON_POSITIONS = {
+  middlegame: [
+    {
+      title: 'Tấn công vua nhập thành',
+      fen: 'r2q1rk1/ppp2ppp/2npbn2/3Np3/2B1P3/2NP1Q2/PPP2PPP/R1B2RK1 w - - 0 10',
+      goal: 'Tìm nước ép buộc quanh vua đen.'
+    },
+    {
+      title: 'Cột mở và quân ghim',
+      fen: 'r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2PBPN2/PP1NBPPP/R2Q1RK1 w - - 0 9',
+      goal: 'Cải thiện quân và tranh cột mở.'
+    },
+    {
+      title: 'Trung tâm căng thẳng',
+      fen: 'r2q1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 b - - 0 9',
+      goal: 'Chọn cách phá trung tâm đúng thời điểm.'
+    },
+    {
+      title: 'Áp lực lên vua chưa an toàn',
+      fen: 'r1bqk2r/ppp2ppp/2n2n2/3pp3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w kq - 0 7',
+      goal: 'Tìm nước phát triển có tempo.'
+    }
+  ],
+  endgame: [
+    {
+      title: 'Vua và tốt thông',
+      fen: '8/5pk1/6p1/4P2p/5P1P/6K1/8/8 w - - 0 42',
+      goal: 'Tạo tốt thông và đưa vua vào đúng ô.'
+    },
+    {
+      title: 'Xe chống tốt xa',
+      fen: '8/5pk1/6p1/7p/3R3P/5PK1/8/8 w - - 0 38',
+      goal: 'Dùng xe cắt vua và gom tốt.'
+    },
+    {
+      title: 'Hậu hóa tốt',
+      fen: '8/2k5/8/2P5/2K5/8/8/8 w - - 0 55',
+      goal: 'Tìm đường đưa vua hộ tống tốt phong cấp.'
+    },
+    {
+      title: 'Tượng và tốt cánh vua',
+      fen: '8/5pk1/6p1/7p/3B3P/5PK1/8/8 w - - 0 46',
+      goal: 'Giữ tốt và cải thiện vua trước khi đẩy.'
+    },
+    {
+      title: 'Xe hoạt động sau lưng tốt',
+      fen: '8/5pk1/6p1/3R3p/7P/5PK1/8/8 b - - 0 41',
+      goal: 'Phòng thủ chủ động, đừng để vua bị cắt.'
+    }
+  ]
+};
+
+export function coachLessonFromMode(coachMode) {
+  const behavior = coachBehaviorFromMode(coachMode);
+  const positions = COACH_LESSON_POSITIONS[behavior.start] ?? [];
+  if (!positions.length) {
+    return {
+      kind: behavior.start,
+      title: COACH_MODES.find((mode) => mode.id === coachMode)?.label ?? 'Cơ bản',
+      fen: null,
+      playerColor: 'w',
+      variant: 'standard',
+      goal: behavior.start === 'opening'
+        ? 'Đi theo nguyên tắc khai cuộc và so với Stockfish.'
+        : 'Chơi ván đầy đủ và để Stockfish sửa từng nước.'
+    };
+  }
+
+  const lesson = positions[Math.floor(Math.random() * positions.length)];
+  return {
+    ...lesson,
+    kind: behavior.start,
+    playerColor: lesson.fen.split(/\s+/)[1] === 'b' ? 'b' : 'w',
+    variant: 'lesson'
+  };
+}
 
 export const COACH_LEVELS = [
   { elo: 1320, label: 'Stockfish Club' },
@@ -200,11 +318,11 @@ const COACH_LINE_BANK = {
     'Nước này nguy hiểm: {move} cho đối thủ lợi thế lớn.',
     'Sau {move}, hãy ưu tiên cứu vua hoặc cứu quân quan trọng.',
     'Đừng tiếp tục kế hoạch cũ; vị trí đã đổi nghiêm trọng.',
-    '{move} có thể mất quân, mất vua an toàn hoặc mất thế chủ động.',
-    'Đây là lỗi lớn. Hãy tìm nước phòng thủ đơn giản nhất.',
+    '{move} có thể mất quân, vua không an toàn hoặc mất thế chủ động.',
+    'Đây là lỗi lớn. Hãy tìm nước phòng thủ tốt hơn.',
     'Sau {move}, mục tiêu là giảm thiệt hại trước.',
-    'Nước này để đối thủ có đòn cụ thể. Hãy kiểm tra mọi nước chiếu.',
-    '{move} làm thế cờ xấu nhanh. Bình tĩnh và tìm nước cầm máu.',
+    'Hãy kiểm tra mọi nước chiếu.',
+    '{move} làm thế cờ xấu nhanh. Bình tĩnh và tìm nước tốt hơn.',
     'Nếu còn cơ hội đổi quân để giảm áp lực, hãy cân nhắc ngay.',
     'Blunder thường đến từ bỏ sót quân không được bảo vệ; hãy rà lại toàn bàn.',
     'Sau lỗi này, đừng đánh theo cảm xúc. Chọn nước chắc nhất.'
@@ -222,6 +340,56 @@ const COACH_LINE_BANK = {
     'Đừng di chuyển cùng một quân nhiều lần nếu quân khác chưa phát triển.',
     'Khi vị trí kín, cải thiện quân xấu nhất thường tốt hơn lao vào ăn tốt.',
     'Khi vị trí mở, an toàn vua và đường chéo quan trọng hơn.'
+  ],
+  opening: [
+    'Chế độ khai cuộc: phát triển quân nhẹ, tranh trung tâm và nhập thành đúng lúc.',
+    'Đừng đi cùng một quân quá nhiều lần nếu quân khác còn ngủ ở hàng đầu.',
+    'Nếu Stockfish chọn nước khai cuộc khác, hãy xem nó kiểm soát trung tâm hay mở đường cho quân nào.'
+  ],
+  principle: [
+    'Ưu tiên phát triển quân nhẹ, nhập thành và tranh trung tâm trước khi săn tốt.',
+    'Hãy kiểm tra quân đang bị treo trước; một nước chắc thường tốt hơn một nước đẹp.',
+    'Nếu chưa có chiến thuật rõ, cải thiện quân kém hoạt động nhất là lựa chọn đúng.'
+  ],
+  safety: [
+    'Trước nước tiếp theo, rà vua của bạn, quân bị tấn công và các ô quanh vua.',
+    'Đừng để một quân không được bảo vệ đứng trên đường mở.',
+    'Nếu đối thủ vừa tạo đe dọa, hãy hóa giải bằng nước có tempo nếu có thể.'
+  ],
+  tactics: [
+    'Chế độ chiến thuật: kiểm tra theo thứ tự chiếu, ăn quân, đe dọa trước mọi nước yên tĩnh.',
+    'Tìm đòn ghim, xiên, quá tải hoặc nước trung gian trước khi quyết định.',
+    'Nếu Stockfish chênh lớn với nước bạn đi, thường có một nước ép buộc bị bỏ sót.'
+  ],
+  forcing: [
+    'Ưu tiên candidate forcing: chiếu, ăn quân, đe dọa trực tiếp.',
+    'Hãy tính phản ứng bắt buộc của đối thủ thay vì chỉ nhìn nước đầu tiên.',
+    'Một nước mạnh phải khiến đối thủ trả lời câu hỏi cụ thể ngay lập tức.'
+  ],
+  positional: [
+    'Chế độ thế trận: nhìn cấu trúc tốt, ô yếu và quân xấu nhất trước.',
+    'Nếu không có chiến thuật, hãy tăng áp lực lên ô yếu hoặc cột mở.',
+    'Đừng đổi quân tốt lấy quân xấu nếu điều đó làm kế hoạch dài hạn kém đi.'
+  ],
+  attack: [
+    'Chế độ tấn công: chỉ mở đường khi đã có đủ quân tham gia.',
+    'Nếu vua đối thủ yếu, đưa thêm quân vào vùng tấn công trước khi hy sinh.',
+    'Tạo đe dọa liên tục quan trọng hơn một nước ăn vật chất chậm.'
+  ],
+  endgame: [
+    'Chế độ tàn cuộc: kích hoạt vua, tạo tốt thông và tính ô phong cấp.',
+    'Trong tàn cuộc, mỗi tempo rất đắt; hãy tránh nước quân lặp lại không cần thiết.',
+    'Nếu hơn vật chất, đổi quân nhưng giữ tốt; nếu kém, tìm phản công bằng tốt thông.'
+  ],
+  conversion: [
+    'Chuyển lợi thế thành thắng bằng cách giảm phản công trước rồi mới ăn thêm.',
+    'Đặt quân sau tốt thông và đưa vua tới trung tâm.',
+    'Khi hơn quân, ép đổi hậu thường làm nhiệm vụ dễ hơn.'
+  ],
+  critical: [
+    'Chỉ nhắc điểm quan trọng: nước này cần xem lại ngay.',
+    'Có tín hiệu lớn từ Stockfish; hãy dừng và kiểm tra nước ép buộc.',
+    'Vị trí vừa đổi mạnh, ưu tiên sửa lỗi cụ thể trước.'
   ]
 };
 
@@ -249,6 +417,7 @@ function formatEngineScore(score) {
 
 export function buildCoachInsight({ analysis, latestMove, historyLength, playerColor, aiElo, coachMode }) {
   const mode = COACH_MODES.find((item) => item.id === coachMode) ?? COACH_MODES[0];
+  const behavior = coachBehaviorFromMode(coachMode);
   const difficulty = coachDifficultyFromElo(Number(aiElo));
   const moveSan = latestMove?.san || 'nước vừa rồi';
   const bestMove = analysis?.bestMove || analysis?.bestSan || '';
@@ -262,54 +431,64 @@ export function buildCoachInsight({ analysis, latestMove, historyLength, playerC
   const bestText = bestMove && latestMove && !String(bestMove).startsWith(`${latestMove.from}${latestMove.to}`)
     ? `Stockfish gợi ý ${bestMove}; hãy so sánh xem nước đó tạo hoặc chặn đe dọa gì.`
     : 'Nước của bạn đáp ứng khá tốt yêu cầu của vị trí.';
+  const modeGroup = behavior.messageGroups[historyLength % behavior.messageGroups.length] ?? 'plan';
+  const modeLine = renderCoachLine(pickCoachTemplate(modeGroup, historyLength, latestMove, 9), { move: moveSan, detail, best: bestText });
+  const isCriticalTone = ['brilliant', 'great', 'miss', 'blunder', 'mistake'].includes(analysis?.tone);
+  const shouldShowMessage = behavior.speech !== 'critical' || !latestMove || isCriticalTone;
 
   if (!latestMove) {
     const firstLine = renderCoachLine(pickCoachTemplate('ready', historyLength, latestMove), { move: moveSan });
-    const secondLine = renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 1), { move: moveSan });
+    const secondLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 1), { move: moveSan });
     return {
       tone: 'excellent',
       quality: 'Sẵn sàng',
       evaluation: '0.0',
-      messages: [firstLine, secondLine],
+      messages: shouldShowMessage ? [firstLine, secondLine] : ['Ít lời: mình đang theo dõi và sẽ nhắc khi có lỗi lớn hoặc cơ hội rõ ràng.'],
+      voiceMessages: shouldShowMessage ? [firstLine, secondLine] : [],
       message: firstLine,
       warning: 'Vị trí bắt đầu',
       plan: 'Phát triển quân nhẹ, tranh trung tâm và giữ vua an toàn.',
       difficulty,
-      mode
+      mode,
+      behavior
     };
   }
 
   if (latestMove.color !== playerColor) {
     const firstLine = renderCoachLine(pickCoachTemplate('opponent', historyLength, latestMove), { move: moveSan });
-    const secondLine = renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 2), { move: moveSan });
+    const secondLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 2), { move: moveSan });
     return {
       tone: 'good',
       quality: 'Tới lượt bạn',
       evaluation: scoreText,
-      messages: [firstLine, secondLine],
+      messages: shouldShowMessage ? [firstLine, secondLine] : ['Ít lời: tới lượt bạn, hãy tự quét chiếu, ăn quân và đe dọa.'],
+      voiceMessages: shouldShowMessage ? [firstLine, secondLine] : [],
       message: firstLine,
       warning: 'Đối thủ vừa đi',
-      plan: mode.id === 'aggressive'
-        ? 'Nếu vua đối thủ yếu, hãy đưa thêm một quân tham gia trước khi mở đường tấn công.'
-        : 'Quét theo thứ tự: chiếu, ăn quân, đe dọa. Sau đó mới chọn nước yên tĩnh.',
+      plan: mode.id === 'middlegame'
+        ? 'Tìm nước ép buộc trước: chiếu, ăn quân, đe dọa. Sau đó mới chọn kế hoạch yên tĩnh.'
+        : mode.depth,
       difficulty,
-      mode
+      mode,
+      behavior
     };
   }
 
   if (!analysis?.tone) {
     const firstLine = renderCoachLine(pickCoachTemplate('pending', historyLength, latestMove), { move: moveSan });
-    const secondLine = renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 3), { move: moveSan });
+    const secondLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 3), { move: moveSan });
     return {
       tone: 'good',
       quality: 'Đợi kết quả',
       evaluation: '',
-      messages: [firstLine, secondLine],
+      messages: shouldShowMessage ? [firstLine, secondLine] : ['Ít lời: đang phân tích, mình chỉ báo khi có điểm quan trọng.'],
+      voiceMessages: shouldShowMessage ? [firstLine, secondLine] : [],
       message: firstLine,
       warning: 'Đang chờ phân tích',
       plan: mode.depth,
       difficulty,
-      mode
+      mode,
+      behavior
     };
   }
 
@@ -317,17 +496,19 @@ export function buildCoachInsight({ analysis, latestMove, historyLength, playerC
   const quality = analysis.label ?? 'Ổn';
   const firstLine = renderCoachLine(pickCoachTemplate(tone, historyLength, latestMove), { move: moveSan, detail, best: bestText });
   const bestLine = renderCoachLine(pickCoachTemplate(tone === 'best' ? 'plan' : tone, historyLength, latestMove, 4), { move: moveSan, detail, best: bestText });
-  const planLine = renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 5), { move: moveSan, detail, best: bestText });
+  const planLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 5), { move: moveSan, detail, best: bestText });
 
   return {
     tone,
     quality,
     evaluation: scoreText,
-    messages: [firstLine, tone === 'best' || tone === 'excellent' ? planLine : bestLine],
+    messages: shouldShowMessage ? [firstLine, tone === 'best' || tone === 'excellent' ? planLine : bestLine] : ['Ít lời: nước ổn, tiếp tục chơi.'],
+    voiceMessages: shouldShowMessage ? [firstLine, tone === 'best' || tone === 'excellent' ? planLine : bestLine] : [],
     message: firstLine,
     warning: ['mistake', 'blunder', 'miss', 'inaccuracy'].includes(tone) ? 'Thời điểm quan trọng' : 'Thế cờ ổn định',
     plan: mode.depth,
     difficulty,
-    mode
+    mode,
+    behavior
   };
 }
