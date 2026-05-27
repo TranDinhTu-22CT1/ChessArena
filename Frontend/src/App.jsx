@@ -22,8 +22,7 @@ import {
   engineBarPercent,
   formatClock,
   promotionPopoverStyle,
-  squareCenter,
-  squareTopLeft
+  squareCenter
 } from './game/gameView';
 import AuthPage from './components/AuthPage';
 import GameBoard from './components/GameBoard';
@@ -47,6 +46,7 @@ import { useGameReview } from './hooks/useGameReview';
 import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
 import HomePage from './routes/HomePage';
+import OnlinePage from './routes/OnlinePage';
 import ReviewPage from './routes/ReviewPage';
 import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './routes/routeConfig';
 
@@ -73,8 +73,6 @@ export default function App() {
   const [flipped, setFlipped] = React.useState(false);
   const [gameId, setGameId] = React.useState(() => newLocalGameId());
   const [lastMove, setLastMove] = React.useState(null);
-  const [slidingMove, setSlidingMove] = React.useState(null);
-  const [isMoveAnimating, setIsMoveAnimating] = React.useState(false);
   const [playerColor, setPlayerColor] = React.useState('w');
   const [sideChoice, setSideChoice] = React.useState('w');
   const [aiElo, setAiElo] = React.useState(1600);
@@ -145,11 +143,11 @@ export default function App() {
     navigate
   } = useAppRoute({ gameMode, setGameMode });
   const aiTimerRef = React.useRef(null);
-  const slideTimerRef = React.useRef(null);
   const premoveRef = React.useRef([]);
   const { ensureAudioContext, playMoveSound, speakCoachText, stopSpeech } = useGameAudio();
 
   const isActiveGameRoute = isGameRoute(route);
+  const isActiveOnlineRoute = route === 'online';
   const isActivePuzzleRoute = isPuzzleRoute(route);
   const game = gameState.chess;
   const history = gameState.moves;
@@ -192,7 +190,7 @@ export default function App() {
     : null;
   const outcome = manualResult ?? timeOutcome ?? gameOutcome(game, playerColor);
   const gameFinished = Boolean(outcome);
-  const showResultDialog = gameFinished && isActiveGameRoute;
+  const showResultDialog = gameFinished && isActiveGameRoute && !isActiveOnlineRoute;
   React.useEffect(() => {
     if (!outcome || !isActiveGameRoute) return;
 
@@ -313,7 +311,6 @@ export default function App() {
     gameFen,
     gameFinished,
     timeWinner,
-    isMoveAnimating,
     botOptions,
     playerColor,
     aiElo: aiLevel.elo,
@@ -330,7 +327,7 @@ export default function App() {
   }, [premoveQueue]);
 
   React.useEffect(() => {
-    if (gameFinished || game.turn() !== aiColor || isAiThinking || isMoveAnimating || !usesAiOpponent) return;
+    if (gameFinished || game.turn() !== aiColor || isAiThinking || !usesAiOpponent) return;
 
     let cancelled = false;
     setSelected(null);
@@ -374,13 +371,11 @@ export default function App() {
         });
 
         if (playedMove) {
-          animateMove(playedMove, () => {
-            commitPlayedMove(playedMove);
-            setIsAiThinking(false);
-            if (premoveRef.current.length > 0) {
-              window.setTimeout(() => executePremove(premoveRef.current, [...history, playedMove]), 70);
-            }
-          });
+          commitPlayedMove(playedMove);
+          setIsAiThinking(false);
+          if (premoveRef.current.length > 0) {
+            window.setTimeout(() => executePremove(premoveRef.current, [...history, playedMove]), 70);
+          }
           return;
         }
 
@@ -398,15 +393,12 @@ export default function App() {
       }
     };
  
-  }, [aiColor, aiLevel, game, gameFinished, gameVariant, history, initialFen, isMoveAnimating, usesAiOpponent]);
+  }, [aiColor, aiLevel, game, gameFinished, gameVariant, history, initialFen, usesAiOpponent]);
 
   React.useEffect(() => {
     return () => {
       if (aiTimerRef.current) {
         window.clearTimeout(aiTimerRef.current);
-      }
-      if (slideTimerRef.current) {
-        window.clearTimeout(slideTimerRef.current);
       }
       stopSpeech();
     };
@@ -429,36 +421,6 @@ export default function App() {
       [move.color]: currentClocks[move.color] + timeControl.incrementSeconds
     }));
     setResultDismissed(false);
-  };
-
-  const animateMove = (move, onComplete) => {
-    if (!move) return;
-
-    if (slideTimerRef.current) {
-      window.clearTimeout(slideTimerRef.current);
-    }
-
-    setIsMoveAnimating(true);
-    setSlidingMove({
-      id: `${move.from}-${move.to}-${Date.now()}`,
-      from: move.from,
-      to: move.to,
-      pieceKey: `${move.color}${move.piece}`,
-      color: move.color,
-      started: false
-    });
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        setSlidingMove((current) => (current?.from === move.from && current?.to === move.to ? { ...current, started: true } : current));
-      });
-    });
-
-    slideTimerRef.current = window.setTimeout(() => {
-      onComplete?.();
-      setSlidingMove(null);
-      setIsMoveAnimating(false);
-    }, 170);
   };
 
   const startNewGame = async ({
@@ -499,8 +461,6 @@ export default function App() {
     setPromotionRequest(null);
     setIsAiThinking(false);
     setEngineError('');
-    setSlidingMove(null);
-    setIsMoveAnimating(false);
     setTimeWinner(null);
     setManualResult(null);
     setBotGameStarted(nextBotGameStarted);
@@ -573,7 +533,7 @@ export default function App() {
   };
 
   const showHintMove = async () => {
-    if (reviewMode || gameFinished || isAiThinking || isMoveAnimating) return;
+    if (reviewMode || gameFinished || isAiThinking) return;
     try {
       const suggestedMove = suggestionMove ?? await requestStockfishMove(game.fen(), aiLevel.elo, {
         moves: history.map((item) => `${item.from}${item.to}${item.promotion ?? ''}`),
@@ -667,8 +627,6 @@ export default function App() {
     setLastMove(previousMove ? { from: previousMove.from, to: previousMove.to } : null);
     setPromotionRequest(null);
     setIsAiThinking(false);
-    setSlidingMove(null);
-    setIsMoveAnimating(false);
     setPendingAnalysis([]);
     setStockfishReview([]);
     setStockfishStatus('idle');
@@ -688,7 +646,7 @@ export default function App() {
   };
 
   const playMove = ({ from, to, promotion = 'q' }) => {
-    if (isMoveAnimating || isAiThinking || gameFinished || !isPlayerTurn) return false;
+    if (isAiThinking || gameFinished || !isPlayerTurn) return false;
 
     const nextGame = createGameState(history, initialFen).chess;
     const move = nextGame.move({ from, to, promotion });
@@ -698,7 +656,7 @@ export default function App() {
     setSelected(null);
     setLegalTargets([]);
     setPromotionRequest(null);
-    animateMove(move, () => commitPlayedMove(move));
+    commitPlayedMove(move);
     return true;
   };
 
@@ -724,7 +682,7 @@ export default function App() {
 
     if (!move) return false;
 
-    animateMove(move, () => commitPlayedMove(move));
+    commitPlayedMove(move);
     return true;
   };
 
@@ -750,7 +708,7 @@ export default function App() {
   };
 
   const selectSquare = (square) => {
-    if (reviewMode || isMoveAnimating || gameFinished) return;
+    if (reviewMode || gameFinished) return;
 
     const piece = game.get(square);
 
@@ -792,7 +750,7 @@ export default function App() {
   const handleDragStart = (event, square, piece) => {
     const canPremoveDrag = usesAiOpponent && !isPlayerTurn && piece?.color === playerColor;
 
-    if (reviewMode || isMoveAnimating || !dragEnabled || gameFinished || !piece || (gameMode !== 'local' && piece.color !== playerColor) || (!isPlayerTurn && !canPremoveDrag)) {
+    if (reviewMode || !dragEnabled || gameFinished || !piece || (gameMode !== 'local' && piece.color !== playerColor) || (!isPlayerTurn && !canPremoveDrag)) {
       event.preventDefault();
       return;
     }
@@ -824,7 +782,7 @@ export default function App() {
     }
 
     setReviewMode(true);
-    setReviewStarted(false);
+    setReviewStarted(true);
     setReviewPly(history.length);
     queueMissingReviewAnalysis();
     setResultDismissed(true);
@@ -877,7 +835,7 @@ export default function App() {
         onLogout={logout}
       />
 
-      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute ? 'game-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
+      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute ? 'game-route-shell' : ''} ${isActiveOnlineRoute ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
         {authMode && !authUser && (
           <AuthPage
             authMode={authMode}
@@ -938,6 +896,25 @@ export default function App() {
           />
         )}
 
+        {isActiveOnlineRoute && (
+          <>
+            <TopHeader
+              activeRoute={route}
+              apiOnline={apiOnline}
+              settingsOpen={settingsOpen}
+              theme={theme}
+              pieceSet={pieceSet}
+              authUser={authUser}
+              onToggleSettings={() => setSettingsOpen((value) => !value)}
+              onResetTheme={resetTheme}
+              onUpdateTheme={updateTheme}
+              onApplyBoardPreset={applyBoardPreset}
+              onSetPieceSet={setPieceSet}
+            />
+            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} onLogin={() => setAuthMode('login')} />
+          </>
+        )}
+
         {isActivePuzzleRoute && (
           <>
             <TopHeader
@@ -959,7 +936,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && !isActivePuzzleRoute && (
+        {route !== 'home' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}
@@ -1008,7 +985,6 @@ export default function App() {
             dragEnabled={dragEnabled}
             gameMode={gameMode}
             isAiThinking={isAiThinking}
-            slidingMove={slidingMove}
             promotionRequest={promotionRequest}
             reviewArrowFrom={reviewArrowFrom}
             reviewArrowTo={reviewArrowTo}
@@ -1018,7 +994,6 @@ export default function App() {
             threatArrowTo={threatArrowTo}
             premoveArrows={premoveArrows}
             formatClock={formatClock}
-            squareTopLeft={squareTopLeft}
             promotionPopoverStyle={promotionPopoverStyle}
             onSelectSquare={selectSquare}
             onHandleDrop={handleDrop}

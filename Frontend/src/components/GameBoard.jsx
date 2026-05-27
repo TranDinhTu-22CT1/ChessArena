@@ -37,7 +37,6 @@ export default function GameBoard({
   dragEnabled,
   gameMode,
   isAiThinking,
-  slidingMove,
   promotionRequest,
   reviewArrowFrom,
   reviewArrowTo,
@@ -47,7 +46,6 @@ export default function GameBoard({
   threatArrowTo,
   premoveArrows,
   formatClock,
-  squareTopLeft,
   promotionPopoverStyle,
   onSelectSquare,
   onHandleDrop,
@@ -106,7 +104,6 @@ export default function GameBoard({
               const isPremoveTo = !reviewMode && premoveQueue.some((move) => move.to === square);
               const canPremoveDrag = usesAiOpponent && !isPlayerTurn && piece?.color === playerColor;
               const canDragPiece = !reviewMode && dragEnabled && piece && (gameMode === 'local' || piece.color === playerColor) && ((piece.color === game.turn() && isPlayerTurn && !isAiThinking) || canPremoveDrag);
-              const hideForSlide = slidingMove && slidingMove.from === square && slidingMove.pieceKey === `${piece?.color}${piece?.type}`;
 
               return (
                 <button
@@ -121,7 +118,7 @@ export default function GameBoard({
                 >
                   {piece && (
                     <img
-                      className={`piece ${piece.color} ${hideForSlide ? 'piece-hidden-for-slide' : ''}`}
+                      className={`piece ${piece.color}`}
                       src={PIECE_IMAGES[`${piece.color}${piece.type}`]}
                       alt={`${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`}
                       draggable="false"
@@ -196,18 +193,6 @@ export default function GameBoard({
                 />
               ))}
             </svg>
-          )}
-          {slidingMove && !reviewMode && (
-            <img
-              className={`sliding-piece ${slidingMove.color} ${slidingMove.started ? 'active' : ''}`}
-              src={PIECE_IMAGES[slidingMove.pieceKey]}
-              alt=""
-              draggable="false"
-              style={{
-                left: slidingMove.started ? squareTopLeft(slidingMove.to, flipped).x : squareTopLeft(slidingMove.from, flipped).x,
-                top: slidingMove.started ? squareTopLeft(slidingMove.to, flipped).y : squareTopLeft(slidingMove.from, flipped).y
-              }}
-            />
           )}
         </div>
       </section>

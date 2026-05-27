@@ -9,7 +9,6 @@ export function useMoveGuidance({
   gameFen,
   gameFinished,
   timeWinner,
-  isMoveAnimating,
   botOptions,
   playerColor,
   aiElo,
@@ -21,7 +20,7 @@ export function useMoveGuidance({
   setThreatMove
 }) {
   React.useEffect(() => {
-    if (!botGameStarted || reviewMode || gameFinished || timeWinner || isMoveAnimating) {
+    if (!botGameStarted || reviewMode || gameFinished || timeWinner) {
       setSuggestionMove(null);
       setThreatMove(null);
       return;
@@ -75,7 +74,6 @@ export function useMoveGuidance({
     gameVariant,
     history,
     isCoachGame,
-    isMoveAnimating,
     playerColor,
     reviewMode,
     setSuggestionMove,

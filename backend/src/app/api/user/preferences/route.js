@@ -23,9 +23,32 @@ async function userDatabaseId(supabase, decoded) {
     .replace(/-+/g, '-')
     .slice(0, 60) || 'user';
 
+  const { data: existing, error: lookupError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('firebase_uid', decoded.uid)
+    .maybeSingle();
+
+  if (lookupError) throw lookupError;
+
+  if (existing) {
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        email: decoded.email ?? null,
+        photo_url: decoded.picture ?? null,
+        email_verified: Boolean(decoded.email_verified),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existing.id);
+
+    if (updateError) throw updateError;
+    return existing.id;
+  }
+
   const { data, error } = await supabase
     .from('users')
-    .upsert(
+    .insert(
       {
         username,
         display_name: decoded.name || decoded.email || username,
@@ -34,8 +57,7 @@ async function userDatabaseId(supabase, decoded) {
         photo_url: decoded.picture ?? null,
         email_verified: Boolean(decoded.email_verified),
         updated_at: new Date().toISOString()
-      },
-      { onConflict: 'firebase_uid' }
+      }
     )
     .select('id')
     .single();

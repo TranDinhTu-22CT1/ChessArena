@@ -95,6 +95,8 @@ export default function MatchPanel({
           botChatText={botChatText}
           coachLesson={coachLesson}
           history={history}
+          reviewMode={reviewMode}
+          reviewPly={reviewPly}
           playerColor={playerColor}
           stockfishReview={stockfishReview}
           game={game}
@@ -104,6 +106,9 @@ export default function MatchPanel({
           onUndoMove={onUndoMove}
           onReviewGame={onReviewGame}
           onToggleCoachAudio={onToggleCoachAudio}
+          onSetReviewMode={onSetReviewMode}
+          onSetReviewPly={onSetReviewPly}
+          onSetResultDismissed={onSetResultDismissed}
         />
       )}
 
@@ -205,6 +210,8 @@ export default function MatchPanel({
       {(history.length > 0 || reviewMode) && (
         <MoveList
           history={history}
+          reviewMode={reviewMode}
+          reviewPly={reviewPly}
           stockfishReview={stockfishReview}
           onSetReviewMode={onSetReviewMode}
           onSetResultDismissed={onSetResultDismissed}
@@ -350,7 +357,13 @@ function BotSetup(props) {
   );
 }
 
-function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight, activeBotPersona, botOptions, botChatText, coachLesson, history, playerColor, stockfishReview, game, isPlayerTurn, onResignGame, onShowHintMove, onUndoMove, onReviewGame, onToggleCoachAudio }) {
+function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight, activeBotPersona, botOptions, botChatText, coachLesson, history, reviewMode, reviewPly, playerColor, stockfishReview, game, isPlayerTurn, onResignGame, onShowHintMove, onUndoMove, onReviewGame, onToggleCoachAudio, onSetReviewMode, onSetReviewPly, onSetResultDismissed }) {
+  const inspectMove = (ply) => {
+    onSetReviewMode(true);
+    onSetResultDismissed(true);
+    onSetReviewPly(ply);
+  };
+
   return (
     <section className="bot-live-panel" aria-label={isCoachGame ? 'Coach đang hướng dẫn' : 'Live bot game'}>
       <div className="bot-lobby-title">
@@ -408,22 +421,32 @@ function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight
         {Array.from({ length: Math.max(1, Math.ceil(history.length / 2)) }).map((_, index) => (
           <div className="compact-move-row" key={index}>
             <span>{index + 1}.</span>
-            <b>
+            <button
+              className={reviewMode && reviewPly === index * 2 + 1 ? 'active' : ''}
+              type="button"
+              disabled={!history[index * 2]}
+              onClick={() => inspectMove(index * 2 + 1)}
+            >
               {history[index * 2]?.san ?? ''}
               {isCoachGame && history[index * 2]?.color === playerColor && (
                 <i className={`move-grade-icon ${stockfishReview[index * 2]?.tone ?? 'loading'}`}>
                   {reviewIcon(stockfishReview[index * 2]?.tone ?? 'loading')}
                 </i>
               )}
-            </b>
-            <b>
+            </button>
+            <button
+              className={reviewMode && reviewPly === index * 2 + 2 ? 'active' : ''}
+              type="button"
+              disabled={!history[index * 2 + 1]}
+              onClick={() => inspectMove(index * 2 + 2)}
+            >
               {history[index * 2 + 1]?.san ?? ''}
               {isCoachGame && history[index * 2 + 1]?.color === playerColor && (
                 <i className={`move-grade-icon ${stockfishReview[index * 2 + 1]?.tone ?? 'loading'}`}>
                   {reviewIcon(stockfishReview[index * 2 + 1]?.tone ?? 'loading')}
                 </i>
               )}
-            </b>
+            </button>
           </div>
         ))}
       </div>
@@ -565,7 +588,7 @@ function BotFamily({ aiElo, onChangeAiElo }) {
   );
 }
 
-function MoveList({ history, stockfishReview, onSetReviewMode, onSetResultDismissed, onSetReviewPly }) {
+function MoveList({ history, reviewMode, reviewPly, stockfishReview, onSetReviewMode, onSetResultDismissed, onSetReviewPly }) {
   return (
     <div className="move-list">
       <div className="move-list-head">
@@ -579,7 +602,7 @@ function MoveList({ history, stockfishReview, onSetReviewMode, onSetResultDismis
           <div className="move-row" key={index}>
             <span>{index + 1}</span>
             <button
-              className={stockfishReview[index * 2]?.tone ?? ''}
+              className={`${reviewMode && reviewPly === index * 2 + 1 ? 'active' : ''} ${stockfishReview[index * 2]?.tone ?? ''}`}
               disabled={!history[index * 2]}
               onClick={() => {
                 onSetReviewMode(true);
@@ -590,7 +613,7 @@ function MoveList({ history, stockfishReview, onSetReviewMode, onSetResultDismis
               {history[index * 2]?.san ?? ''}
             </button>
             <button
-              className={stockfishReview[index * 2 + 1]?.tone ?? ''}
+              className={`${reviewMode && reviewPly === index * 2 + 2 ? 'active' : ''} ${stockfishReview[index * 2 + 1]?.tone ?? ''}`}
               disabled={!history[index * 2 + 1]}
               onClick={() => {
                 onSetReviewMode(true);

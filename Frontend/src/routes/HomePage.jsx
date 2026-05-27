@@ -80,10 +80,10 @@ export default function HomePage({
           </button>
           <button onClick={() => {
             onStartNewGame();
-            onNavigate('bot');
+            onNavigate('online');
           }}>
             <Swords size={25} />
-            New Game
+            Play Online
           </button>
           <button onClick={() => onNavigate('bot')}>
             <Bot size={25} />

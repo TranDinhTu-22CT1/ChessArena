@@ -3,7 +3,7 @@ import { Bell, Brain, Flame, Settings, Sparkles, Target, Wifi, WifiOff } from 'l
 import { BOARD_PRESETS, PIECE_SETS } from '../game/constants';
 
 const puzzleRoutes = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles']);
-const playRoutes = new Set(['bot', 'player', 'coach', 'custom']);
+const playRoutes = new Set(['online', 'bot', 'player', 'coach', 'custom']);
 
 const puzzleTips = [
   'Tìm nước chiếu, bắt quân, đe dọa trước.',
@@ -39,7 +39,7 @@ function headerInsights(activeRoute) {
 
   if (playRoutes.has(activeRoute)) {
     return [
-      { icon: activeRoute === 'coach' ? Sparkles : Brain, label: activeRoute === 'coach' ? 'Coach' : 'Game plan', text: activeRoute === 'coach' ? 'Coach sẽ nhắc kế hoạch theo thế cờ.' : dailyPick(playTips) }
+      { icon: activeRoute === 'coach' ? Sparkles : Brain, label: activeRoute === 'coach' ? 'Coach' : activeRoute === 'online' ? 'Online' : 'Game plan', text: activeRoute === 'coach' ? 'Coach sẽ nhắc kế hoạch theo thế cờ.' : activeRoute === 'online' ? 'Chỉ ghép người thật, server xác thực từng nước.' : dailyPick(playTips) }
     ];
   }
 

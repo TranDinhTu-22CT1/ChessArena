@@ -1,8 +1,11 @@
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-export const STOCKFISH_PATH = process.env.STOCKFISH_PATH
-  || fileURLToPath(new URL('../../stockfish/stockfish-windows-x86-64-avx2.exe', import.meta.url));
+export const STOCKFISH_PATH = process.env.STOCKFISH_PATH || path.join(
+  /*turbopackIgnore: true*/ process.cwd(),
+  'stockfish',
+  'stockfish-windows-x86-64-avx2.exe'
+);
 
 export function parseStockfishScore(line) {
   const mateMatch = line.match(/\bscore mate (-?\d+)/);
@@ -90,16 +93,18 @@ export function createStockfish() {
       engine.stdin.write('setoption name UCI_LimitStrength value false\n');
     }
 
+    const ready = waitFor('ready');
     engine.stdin.write('isready\n');
-    await waitFor('ready');
+    await ready;
   }
 
   async function analyze({ fen, moves = [], depth, movetime }) {
     if (closed) throw new Error('Stockfish process is closed.');
     lastScore = 0;
     engine.stdin.write(`position fen ${fen}${moves.length ? ` moves ${moves.join(' ')}` : ''}\n`);
+    const bestMove = waitFor('bestmove', Math.max(15000, (movetime ?? 0) + 5000));
     engine.stdin.write(movetime ? `go movetime ${movetime}\n` : `go depth ${depth}\n`);
-    return waitFor('bestmove', Math.max(15000, (movetime ?? 0) + 5000));
+    return bestMove;
   }
 
   function close() {

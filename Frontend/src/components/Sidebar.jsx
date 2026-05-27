@@ -34,7 +34,7 @@ const menuItems = [
 ];
 
 const playMenuItems = [
-  { icon: Swords, label: 'Chơi online', disabled: true, note: 'S\u1eafp c\u00f3' },
+  { icon: Swords, label: 'Chơi online', route: 'online' },
   { icon: Bot, label: 'Chơi với bot', route: 'bot' },
   { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
@@ -96,7 +96,7 @@ export default function Sidebar({
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.hasFlyout
-            ? ['bot', 'coach', 'local', 'review'].includes(activeRoute)
+            ? ['online', 'bot', 'coach', 'local', 'review'].includes(activeRoute)
             : item.hasPuzzleFlyout
               ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
               : item.active;

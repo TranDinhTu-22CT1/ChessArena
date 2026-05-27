@@ -89,13 +89,19 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
     if (pendingAnalysis.length === 0) return undefined;
 
     let cancelled = false;
-    const positions = pendingAnalysis.slice(0, isCoachGame ? 4 : 16);
+    const currentPosition = pendingAnalysis.find((item) => item.ply === reviewPly);
+    const positions = currentPosition
+      ? [currentPosition, ...pendingAnalysis.filter((item) => item.ply !== reviewPly).slice(0, 3)]
+      : pendingAnalysis.slice(0, 4);
 
     setStockfishStatus('loading');
     fetch(apiUrl('/api/analysis/review'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positions, depth: isCoachGame ? coachReviewDepth : 14 })
+      body: JSON.stringify({
+        positions,
+        movetime: isCoachGame ? Math.max(100, coachReviewDepth * 15) : 180
+      })
     })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -117,7 +123,7 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
     return () => {
       cancelled = true;
     };
-  }, [coachReviewDepth, isCoachGame, pendingAnalysisKey, stockfishReview]);
+  }, [coachReviewDepth, isCoachGame, pendingAnalysisKey, reviewPly, stockfishReview]);
 
   React.useEffect(() => {
     if (!game.isGameOver() || history.length === 0) return;

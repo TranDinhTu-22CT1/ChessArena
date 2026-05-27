@@ -28,10 +28,15 @@ export async function GET() {
   const token = cookieStore.get('firebase_id_token')?.value;
 
   if (!token) {
-    return Response.json({ ok: false, user: null }, { status: 401 });
+    return Response.json({ ok: true, authenticated: false, user: null });
   }
 
-  const decoded = await verifyFirebaseSession(token);
+  let decoded;
+  try {
+    decoded = await verifyFirebaseSession(token);
+  } catch {
+    return Response.json({ ok: true, authenticated: false, user: null });
+  }
   const supabase = getSupabaseAdmin();
   let profile = null;
 

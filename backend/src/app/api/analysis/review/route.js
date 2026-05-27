@@ -5,7 +5,7 @@ import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
-const DEFAULT_DEPTH = Number(process.env.STOCKFISH_DEPTH || 12);
+const DEFAULT_MOVETIME = Number(process.env.STOCKFISH_REVIEW_MOVETIME || 180);
 let sharedEngine = null;
 let engineReady = null;
 let engineQueue = Promise.resolve();
@@ -81,7 +81,8 @@ export async function POST(request) {
     return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
   }
 
-  const { positions = [], depth = DEFAULT_DEPTH } = payload;
+  const { positions = [] } = payload;
+  const movetime = Math.max(80, Math.min(350, Number(payload.movetime) || DEFAULT_MOVETIME));
   const limitedPositions = positions.slice(0, 24);
   try {
     const results = await withEngine(async (engine) => {
@@ -109,8 +110,8 @@ export async function POST(request) {
           continue;
         }
 
-        const best = await engine.analyze({ fen: position.fen, depth });
-        const afterPlayed = await engine.analyze({ fen: position.fen, moves: [position.move], depth });
+        const best = await engine.analyze({ fen: position.fen, movetime });
+        const afterPlayed = await engine.analyze({ fen: position.fen, moves: [position.move], movetime });
         const playedScore = -afterPlayed.score;
         const whiteScore = mover === 'w' ? playedScore : -playedScore;
         const loss = Math.max(0, best.score - playedScore);
@@ -147,7 +148,7 @@ export async function POST(request) {
       return analyzed;
     });
 
-    return Response.json({ ok: true, engine: 'stockfish-avx2', depth, results });
+    return Response.json({ ok: true, engine: 'stockfish-avx2', movetime, results });
   } catch (error) {
     return Response.json(
       { ok: false, error: error.message || 'Stockfish review failed.' },
