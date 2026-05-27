@@ -46,6 +46,7 @@ import { useGameReview } from './hooks/useGameReview';
 import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
 import HomePage from './routes/HomePage';
+import HistoryPage from './routes/HistoryPage';
 import OnlinePage from './routes/OnlinePage';
 import ProfilePage from './routes/ProfilePage';
 import ReviewPage from './routes/ReviewPage';
@@ -907,7 +908,19 @@ export default function App() {
           <ProfilePage
             authUser={authUser}
             onLogin={() => setAuthMode('login')}
+            onNavigate={navigate}
             onProfileUpdated={updateSessionProfile}
+          />
+        )}
+
+        {route === 'history' && (
+          <HistoryPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+            onOpenReview={(onlineGameId) => {
+              window.history.pushState(null, '', `/play/online?review=${encodeURIComponent(onlineGameId)}`);
+              window.dispatchEvent(new window.PopStateEvent('popstate'));
+            }}
           />
         )}
 
@@ -955,7 +968,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'history' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}

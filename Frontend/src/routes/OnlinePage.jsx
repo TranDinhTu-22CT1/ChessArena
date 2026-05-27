@@ -4,7 +4,6 @@ import { Brain, Copy, LogIn, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, S
 import {
   cancelOnlineQueue,
   createFriendGame,
-  fetchOnlineHistory,
   fetchOnlineGame,
   joinFriendGame,
   joinOnlineQueue,
@@ -250,9 +249,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const [stockfishReview, setStockfishReview] = React.useState([]);
   const [stockfishStatus, setStockfishStatus] = React.useState('idle');
   const [pendingAnalysis, setPendingAnalysis] = React.useState([]);
-  const [historyGames, setHistoryGames] = React.useState([]);
-  const [historyLoading, setHistoryLoading] = React.useState(false);
   const inviteHandledRef = React.useRef(false);
+  const reviewLinkHandledRef = React.useRef(null);
   const pendingMoveRef = React.useRef(false);
   const audioRef = React.useRef(null);
   const gameFetchInFlightRef = React.useRef(false);
@@ -315,19 +313,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       gameFetchInFlightRef.current = false;
     }
   }, [applyGameSnapshot, game?.status, gameId, inviteCode]);
-
-  const loadHistory = React.useCallback(async () => {
-    if (!authUser) return;
-    setHistoryLoading(true);
-    try {
-      const data = await fetchOnlineHistory();
-      setHistoryGames(data.games ?? []);
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [authUser]);
 
   React.useEffect(() => {
     if (!authUser) return undefined;
@@ -399,8 +384,27 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   }, [applyGameSnapshot, authUser]);
 
   React.useEffect(() => {
-    if (authUser && !playingView) loadHistory();
-  }, [authUser, loadHistory, playingView]);
+    if (!authUser) return;
+    const reviewGameId = new URLSearchParams(window.location.search).get('review');
+    if (!reviewGameId || reviewLinkHandledRef.current === reviewGameId) return;
+
+    reviewLinkHandledRef.current = reviewGameId;
+    setBusy(true);
+    fetchOnlineGame(reviewGameId)
+      .then((data) => {
+        setGameId(data.game.id);
+        setGame(data.game);
+        setReviewMode(true);
+        setReviewPly((data.game.moves || []).length);
+        setShowResultDialog(false);
+        setShowMateBanner(false);
+        setStockfishReview([]);
+        setPendingAnalysis([]);
+        setMessage('Reviewing saved online game.');
+      })
+      .catch((error) => setMessage(error.message))
+      .finally(() => setBusy(false));
+  }, [authUser]);
 
   React.useEffect(() => {
     if (!gameId) return undefined;
@@ -834,18 +838,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
     setStockfishStatus('loading');
   };
 
-  const openHistoryReview = (selectedGame) => {
-    setGameId(selectedGame.id);
-    setGame(selectedGame);
-    setReviewMode(true);
-    setReviewPly((selectedGame.moves || []).length);
-    setShowResultDialog(false);
-    setShowMateBanner(false);
-    setStockfishReview([]);
-    setPendingAnalysis([]);
-    setMessage('Reviewing saved online game.');
-  };
-
   const reviewStep = (direction) => {
     setReviewPly((current) => Math.min(moves.length, Math.max(0, current + direction)));
   };
@@ -926,6 +918,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const rematchPending = Boolean(rematchRequest && !rematchRequest.response && rematchRemainingMs > 0);
   const rematchFromOpponent = Boolean(terminalGame && rematchRequest && !rematchRequest.requestedByYou && !rematchRequest.response && rematchRemainingMs > 0);
   const rematchSecondsLeft = Math.max(1, Math.ceil(rematchRemainingMs / 1000));
+  const openedFromHistory = Boolean(new URLSearchParams(window.location.search).get('review'));
   const openingExpiresAt = Date.parse(game?.openingDeadline?.expiresAt || '');
   const openingRemainingMs = game?.status === 'active' && Number.isFinite(openingExpiresAt)
     ? Math.max(0, openingExpiresAt - clockNow)
@@ -1119,37 +1112,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
           </div>
           )}
 
-          {!playingView && (
-            <div className="online-history-panel">
-              <div className="online-history-head">
-                <strong>Recent online games</strong>
-                <button type="button" onClick={loadHistory} disabled={historyLoading}>
-                  <RefreshCw size={16} /> {historyLoading ? 'Loading' : 'Refresh'}
-                </button>
-              </div>
-              {historyLoading && historyGames.length === 0 && <span>Loading completed games...</span>}
-              {!historyLoading && historyGames.length === 0 && <span>No completed online games yet.</span>}
-              <div className="online-history-list">
-                {historyGames.map((savedGame) => {
-                  const opponent = savedGame.white.you ? savedGame.black : savedGame.white;
-                  const won = (savedGame.result === '1-0' && savedGame.playerColor === 'w')
-                    || (savedGame.result === '0-1' && savedGame.playerColor === 'b');
-                  const resultLabel = savedGame.result === '1/2-1/2' ? 'Draw' : won ? 'Win' : 'Loss';
-                  return (
-                    <button className="online-history-card" key={savedGame.id} type="button" onClick={() => openHistoryReview(savedGame)}>
-                      <MiniBoard fen={savedGame.fen} pieceSet={pieceSet} />
-                      <span>
-                        <strong>{resultLabel} vs {displayName(opponent?.name)}</strong>
-                        <small>{savedGame.timeControl} - {(savedGame.moves || []).length} moves</small>
-                        <small>{savedGame.endReason === 'timeout' ? 'Finished on time' : savedGame.status}</small>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           <div className="online-controls">
             <strong>Game</strong>
             <div className="online-game-actions">
@@ -1210,9 +1172,14 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
                 <button onClick={() => setReviewPly(moves.length)} disabled={reviewPly >= moves.length}>&gt;|</button>
               </div>
               <button onClick={() => {
+                if (openedFromHistory) {
+                  window.history.pushState(null, '', '/history');
+                  window.dispatchEvent(new window.PopStateEvent('popstate'));
+                  return;
+                }
                 setReviewMode(false);
                 if (terminalGame) setShowResultDialog(true);
-              }}>Close review</button>
+              }}>{openedFromHistory ? 'Back to history' : 'Close review'}</button>
             </div>
           )}
 
@@ -1339,32 +1306,6 @@ function RematchRequestDialog({ opponentName, remainingSeconds, busy, onAccept, 
           <button className="secondary" disabled={busy} onClick={onDecline}>Decline</button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function MiniBoard({ fen, pieceSet }) {
-  const board = React.useMemo(() => {
-    try {
-      return new Chess(fen);
-    } catch {
-      return new Chess();
-    }
-  }, [fen]);
-
-  return (
-    <div className={`online-mini-board piece-set-${pieceSet}`} aria-hidden="true">
-      {Array.from({ length: 8 }).map((_, row) => (
-        Array.from({ length: 8 }).map((__, col) => {
-          const square = squareName(row, col, false);
-          const piece = board.get(square);
-          return (
-            <span className={(row + col) % 2 ? 'dark' : 'light'} key={square}>
-              {piece && <img src={PIECE_IMAGES[`${piece.color}${piece.type}`]} alt="" />}
-            </span>
-          );
-        })
-      ))}
     </div>
   );
 }

@@ -11,13 +11,13 @@ export async function GET(request) {
   if (context.error) return context.error;
 
   const { supabase, user } = context;
-  const { data: games = [], error } = await supabase
+  const { data: games = [], error, count } = await supabase
     .from('online_games')
-    .select('*')
+    .select('*', { count: 'exact' })
     .in('status', ['checkmate', 'draw', 'resigned'])
     .or(`white_user_id.eq.${user.id},black_user_id.eq.${user.id}`)
     .order('finished_at', { ascending: false })
-    .limit(20);
+    .limit(100);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
@@ -30,7 +30,7 @@ export async function GET(request) {
     return publicGame(await decorateGameRatings(supabase, game), moves, user.id);
   }));
 
-  return Response.json({ ok: true, games: history });
+  return Response.json({ ok: true, total: count ?? history.length, games: history });
 }
 
 export function OPTIONS() {

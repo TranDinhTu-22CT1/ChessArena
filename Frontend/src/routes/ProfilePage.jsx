@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, CheckCircle2, ImagePlus, Mail, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
+import { CalendarDays, CheckCircle2, History, ImagePlus, Mail, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
 import { fetchProfile, saveProfile } from '../api/profile';
 
 const MODE_LABELS = {
@@ -19,7 +19,39 @@ function winRate(summary) {
   return `${Math.round((summary.wins / summary.gamesPlayed) * 100)}%`;
 }
 
-export default function ProfilePage({ authUser, onLogin, onProfileUpdated }) {
+const MAX_AVATAR_UPLOAD_SIZE = 5 * 1024 * 1024;
+const AVATAR_EDGE = 128;
+
+function resizedAvatarData(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectURL = URL.createObjectURL(file);
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = AVATAR_EDGE;
+      canvas.height = AVATAR_EDGE;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        URL.revokeObjectURL(objectURL);
+        reject(new Error('Không thể xử lý ảnh đại diện.'));
+        return;
+      }
+      const crop = Math.min(image.naturalWidth, image.naturalHeight);
+      const left = (image.naturalWidth - crop) / 2;
+      const top = (image.naturalHeight - crop) / 2;
+      context.drawImage(image, left, top, crop, crop, 0, 0, AVATAR_EDGE, AVATAR_EDGE);
+      URL.revokeObjectURL(objectURL);
+      resolve(canvas.toDataURL('image/webp', 0.84));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectURL);
+      reject(new Error('Không thể đọc ảnh đã chọn.'));
+    };
+    image.src = objectURL;
+  });
+}
+
+export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUpdated }) {
   const [profile, setProfile] = React.useState(null);
   const [form, setForm] = React.useState({ displayName: '', photoURL: '' });
   const [loading, setLoading] = React.useState(Boolean(authUser));
@@ -67,6 +99,26 @@ export default function ProfilePage({ authUser, onLogin, onProfileUpdated }) {
     }
   };
 
+  const selectAvatar = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setMessage('Vui lòng chọn ảnh PNG, JPG hoặc WebP.');
+      return;
+    }
+    if (file.size > MAX_AVATAR_UPLOAD_SIZE) {
+      setMessage('Ảnh gốc tối đa 5 MB.');
+      return;
+    }
+    try {
+      const photoURL = await resizedAvatarData(file);
+      setForm((current) => ({ ...current, photoURL }));
+      setMessage('Ảnh đã chọn. Nhấn Lưu hồ sơ để cập nhật.');
+    } catch (error) {
+      setMessage(error.message);
+    }
+  };
+
   if (!authUser) {
     return (
       <section className="profile-auth-required">
@@ -107,8 +159,9 @@ export default function ProfilePage({ authUser, onLogin, onProfileUpdated }) {
             <input value={form.displayName} maxLength={80} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
           </label>
           <label>
-            <span><ImagePlus size={16} /> Avatar URL</span>
-            <input value={form.photoURL} placeholder="https://..." onChange={(event) => setForm((current) => ({ ...current, photoURL: event.target.value }))} />
+            <span><ImagePlus size={16} /> Ảnh đại diện</span>
+            <input className="profile-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
+            <small>Chọn ảnh từ máy của bạn (PNG, JPG hoặc WebP, tối đa 5 MB). Ảnh sẽ được tối ưu làm avatar.</small>
           </label>
           <div className="profile-detail-line"><Mail size={17} /><span>{profile?.email || 'Không có email'}</span></div>
           <div className="profile-detail-line"><CalendarDays size={17} /><span>Tham gia: {formattedDate(profile?.createdAt)}</span></div>
@@ -128,30 +181,29 @@ export default function ProfilePage({ authUser, onLogin, onProfileUpdated }) {
             <div><CheckCircle2 size={18} /><b>{winRate(summary)}</b><span>Tỉ lệ thắng</span></div>
           </div>
           <div className="profile-ratings">
-            {Object.keys(MODE_LABELS).map((mode) => {
-              const rating = profile?.ratings?.find((entry) => entry.mode === mode);
+            {(profile?.ratings || []).map((rating) => {
+              const mode = rating.mode;
               return (
                 <div key={mode}>
-                  <strong>{MODE_LABELS[mode]}</strong>
-                  <b>{rating?.rating ?? 400}</b>
-                  <small>{rating?.games_played ?? 0} ván{rating?.provisional ? ' - tạm tính' : ''}</small>
+                  <strong>{MODE_LABELS[mode] || mode}</strong>
+                  <b>{rating.rating}</b>
+                  <small>{rating.games_played} ván{rating.provisional ? ' - tạm tính' : ''}</small>
                 </div>
               );
             })}
           </div>
+          {profile?.ratings?.length === 0 && <p className="profile-empty">Chưa có rating online được ghi nhận.</p>}
         </div>
       </div>
 
       <section className="profile-recent">
-        <h2>Trận online gần đây</h2>
-        {profile?.recentGames?.length ? profile.recentGames.map((game) => (
-          <div className={`profile-game ${game.result}`} key={game.id}>
-            <b>{game.result === 'win' ? 'Thắng' : game.result === 'loss' ? 'Thua' : 'Hòa'}</b>
-            <span>vs {game.opponent || 'Player'}</span>
-            <small>{MODE_LABELS[game.mode] || game.mode} - {game.timeControl}</small>
-            <time>{formattedDate(game.finishedAt)}</time>
-          </div>
-        )) : <p className="profile-empty">Bạn chưa có trận online hoàn thành.</p>}
+        <div className="profile-recent-heading">
+          <h2>Lịch sử trận đấu</h2>
+          <button onClick={() => onNavigate?.('history')}><History size={17} /> Xem lịch sử và review</button>
+        </div>
+        <p className="profile-empty">
+          Bạn đã chơi {summary.gamesPlayed} trận online được tính kết quả. Mở danh sách lịch sử để chọn đúng ván cần xem lại.
+        </p>
       </section>
     </section>
   );

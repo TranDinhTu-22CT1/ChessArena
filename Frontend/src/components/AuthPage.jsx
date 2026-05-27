@@ -1,5 +1,6 @@
 import React from 'react';
-import { Chrome, Crown, Github, Lock, Mail, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { Chrome, Github, Lock, Mail, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import BrandMark from './BrandMark';
 
 const text = {
   createAccount: 'T\u1ea1o t\u00e0i kho\u1ea3n',
@@ -78,9 +79,7 @@ export default function AuthPage({
 
       <div className="auth-copy">
         <div className="auth-brand">
-          <div className="logo-mark">
-            <Crown size={24} />
-          </div>
+          <BrandMark className="logo-mark-image" />
           <div>
             <strong>Chess Arena</strong>
             <span>{text.platform}</span>

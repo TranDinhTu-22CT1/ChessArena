@@ -1,4 +1,5 @@
 import React from 'react';
+import BrandMark from './BrandMark';
 import {
   BarChart3,
   Bot,
@@ -42,7 +43,7 @@ const playMenuItems = [
   { icon: BarChart3, label: 'Stats' },
   { icon: Trophy, label: 'Tournaments' },
   { icon: Zap, label: 'Variants' },
-  { icon: History, label: 'Game History' }
+  { icon: History, label: 'Game History', route: 'history' }
 ];
 
 const puzzleMenuItems = [
@@ -87,9 +88,7 @@ export default function Sidebar({
       />
       <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
       <button className="logo-lockup" onClick={() => handleNavigate('home')}>
-        <div className="logo-mark">
-          <Crown size={22} />
-        </div>
+        <BrandMark className="logo-mark-image" />
         <div>
           <strong>Chess Arena</strong>
           <span>Local beta</span>
@@ -100,7 +99,7 @@ export default function Sidebar({
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.hasFlyout
-            ? ['online', 'bot', 'coach', 'local', 'review'].includes(activeRoute)
+            ? ['online', 'bot', 'coach', 'local', 'review', 'history'].includes(activeRoute)
             : item.hasPuzzleFlyout
               ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
               : item.active;
@@ -128,7 +127,7 @@ export default function Sidebar({
                         onClick={() => {
                           if (playItem.disabled) return;
                           if (playItem.route) onSelectPlayMode?.(playItem.route);
-                          handleNavigate(playItem.label === 'Game History' ? 'online' : playItem.route ?? 'bot');
+                          handleNavigate(playItem.route ?? 'bot');
                         }}
                       >
                         <PlayIcon size={20} />

@@ -7,9 +7,12 @@ function cleanDisplayName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
 }
 
-function cleanAvatarURL(value) {
+function cleanAvatarImage(value) {
   const input = String(value || '').trim();
   if (!input) return null;
+  if (/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=\r\n]+$/i.test(input)) {
+    return input.length <= 120_000 ? input : undefined;
+  }
   if (input.length > 500) return undefined;
   try {
     const url = new URL(input);
@@ -30,23 +33,27 @@ async function profilePayload(supabase, userId) {
       .from('user_ratings')
       .select('mode, rating, games_played, wins, losses, draws, provisional')
       .eq('user_id', userId)
+      .gt('games_played', 0)
       .order('mode', { ascending: true }),
     supabase
       .from('online_games')
-      .select('id, status, result, mode, time_control, white_user_id, black_user_id, white_name, black_name, finished_at')
+      .select('result, white_user_id, black_user_id')
       .or(`white_user_id.eq.${userId},black_user_id.eq.${userId}`)
       .in('status', ['checkmate', 'draw', 'resigned'])
-      .order('finished_at', { ascending: false })
-      .limit(10)
   ]);
 
   const record = profile || {};
-  const summary = ratings.reduce((total, rating) => ({
-    gamesPlayed: total.gamesPlayed + (rating.games_played || 0),
-    wins: total.wins + (rating.wins || 0),
-    losses: total.losses + (rating.losses || 0),
-    draws: total.draws + (rating.draws || 0)
-  }), { gamesPlayed: 0, wins: 0, losses: 0, draws: 0 });
+  const summary = games.reduce((total, game) => {
+    const color = game.white_user_id === userId ? 'w' : 'b';
+    const won = (game.result === '1-0' && color === 'w') || (game.result === '0-1' && color === 'b');
+    const drawn = game.result === '1/2-1/2';
+    return {
+      gamesPlayed: total.gamesPlayed + 1,
+      wins: total.wins + (won ? 1 : 0),
+      losses: total.losses + (!won && !drawn ? 1 : 0),
+      draws: total.draws + (drawn ? 1 : 0)
+    };
+  }, { gamesPlayed: 0, wins: 0, losses: 0, draws: 0 });
 
   return {
     id: record.id,
@@ -57,24 +64,7 @@ async function profilePayload(supabase, userId) {
     photoURL: record.photo_url,
     createdAt: record.created_at,
     ratings,
-    summary,
-    recentGames: games.map((game) => {
-      const color = game.white_user_id === userId ? 'w' : 'b';
-      const opponent = color === 'w' ? game.black_name : game.white_name;
-      const result = game.result === '1/2-1/2'
-        ? 'draw'
-        : (game.result === '1-0' && color === 'w') || (game.result === '0-1' && color === 'b')
-          ? 'win'
-          : 'loss';
-      return {
-        id: game.id,
-        opponent,
-        result,
-        mode: game.mode,
-        timeControl: game.time_control,
-        finishedAt: game.finished_at
-      };
-    })
+    summary
   };
 }
 
@@ -94,12 +84,12 @@ export async function POST(request) {
 
   const payload = await request.json().catch(() => null);
   const displayName = cleanDisplayName(payload?.displayName);
-  const photoURL = cleanAvatarURL(payload?.photoURL);
+  const photoURL = cleanAvatarImage(payload?.photoURL);
   if (displayName.length < 2) {
     return Response.json({ ok: false, error: 'Display name must contain at least 2 characters.' }, { status: 400 });
   }
   if (photoURL === undefined) {
-    return Response.json({ ok: false, error: 'Avatar must be a valid http or https image URL.' }, { status: 400 });
+    return Response.json({ ok: false, error: 'Avatar image could not be processed. Please choose another image.' }, { status: 400 });
   }
 
   const now = new Date().toISOString();
