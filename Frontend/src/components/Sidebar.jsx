@@ -18,6 +18,7 @@ import {
   Shield,
   Swords,
   Trophy,
+  UserRound,
   Users,
   X,
   Zap
@@ -65,7 +66,10 @@ export default function Sidebar({
   onRegister,
   onLogout
 }) {
+  const [openFlyout, setOpenFlyout] = React.useState(null);
+
   const handleNavigate = (nextRoute) => {
+    setOpenFlyout(null);
     onNavigate?.(nextRoute);
     onCloseMobile?.();
   };
@@ -101,10 +105,11 @@ export default function Sidebar({
               ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
               : item.active;
           return (
-            <div className={`nav-item ${isActive ? 'active' : ''} ${(item.hasFlyout || item.hasPuzzleFlyout) ? 'has-flyout' : ''}`} key={item.label}>
+            <div className={`nav-item ${isActive ? 'active' : ''} ${(item.hasFlyout || item.hasPuzzleFlyout) ? 'has-flyout' : ''} ${openFlyout === item.label ? 'open' : ''}`} key={item.label}>
               <button className={isActive ? 'active' : ''} onClick={() => {
-                if (item.hasFlyout) handleNavigate(activeRoute && activeRoute !== 'home' ? activeRoute : 'bot');
-                else if (item.route) handleNavigate(item.route);
+                if (item.hasFlyout || item.hasPuzzleFlyout) {
+                  setOpenFlyout((current) => current === item.label ? null : item.label);
+                } else if (item.route) handleNavigate(item.route);
               }}>
                 <Icon size={20} />
                 <span>{item.label}</span>
@@ -123,7 +128,7 @@ export default function Sidebar({
                         onClick={() => {
                           if (playItem.disabled) return;
                           if (playItem.route) onSelectPlayMode?.(playItem.route);
-                          handleNavigate(playItem.label === 'Game History' ? 'review' : playItem.route ?? 'bot');
+                          handleNavigate(playItem.label === 'Game History' ? 'online' : playItem.route ?? 'bot');
                         }}
                       >
                         <PlayIcon size={20} />
@@ -159,7 +164,7 @@ export default function Sidebar({
 
       <div className="sidebar-account">
         <div className="sidebar-card">
-          <Shield size={22} />
+          {authUser?.photoURL ? <img className="sidebar-avatar" src={authUser.photoURL} alt="" /> : <Shield size={22} />}
           <div>
             <strong>{authUser ? userName : 'Guest'}</strong>
             <span>{authUser ? 'Signed in' : 'Not signed in'}</span>
@@ -168,13 +173,19 @@ export default function Sidebar({
 
         <div className="sidebar-auth">
           {authUser ? (
-            <button onClick={() => {
-              onLogout?.();
-              onCloseMobile?.();
-            }}>
-              <LogOut size={18} />
-              Sign out
-            </button>
+            <>
+              <button onClick={() => handleNavigate('profile')}>
+                <UserRound size={18} />
+                Hồ sơ
+              </button>
+              <button onClick={() => {
+                onLogout?.();
+                onCloseMobile?.();
+              }}>
+                <LogOut size={18} />
+                Sign out
+              </button>
+            </>
           ) : (
             <>
               <button onClick={() => {

@@ -36,7 +36,6 @@ async function userDatabaseId(supabase, decoded) {
       .from('users')
       .update({
         email: decoded.email ?? null,
-        photo_url: decoded.picture ?? null,
         email_verified: Boolean(decoded.email_verified),
         updated_at: new Date().toISOString()
       })

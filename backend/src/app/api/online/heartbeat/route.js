@@ -1,9 +1,10 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import {
   activeOnlineGameForUser,
-  applyOnlineRatingResult,
+  abortOnlineGameIfOpeningIdle,
   decorateGameRatings,
   ensureModeRating,
+  expireOnlineGameOnClock,
   onlineModeFromTimeControl,
   onlineSummary,
   publicGame,
@@ -13,9 +14,6 @@ import {
 import { publishOnlineGame } from '../../../../lib/onlineEvents';
 
 export const runtime = 'nodejs';
-const FIRST_MOVE_TIMEOUT_MS = 80_000;
-const FIRST_MOVE_ACK_GRACE_MS = 10_000;
-const firstMoveGrace = new Map();
 
 function cleanClientValue(value, limit) {
   return String(value || '').trim().slice(0, limit) || null;
@@ -61,45 +59,15 @@ async function gameMoves(supabase, gameId) {
   return data;
 }
 
-function pendingFirstMove(game, moves) {
-  if (game?.status !== 'active') return null;
-  if (moves.length === 0) return { color: 'w', since: game.last_move_at || game.created_at || game.updated_at };
-  if (moves.length === 1 && moves[0].color === 'w') return { color: 'b', since: moves[0].created_at };
-  return null;
-}
-
-async function enforceFirstMoveTimeout(supabase, game) {
+async function enforceClockTimeout(supabase, game) {
   if (!game) return { game, moves: [] };
   if (game.status !== 'active') return { game, moves: await gameMoves(supabase, game.id) };
   const moves = await gameMoves(supabase, game.id);
-  const pending = pendingFirstMove(game, moves);
-  const graceKey = pending ? `${game.id}:${pending.color}` : null;
-  const graceMs = graceKey && firstMoveGrace.has(graceKey) ? FIRST_MOVE_ACK_GRACE_MS : 0;
-  const sinceMs = Date.parse(pending?.since || '');
-  if (!pending || !Number.isFinite(sinceMs) || Date.now() - sinceMs < FIRST_MOVE_TIMEOUT_MS + graceMs) {
-    return { game, moves };
-  }
-
-  const result = pending.color === 'w' ? '0-1' : '1-0';
-  const now = new Date().toISOString();
-  const { data: updatedGame, error } = await supabase
-    .from('online_games')
-    .update({
-      status: 'resigned',
-      result,
-      finished_at: now,
-      updated_at: now
-    })
-    .eq('id', game.id)
-    .eq('status', 'active')
-    .select('*')
-    .single();
-
-  if (error || !updatedGame) return { game, moves };
-  if (graceKey) firstMoveGrace.delete(graceKey);
-  publishOnlineGame(updatedGame.id, { game: updatedGame, moves });
-  await applyOnlineRatingResult(supabase, updatedGame, result);
-  return { game: updatedGame, moves };
+  const abandoned = await abortOnlineGameIfOpeningIdle(supabase, game, moves);
+  if (abandoned.aborted) publishOnlineGame(abandoned.game.id, { game: abandoned.game, moves });
+  const expired = await expireOnlineGameOnClock(supabase, abandoned.game, moves);
+  if (expired.timedOut) publishOnlineGame(expired.game.id, { game: expired.game, moves });
+  return { game: expired.game, moves };
 }
 
 export async function POST(request) {
@@ -151,7 +119,7 @@ export async function POST(request) {
       rawActiveGame = clientGame;
     }
   }
-  const enforced = await enforceFirstMoveTimeout(supabase, rawActiveGame);
+  const enforced = await enforceClockTimeout(supabase, rawActiveGame);
   const activeGame = enforced.game;
   const activeMoves = enforced.moves;
   const rating = await ensureModeRating(
@@ -159,14 +127,6 @@ export async function POST(request) {
     user.id,
     activeGame?.mode || onlineModeFromTimeControl(activeGame?.time_control)
   );
-  const pending = pendingFirstMove(activeGame, activeMoves);
-  if (payload?.firstMoveWarningOk === true && pending) {
-    const pendingUserId = pending.color === 'w' ? activeGame.white_user_id : activeGame.black_user_id;
-    const sinceMs = Date.parse(pending.since || '');
-    if (pendingUserId === user.id && Number.isFinite(sinceMs) && Date.now() - sinceMs >= 60_000) {
-      firstMoveGrace.set(`${activeGame.id}:${pending.color}`, Date.now());
-    }
-  }
   let isQueued = Boolean(queued.data);
   if (isQueued && !wantsQueue && presence.data?.status !== 'playing') {
     await supabase.rpc('quick_match_cancel', { p_user_id: user.id, p_reason: 'left_queue_view' });

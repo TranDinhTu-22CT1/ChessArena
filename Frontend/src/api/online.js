@@ -2,7 +2,11 @@ import { apiUrl } from './config';
 
 async function readJson(response) {
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) throw new Error(data.error || 'Online request failed.');
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.error || 'Online request failed.');
+    error.data = data;
+    throw error;
+  }
   return data;
 }
 
@@ -102,6 +106,13 @@ export async function joinFriendGame(code) {
 
 export async function fetchOnlineGame(gameId) {
   const response = await fetch(apiUrl(`/api/online/games/${gameId}`), {
+    credentials: 'include'
+  });
+  return readJson(response);
+}
+
+export async function fetchOnlineHistory() {
+  const response = await fetch(apiUrl('/api/online/history'), {
     credentials: 'include'
   });
   return readJson(response);

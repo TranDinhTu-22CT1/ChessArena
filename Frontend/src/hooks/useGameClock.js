@@ -5,18 +5,22 @@ export function useGameClock({
   game,
   gameFinished,
   timeWinner,
-  historyLength,
+  clockRunning,
   setClocks,
   setTimeWinner,
   setResultDismissed
 }) {
   React.useEffect(() => {
-    if (reviewMode || gameFinished || timeWinner || historyLength === 0) return undefined;
+    if (reviewMode || gameFinished || timeWinner || !clockRunning) return undefined;
 
     const activeColor = game.turn();
+    let previousAt = window.performance.now();
     const timer = window.setInterval(() => {
+      const now = window.performance.now();
+      const elapsedSeconds = (now - previousAt) / 1000;
+      previousAt = now;
       setClocks((currentClocks) => {
-        const nextValue = Math.max(0, currentClocks[activeColor] - 1);
+        const nextValue = Math.max(0, currentClocks[activeColor] - elapsedSeconds);
         const nextClocks = { ...currentClocks, [activeColor]: nextValue };
 
         if (nextValue <= 0) {
@@ -26,8 +30,8 @@ export function useGameClock({
 
         return nextClocks;
       });
-    }, 1000);
+    }, 50);
 
     return () => window.clearInterval(timer);
-  }, [game, gameFinished, historyLength, reviewMode, setClocks, setResultDismissed, setTimeWinner, timeWinner]);
+  }, [clockRunning, game, gameFinished, reviewMode, setClocks, setResultDismissed, setTimeWinner, timeWinner]);
 }

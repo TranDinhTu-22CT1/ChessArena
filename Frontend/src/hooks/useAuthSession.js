@@ -380,6 +380,11 @@ export function useAuthSession() {
     clearAuthMessage();
   };
 
+  const updateSessionProfile = React.useCallback((profile) => {
+    setAuthUser((current) => current ? { ...current, ...profile } : current);
+    setUserName(displayNameFromUser(profile));
+  }, []);
+
   return {
     userName,
     setUserName,
@@ -400,6 +405,7 @@ export function useAuthSession() {
     signInProvider,
     verifyOtp,
     resendOtp,
-    logout
+    logout,
+    updateSessionProfile
   };
 }

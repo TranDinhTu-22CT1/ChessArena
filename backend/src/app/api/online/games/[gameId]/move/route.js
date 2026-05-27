@@ -2,8 +2,10 @@ import { rateLimit } from '../../../../../../lib/rateLimit';
 import { readJsonPayload } from '../../../../../../lib/validation';
 import {
   applyOnlineRatingResult,
+  abortOnlineGameIfOpeningIdle,
   chessFromMoves,
   decorateGameRatings,
+  expireOnlineGameOnClock,
   gameResult,
   gameStatus,
   publicGame,
@@ -58,12 +60,24 @@ export async function POST(request, { params }) {
 
   if (gameError) return Response.json({ ok: false, error: gameError.message }, { status: 500 });
   if (!game) return Response.json({ ok: false, error: 'Game not found.' }, { status: 404 });
+  const playerColor = game.white_user_id === user.id ? 'w' : game.black_user_id === user.id ? 'b' : null;
+  if (!playerColor) return Response.json({ ok: false, error: 'Forbidden.' }, { status: 403 });
+  const abandoned = await abortOnlineGameIfOpeningIdle(supabase, game, moves);
+  if (abandoned.aborted) {
+    publishOnlineGame(abandoned.game.id, { game: abandoned.game, moves });
+    const responseGame = publicGame(await decorateGameRatings(supabase, abandoned.game), moves, user.id);
+    return Response.json({ ok: false, error: 'Game aborted because an opening move was not played in time.', game: responseGame }, { status: 409 });
+  }
+  const expired = await expireOnlineGameOnClock(supabase, abandoned.game, moves);
+  if (expired.timedOut) {
+    publishOnlineGame(expired.game.id, { game: expired.game, moves });
+    const responseGame = publicGame(await decorateGameRatings(supabase, expired.game), moves, user.id);
+    return Response.json({ ok: false, error: 'Time expired. The game is over.', game: responseGame }, { status: 409 });
+  }
   if (game.status !== 'active') {
     return Response.json({ ok: false, error: 'Game is not active.' }, { status: 409 });
   }
 
-  const playerColor = game.white_user_id === user.id ? 'w' : game.black_user_id === user.id ? 'b' : null;
-  if (!playerColor) return Response.json({ ok: false, error: 'Forbidden.' }, { status: 403 });
   if (game.turn !== playerColor) {
     return Response.json({ ok: false, error: 'It is not your turn.' }, { status: 409 });
   }

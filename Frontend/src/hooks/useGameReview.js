@@ -86,6 +86,23 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
   }, [history.length]);
 
   React.useEffect(() => {
+    if (!reviewMode) return undefined;
+
+    const handleKeyDown = (event) => {
+      const target = event.target;
+      const isEditable = target?.isContentEditable
+        || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName);
+      if (isEditable || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+
+      event.preventDefault();
+      reviewStep(event.key === 'ArrowLeft' ? -1 : 1);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [reviewMode, reviewStep]);
+
+  React.useEffect(() => {
     if (pendingAnalysis.length === 0) return undefined;
 
     let cancelled = false;

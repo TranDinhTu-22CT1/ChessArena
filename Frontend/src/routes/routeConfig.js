@@ -4,6 +4,7 @@ export const ROUTES = {
   bot: '/play/bot',
   coach: '/coach',
   local: '/play/local',
+  profile: '/profile',
   review: '/review',
   puzzles: '/puzzles',
   'daily-puzzle': '/puzzles/daily',
@@ -24,6 +25,7 @@ export function isPuzzleRoute(route) {
 }
 
 export function routeFromPath(pathname) {
+  if (pathname === '/profile') return 'profile';
   if (pathname === '/review') return 'review';
   if (pathname === '/puzzles/daily') return 'daily-puzzle';
   if (pathname === '/puzzles/rush') return 'puzzle-rush';

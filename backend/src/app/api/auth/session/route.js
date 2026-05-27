@@ -83,15 +83,22 @@ export async function POST(request) {
     const username = safeUserId(decoded.email || decoded.uid);
     const displayName = displayNameFromIdentity(decoded, profile);
     const photoURL = cleanProfileText(profile?.photoURL) || decoded.picture || null;
+    let existingProfile = null;
 
     if (supabase) {
+      const { data } = await supabase
+        .from('users')
+        .select('display_name, photo_url')
+        .eq('firebase_uid', decoded.uid)
+        .maybeSingle();
+      existingProfile = data;
       const { error } = await supabase.from('users').upsert(
         {
           username,
-          display_name: displayName,
+          display_name: existingProfile?.display_name || displayName,
           firebase_uid: decoded.uid,
           email: decoded.email ?? null,
-          photo_url: photoURL,
+          photo_url: existingProfile?.photo_url || photoURL,
           email_verified: Boolean(decoded.email_verified || isTrustedOauthProvider(decoded)),
           updated_at: new Date().toISOString()
         },
@@ -117,10 +124,10 @@ export async function POST(request) {
       user: {
         uid: decoded.uid,
         username,
-        displayName,
+        displayName: existingProfile?.display_name || displayName,
         email: decoded.email ?? null,
         emailVerified: Boolean(decoded.email_verified || isTrustedOauthProvider(decoded)),
-        photoURL
+        photoURL: existingProfile?.photo_url || photoURL
       }
     });
   } catch (error) {

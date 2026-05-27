@@ -102,7 +102,7 @@ export async function GET(request, { params }) {
           schedulePush();
           return;
         }
-        const game = publicGame(payload.game, payload.moves, user.id);
+        const game = publicGame(await decorateGameRatings(supabase, payload.game), payload.moves, user.id);
         latestGame = game;
         send('game', { ok: true, game });
       };

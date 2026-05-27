@@ -1,11 +1,11 @@
 import React from 'react';
 import { UserRound } from 'lucide-react';
 
-export default function PlayerCard({ tone, name, label, clock, captures, materialLead = 0, active }) {
+export default function PlayerCard({ tone, name, label, clock, captures, avatarURL, materialLead = 0, active }) {
   return (
     <section className={`player-card ${tone} ${active ? 'active' : ''}`}>
       <div className="avatar">
-        <UserRound size={20} />
+        {avatarURL ? <img src={avatarURL} alt="" /> : <UserRound size={20} />}
       </div>
       <div className="player-main">
         <div>

@@ -8,6 +8,8 @@ import { REVIEW_LEGEND, reviewIcon } from '../data/review';
 export default function GameBoard({
   blackName,
   whiteName,
+  blackAvatarURL,
+  whiteAvatarURL,
   playerColor,
   clocks,
   capturedBlack,
@@ -58,6 +60,7 @@ export default function GameBoard({
       <PlayerCard
         tone="black"
         name={blackName}
+        avatarURL={blackAvatarURL}
         label={playerColor === 'b' ? 'You' : 'Opponent'}
         clock={formatClock(clocks.b)}
         captures={capturedBlack}
@@ -200,6 +203,7 @@ export default function GameBoard({
       <PlayerCard
         tone="white"
         name={whiteName}
+        avatarURL={whiteAvatarURL}
         label={playerColor === 'w' ? 'You' : 'Opponent'}
         clock={formatClock(clocks.w)}
         captures={capturedWhite}

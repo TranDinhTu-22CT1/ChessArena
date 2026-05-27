@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../../lib/rateLimit';
-import { decorateGameRatings, publicGame, requireOnlineUser, touchPresence } from '../../../../../lib/online';
+import { abortOnlineGameIfOpeningIdle, decorateGameRatings, expireOnlineGameOnClock, publicGame, requireOnlineUser, touchPresence } from '../../../../../lib/online';
+import { publishOnlineGame } from '../../../../../lib/onlineEvents';
 
 export const runtime = 'nodejs';
 
@@ -30,12 +31,17 @@ export async function GET(request, { params }) {
     .eq('game_id', game.id)
     .order('ply', { ascending: true });
 
+  const abandoned = await abortOnlineGameIfOpeningIdle(supabase, game, moves);
+  if (abandoned.aborted) publishOnlineGame(abandoned.game.id, { game: abandoned.game, moves });
+  const expired = await expireOnlineGameOnClock(supabase, abandoned.game, moves);
+  if (expired.timedOut) publishOnlineGame(expired.game.id, { game: expired.game, moves });
+
   await touchPresence(supabase, user, {
-    status: game.status === 'active' ? 'playing' : 'online',
-    currentGameId: game.status === 'active' ? game.id : null
+    status: expired.game.status === 'active' ? 'playing' : 'online',
+    currentGameId: expired.game.status === 'active' ? expired.game.id : null
   });
 
-  return Response.json({ ok: true, game: publicGame(await decorateGameRatings(supabase, game), moves, user.id) });
+  return Response.json({ ok: true, game: publicGame(await decorateGameRatings(supabase, expired.game), moves, user.id) });
 }
 
 export function OPTIONS() {

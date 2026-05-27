@@ -1,10 +1,15 @@
 const MATERIAL_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
 export function formatClock(seconds) {
-  const safeSeconds = Math.max(0, Math.ceil(seconds));
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
   const mins = Math.floor(safeSeconds / 60);
-  const secs = safeSeconds % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
+  const secs = Math.floor(safeSeconds % 60);
+  if (safeSeconds < 10) {
+    const tenths = Math.floor((safeSeconds - Math.floor(safeSeconds)) * 10);
+    return `${mins}:${String(secs).padStart(2, '0')}.${tenths}`;
+  }
+  const roundedSeconds = Math.ceil(safeSeconds);
+  return `${Math.floor(roundedSeconds / 60)}:${String(roundedSeconds % 60).padStart(2, '0')}`;
 }
 
 export function squareCenter(square, flipped) {

@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from './supabaseAdmin';
 const ONLINE_WINDOW_MS = 45_000;
 const QUEUE_STALE_MS = 30_000;
 const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const OPENING_MOVE_DEADLINE_MS = 20_000;
 export const DEFAULT_ONLINE_RATING = 400;
 
 function safeUsername(value) {
@@ -84,7 +85,7 @@ export async function requireOnlineUser() {
   const username = safeUsername(decoded.email || decoded.uid);
   const { data: storedUser } = await supabase
     .from('users')
-    .select('id, username, display_name, firebase_uid')
+    .select('id, username, display_name, firebase_uid, photo_url')
     .eq('firebase_uid', decoded.uid)
     .maybeSingle();
 
@@ -95,7 +96,8 @@ export async function requireOnlineUser() {
         id: storedUser.id,
         username: storedUser.username,
         displayName: cleanName(storedUser.display_name, username),
-        firebaseUid: storedUser.firebase_uid
+        firebaseUid: storedUser.firebase_uid,
+        photoURL: storedUser.photo_url
       }
     };
   }
@@ -115,7 +117,7 @@ export async function requireOnlineUser() {
       },
       { onConflict: 'firebase_uid' }
     )
-    .select('id, username, display_name, firebase_uid')
+    .select('id, username, display_name, firebase_uid, photo_url')
     .single();
 
   if (upsertError) {
@@ -128,7 +130,8 @@ export async function requireOnlineUser() {
       id: user.id,
       username: user.username,
       displayName: user.display_name,
-      firebaseUid: user.firebase_uid
+      firebaseUid: user.firebase_uid,
+      photoURL: user.photo_url
     }
   };
 }
@@ -314,11 +317,17 @@ export async function decorateGameRatings(supabase, game) {
   if (ids.length === 0) return game;
 
   const mode = game.mode || onlineModeFromTimeControl(game.time_control);
-  const { data: modeRatings = [] } = await supabase
-    .from('user_ratings')
-    .select('user_id, rating, games_played')
-    .eq('mode', mode)
-    .in('user_id', ids);
+  const [{ data: modeRatings = [] }, { data: players = [] }] = await Promise.all([
+    supabase
+      .from('user_ratings')
+      .select('user_id, rating, games_played')
+      .eq('mode', mode)
+      .in('user_id', ids),
+    supabase
+      .from('users')
+      .select('id, photo_url')
+      .in('id', ids)
+  ]);
   let data = modeRatings;
   if (data.length === 0) {
     const { data: legacyRatings = [] } = await supabase
@@ -329,10 +338,13 @@ export async function decorateGameRatings(supabase, game) {
   }
 
   const byUser = new Map((data || []).map((rating) => [rating.user_id, rating]));
+  const photoByUser = new Map((players || []).map((player) => [player.id, player.photo_url]));
   return {
     ...game,
     white_rating: byUser.get(game.white_user_id)?.rating ?? DEFAULT_ONLINE_RATING,
-    black_rating: byUser.get(game.black_user_id)?.rating ?? DEFAULT_ONLINE_RATING
+    black_rating: byUser.get(game.black_user_id)?.rating ?? DEFAULT_ONLINE_RATING,
+    white_photo_url: photoByUser.get(game.white_user_id) ?? null,
+    black_photo_url: photoByUser.get(game.black_user_id) ?? null
   };
 }
 
@@ -379,6 +391,93 @@ export function gameStatus(chess) {
   return 'active';
 }
 
+export function onlineClockMilliseconds(game, moves, now = Date.now()) {
+  const [base = '600', increment = '0'] = String(game?.time_control || game?.timeControl || '600+0').split('+');
+  const baseMs = Math.max(0, Number(base) || 600) * 1000;
+  const incrementMs = Math.max(0, Number(increment) || 0) * 1000;
+  const clocks = { w: baseMs, b: baseMs };
+  let previousAt = Date.parse(game?.started_at || game?.startedAt || game?.last_move_at || game?.lastMoveAt || game?.created_at || game?.createdAt || '');
+
+  for (const move of moves || []) {
+    const moveAt = Date.parse(move.created_at || move.createdAt || '');
+    if (Number.isFinite(previousAt) && Number.isFinite(moveAt)) {
+      clocks[move.color] = Math.max(0, clocks[move.color] - Math.max(0, moveAt - previousAt));
+    }
+    clocks[move.color] += incrementMs;
+    if (Number.isFinite(moveAt)) previousAt = moveAt;
+  }
+
+  const turn = game?.turn;
+  const endAt = game?.status === 'active'
+    ? now
+    : Date.parse(game?.finished_at || game?.finishedAt || '');
+  if (turn && Number.isFinite(previousAt) && Number.isFinite(endAt)) {
+    clocks[turn] = Math.max(0, clocks[turn] - Math.max(0, endAt - previousAt));
+  }
+  return clocks;
+}
+
+export function openingMoveDeadline(game, moves) {
+  if (!game || game.status !== 'active') return null;
+  const pendingColor = moves.length === 0
+    ? 'w'
+    : moves.length === 1 && moves[0].color === 'w'
+      ? 'b'
+      : null;
+  if (!pendingColor) return null;
+
+  const startedAt = pendingColor === 'w'
+    ? game.started_at || game.startedAt || game.last_move_at || game.lastMoveAt || game.created_at || game.createdAt
+    : moves[0].created_at || moves[0].createdAt;
+  const startedMs = Date.parse(startedAt || '');
+  if (!Number.isFinite(startedMs)) return null;
+
+  return {
+    color: pendingColor,
+    expiresAt: new Date(startedMs + OPENING_MOVE_DEADLINE_MS).toISOString()
+  };
+}
+
+export async function abortOnlineGameIfOpeningIdle(supabase, game, moves) {
+  const deadline = openingMoveDeadline(game, moves);
+  if (!deadline || Date.parse(deadline.expiresAt) > Date.now()) {
+    return { game, aborted: false };
+  }
+
+  const now = new Date().toISOString();
+  const { data: updatedGame, error } = await supabase
+    .from('online_games')
+    .update({ status: 'abandoned', result: '*', finished_at: now, updated_at: now })
+    .eq('id', game.id)
+    .eq('status', 'active')
+    .select('*')
+    .maybeSingle();
+
+  if (error || !updatedGame) return { game, aborted: false };
+  return { game: updatedGame, aborted: true };
+}
+
+export async function expireOnlineGameOnClock(supabase, game, moves) {
+  if (!game || game.status !== 'active') return { game, timedOut: false };
+  const clocks = onlineClockMilliseconds(game, moves);
+  const expiredColor = game.turn && clocks[game.turn] <= 0 ? game.turn : null;
+  if (!expiredColor) return { game, timedOut: false };
+
+  const result = expiredColor === 'w' ? '0-1' : '1-0';
+  const now = new Date().toISOString();
+  const { data: updatedGame, error } = await supabase
+    .from('online_games')
+    .update({ status: 'resigned', result, finished_at: now, updated_at: now })
+    .eq('id', game.id)
+    .eq('status', 'active')
+    .select('*')
+    .maybeSingle();
+
+  if (error || !updatedGame) return { game, timedOut: false };
+  await applyOnlineRatingResult(supabase, updatedGame, result);
+  return { game: updatedGame, timedOut: true };
+}
+
 export function publicGame(game, moves, userId) {
   const playerColor = game.white_user_id === userId ? 'w' : game.black_user_id === userId ? 'b' : null;
   const whiteName = cleanName(game.white_name, 'Player');
@@ -389,6 +488,9 @@ export function publicGame(game, moves, userId) {
     : game.rematch_requested_by === game.black_user_id
       ? blackName
       : null;
+  const clocks = onlineClockMilliseconds(game, moves);
+  const endedByTimeout = game.status === 'resigned' && clocks[game.turn] <= 0;
+  const openingDeadline = openingMoveDeadline(game, moves);
   return {
     id: game.id,
     inviteCode: game.invite_code,
@@ -402,18 +504,25 @@ export function publicGame(game, moves, userId) {
     result: game.result,
     timeControl: game.time_control,
     lastMoveAt: game.last_move_at,
+    startedAt: game.started_at,
+    finishedAt: game.finished_at,
+    endReason: game.status === 'abandoned' ? 'aborted' : endedByTimeout ? 'timeout' : game.status === 'resigned' ? 'resignation' : null,
+    openingDeadline,
+    clocks,
     createdAt: game.created_at,
     playerColor,
     white: {
       id: game.white_user_id,
       name: whiteName,
       rating: game.white_rating ?? DEFAULT_ONLINE_RATING,
+      photoURL: game.white_photo_url ?? null,
       you: game.white_user_id === userId
     },
     black: {
       id: game.black_user_id,
       name: blackName,
       rating: game.black_rating ?? DEFAULT_ONLINE_RATING,
+      photoURL: game.black_photo_url ?? null,
       you: game.black_user_id === userId
     },
     rematch: game.rematch_requested_by ? {

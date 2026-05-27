@@ -1,9 +1,10 @@
 import React from 'react';
 import { Chess } from 'chess.js';
-import { Brain, Clock, Copy, LogIn, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from 'lucide-react';
+import { Brain, Copy, LogIn, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import {
   cancelOnlineQueue,
   createFriendGame,
+  fetchOnlineHistory,
   fetchOnlineGame,
   joinFriendGame,
   joinOnlineQueue,
@@ -32,6 +33,7 @@ function statusText(game) {
   if (game.status === 'checkmate') return `Checkmate ${game.result}`;
   if (game.status === 'draw') return `Draw ${game.result}`;
   if (game.status === 'resigned') return `Resigned ${game.result}`;
+  if (game.status === 'abandoned') return 'Game aborted';
   return game.turn === game.playerColor ? 'Your move' : 'Opponent move';
 }
 
@@ -53,8 +55,14 @@ function parseTimeControl(value) {
   };
 }
 
-function formatClock(seconds) {
-  const safeSeconds = Math.max(0, Math.floor(seconds || 0));
+function formatClock(milliseconds) {
+  const safeMs = Math.max(0, Number(milliseconds) || 0);
+  if (safeMs <= 10_000) {
+    const seconds = Math.floor(safeMs / 1000);
+    const tenths = Math.floor((safeMs % 1000) / 100);
+    return `00:${String(seconds).padStart(2, '0')}.${tenths}`;
+  }
+  const safeSeconds = Math.ceil(safeMs / 1000);
   const minutes = Math.floor(safeSeconds / 60);
   return `${String(minutes).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
 }
@@ -77,58 +85,43 @@ function checkedKingSquare(chess) {
 function computeOnlineClocks(game, now = Date.now()) {
   if (!game) return null;
   const { baseSeconds, incrementSeconds } = parseTimeControl(game.timeControl);
-  const clocks = { w: baseSeconds, b: baseSeconds };
+  const clocks = { w: baseSeconds * 1000, b: baseSeconds * 1000 };
   const moves = game.moves || [];
   let previousAt = Date.parse(
-    moves.length === 0
-      ? game.lastMoveAt || game.createdAt || game.updatedAt || new Date().toISOString()
-      : game.createdAt || game.lastMoveAt || game.updatedAt || new Date().toISOString()
+    game.startedAt || game.lastMoveAt || game.createdAt || game.updatedAt || new Date().toISOString()
   );
 
   for (const move of moves) {
     const moveAt = Date.parse(move.createdAt || game.lastMoveAt || game.updatedAt || new Date().toISOString());
     if (Number.isFinite(previousAt) && Number.isFinite(moveAt)) {
-      clocks[move.color] = Math.max(0, clocks[move.color] - Math.max(0, Math.round((moveAt - previousAt) / 1000)));
+      clocks[move.color] = Math.max(0, clocks[move.color] - Math.max(0, moveAt - previousAt));
     }
-    clocks[move.color] += incrementSeconds;
+    clocks[move.color] += incrementSeconds * 1000;
     previousAt = moveAt;
   }
 
   if (game.status === 'active' && game.turn && Number.isFinite(previousAt)) {
-    clocks[game.turn] = Math.max(0, clocks[game.turn] - Math.max(0, Math.round((now - previousAt) / 1000)));
+    clocks[game.turn] = Math.max(0, clocks[game.turn] - Math.max(0, now - previousAt));
+  } else if (game.turn && game.finishedAt && Number.isFinite(previousAt)) {
+    clocks[game.turn] = Math.max(0, clocks[game.turn] - Math.max(0, Date.parse(game.finishedAt) - previousAt));
   }
 
   return clocks;
 }
 
-function pendingFirstMoveInfo(game, now = Date.now()) {
-  if (!game || game.status !== 'active') return null;
-  const moves = game.moves || [];
-  const pending = moves.length === 0
-    ? { color: 'w', since: game.lastMoveAt || game.createdAt || game.updatedAt }
-    : moves.length === 1 && moves[0].color === 'w'
-      ? { color: 'b', since: moves[0].createdAt }
-      : null;
-  const sinceMs = Date.parse(pending?.since || '');
-  if (!pending || !Number.isFinite(sinceMs)) return null;
-  const elapsedSeconds = Math.max(0, Math.floor((now - sinceMs) / 1000));
-  return {
-    ...pending,
-    elapsedSeconds,
-    warn: elapsedSeconds >= 60 && elapsedSeconds < 80,
-    timeout: elapsedSeconds >= 80,
-    remainingSeconds: Math.max(0, 80 - elapsedSeconds)
-  };
-}
-
-function onlineOutcome(game) {
-  if (!game || !['checkmate', 'draw', 'resigned'].includes(game.status)) return null;
+function onlineOutcome(game, clocks) {
+  if (!game || !['checkmate', 'draw', 'resigned', 'abandoned'].includes(game.status)) return null;
+  if (game.status === 'abandoned') {
+    return { type: 'draw', aborted: true, title: 'Game aborted', detail: 'Opening move was not played in time. Ratings unchanged.' };
+  }
   if (game.status === 'draw') {
     return { type: 'draw', title: 'Draw Game', detail: game.result || '1/2-1/2' };
   }
   const winner = game.result === '1-0' ? 'w' : game.result === '0-1' ? 'b' : null;
   const youWon = winner && winner === game.playerColor;
-  const reason = game.status === 'checkmate' ? 'by checkmate' : 'by resignation';
+  const reason = game.endReason === 'timeout' || clocks?.[game.turn] === 0
+    ? 'on time'
+    : game.status === 'checkmate' ? 'by checkmate' : 'by resignation';
   return {
     type: youWon ? 'win' : 'loss',
     title: youWon ? 'You won' : 'You lost',
@@ -147,7 +140,7 @@ function movePairs(moves = []) {
 }
 
 function isTerminalGame(game) {
-  return ['checkmate', 'draw', 'resigned'].includes(game?.status);
+  return ['checkmate', 'draw', 'resigned', 'abandoned'].includes(game?.status);
 }
 
 function replayOnlineGameAt(moves = [], ply = 0) {
@@ -249,8 +242,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const [clockNow, setClockNow] = React.useState(Date.now());
   const [showMateBanner, setShowMateBanner] = React.useState(false);
   const [showResultDialog, setShowResultDialog] = React.useState(false);
-  const [showFirstMoveWarning, setShowFirstMoveWarning] = React.useState(false);
-  const [firstMoveWarningOkKey, setFirstMoveWarningOkKey] = React.useState(null);
   const [realtimeConnected, setRealtimeConnected] = React.useState(false);
   const [rematchBusy, setRematchBusy] = React.useState(false);
   const [rematchNow, setRematchNow] = React.useState(Date.now());
@@ -259,6 +250,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const [stockfishReview, setStockfishReview] = React.useState([]);
   const [stockfishStatus, setStockfishStatus] = React.useState('idle');
   const [pendingAnalysis, setPendingAnalysis] = React.useState([]);
+  const [historyGames, setHistoryGames] = React.useState([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
   const inviteHandledRef = React.useRef(false);
   const pendingMoveRef = React.useRef(false);
   const audioRef = React.useRef(null);
@@ -266,6 +259,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const heartbeatInFlightRef = React.useRef(false);
   const lastPlyRef = React.useRef(0);
   const lastTerminalKeyRef = React.useRef(null);
+  const timeoutRefreshRef = React.useRef(null);
+  const openingRefreshRef = React.useRef(null);
 
   const applyGameSnapshot = React.useCallback((incomingGame) => {
     if (!incomingGame) return;
@@ -299,8 +294,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const reviewStats = React.useMemo(() => calculateReviewStats(stockfishReview), [stockfishReview]);
   const currentReviewAnalysis = reviewMode ? stockfishReview[reviewPly - 1] : null;
   const reviewBadge = currentReviewAnalysis ?? (reviewMode && reviewPly > 0 ? { label: 'Analyzing', tone: 'loading' } : null);
-  const firstMoveInfo = pendingFirstMoveInfo(game, clockNow);
-  const firstMoveWarningKey = firstMoveInfo ? `${game?.id}:${firstMoveInfo.color}` : null;
   const reviewedMoveCount = stockfishReview.filter(Boolean).length;
   const reviewProgress = moves.length ? Math.round((reviewedMoveCount / moves.length) * 100) : 0;
   const reviewingLiveGame = reviewMode && !terminalGame;
@@ -322,6 +315,19 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       gameFetchInFlightRef.current = false;
     }
   }, [applyGameSnapshot, game?.status, gameId, inviteCode]);
+
+  const loadHistory = React.useCallback(async () => {
+    if (!authUser) return;
+    setHistoryLoading(true);
+    try {
+      const data = await fetchOnlineHistory();
+      setHistoryGames(data.games ?? []);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [authUser]);
 
   React.useEffect(() => {
     if (!authUser) return undefined;
@@ -391,6 +397,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       .catch((error) => setMessage(error.message))
       .finally(() => setBusy(false));
   }, [applyGameSnapshot, authUser]);
+
+  React.useEffect(() => {
+    if (authUser && !playingView) loadHistory();
+  }, [authUser, loadHistory, playingView]);
 
   React.useEffect(() => {
     if (!gameId) return undefined;
@@ -486,19 +496,9 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   React.useEffect(() => {
     if (!game?.id || game.status !== 'active') return undefined;
     setClockNow(Date.now());
-    const timer = window.setInterval(() => setClockNow(Date.now()), 250);
+    const timer = window.setInterval(() => setClockNow(Date.now()), 50);
     return () => window.clearInterval(timer);
   }, [game?.id, game?.status, game?.turn]);
-
-  React.useEffect(() => {
-    setShowFirstMoveWarning(Boolean(
-      game?.status === 'active'
-      && firstMoveInfo?.warn
-      && firstMoveInfo.color === game.playerColor
-      && game.turn === game.playerColor
-      && firstMoveWarningKey !== firstMoveWarningOkKey
-    ));
-  }, [firstMoveInfo?.color, firstMoveInfo?.warn, firstMoveWarningKey, firstMoveWarningOkKey, game?.playerColor, game?.status, game?.turn]);
 
   React.useEffect(() => {
     const nextPly = game?.moves?.length || 0;
@@ -521,7 +521,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       lastTerminalKeyRef.current = null;
       return undefined;
     }
-    setShowFirstMoveWarning(false);
     if (reviewMode) return undefined;
     lastTerminalKeyRef.current = terminalKey;
     setShowResultDialog(false);
@@ -773,7 +772,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       const data = await sendOnlineMove(game.id, { from: selected, to: square, promotion });
       applyGameSnapshot(data.game);
     } catch (error) {
-      setGame(previousGame);
+      if (error.data?.game) applyGameSnapshot(error.data.game);
+      else setGame(previousGame);
       setMessage(error.message);
       refreshGame(game.id);
     } finally {
@@ -834,19 +834,41 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
     setStockfishStatus('loading');
   };
 
+  const openHistoryReview = (selectedGame) => {
+    setGameId(selectedGame.id);
+    setGame(selectedGame);
+    setReviewMode(true);
+    setReviewPly((selectedGame.moves || []).length);
+    setShowResultDialog(false);
+    setShowMateBanner(false);
+    setStockfishReview([]);
+    setPendingAnalysis([]);
+    setMessage('Reviewing saved online game.');
+  };
+
   const reviewStep = (direction) => {
     setReviewPly((current) => Math.min(moves.length, Math.max(0, current + direction)));
   };
 
-  const acknowledgeFirstMoveWarning = async () => {
-    if (firstMoveWarningKey) setFirstMoveWarningOkKey(firstMoveWarningKey);
-    setShowFirstMoveWarning(false);
-    try {
-      await sendOnlineHeartbeat(false, gameId, { firstMoveWarningOk: true });
-    } catch (error) {
-      setMessage(error.message);
-    }
-  };
+  React.useEffect(() => {
+    if (!reviewMode) return undefined;
+
+    const handleKeyDown = (event) => {
+      const target = event.target;
+      const isEditable = target?.isContentEditable
+        || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName);
+      if (isEditable || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+
+      event.preventDefault();
+      setReviewPly((current) => Math.min(
+        moves.length,
+        Math.max(0, current + (event.key === 'ArrowLeft' ? -1 : 1))
+      ));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [moves.length, reviewMode]);
 
   const requestRematch = async (action = 'request') => {
     if (!game || !terminalGame) return;
@@ -878,10 +900,12 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const selfName = displayName(userName || authUser?.displayName, 'Player');
   const opponentPlayer = game?.white?.you ? game.black : game?.black?.you ? game.white : null;
   const topName = displayName(opponentPlayer?.name, 'Player');
+  const topPhotoURL = opponentPlayer?.photoURL;
   const topRating = opponentPlayer?.rating || 400;
   const topLabel = game?.status === 'active' ? 'Opponent' : game?.status === 'waiting' ? 'Waiting' : 'Waiting';
   const bottomName = selfName;
   const selfPlayer = game?.white?.you ? game.white : game?.black?.you ? game.black : null;
+  const bottomPhotoURL = selfPlayer?.photoURL || authUser?.photoURL;
   const bottomRating = selfPlayer?.rating || myRating;
   const playerColorLabel = game?.playerColor === 'w' ? 'White' : game?.playerColor === 'b' ? 'Black' : 'Choose match';
   const pairs = movePairs(moves);
@@ -889,19 +913,47 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const bottomColor = game?.playerColor || 'w';
   const { baseSeconds } = parseTimeControl(game?.timeControl || timeControl);
   const clocks = computeOnlineClocks(game, clockNow);
-  const topClock = formatClock(clocks?.[topColor] ?? baseSeconds);
-  const bottomClock = formatClock(clocks?.[bottomColor] ?? baseSeconds);
-  const topClockLow = (clocks?.[topColor] ?? baseSeconds) <= 30;
-  const bottomClockLow = (clocks?.[bottomColor] ?? baseSeconds) <= 30;
+  const topClock = formatClock(clocks?.[topColor] ?? baseSeconds * 1000);
+  const bottomClock = formatClock(clocks?.[bottomColor] ?? baseSeconds * 1000);
+  const topClockLow = (clocks?.[topColor] ?? baseSeconds * 1000) <= 30_000;
+  const bottomClockLow = (clocks?.[bottomColor] ?? baseSeconds * 1000) <= 30_000;
   const lastMove = reviewMode ? moves[reviewPly - 1] : moves.at(-1);
   const checkedSquare = reviewMode ? null : checkedKingSquare(board);
-  const outcome = onlineOutcome(game);
+  const outcome = onlineOutcome(game, clocks);
   const rematchRequest = game?.rematch;
   const rematchExpiresAt = Date.parse(rematchRequest?.expiresAt || '');
   const rematchRemainingMs = Number.isFinite(rematchExpiresAt) ? Math.max(0, rematchExpiresAt - rematchNow) : 0;
   const rematchPending = Boolean(rematchRequest && !rematchRequest.response && rematchRemainingMs > 0);
   const rematchFromOpponent = Boolean(terminalGame && rematchRequest && !rematchRequest.requestedByYou && !rematchRequest.response && rematchRemainingMs > 0);
   const rematchSecondsLeft = Math.max(1, Math.ceil(rematchRemainingMs / 1000));
+  const openingExpiresAt = Date.parse(game?.openingDeadline?.expiresAt || '');
+  const openingRemainingMs = game?.status === 'active' && Number.isFinite(openingExpiresAt)
+    ? Math.max(0, openingExpiresAt - clockNow)
+    : null;
+  const openingTurnName = game?.openingDeadline?.color === game?.playerColor ? 'Bạn' : 'Đối thủ';
+
+  React.useEffect(() => {
+    if (!game?.id || game.status !== 'active' || !game.turn || (clocks?.[game.turn] ?? 1) > 0) {
+      if (game?.status !== 'active') timeoutRefreshRef.current = null;
+      return;
+    }
+    const key = `${game.id}:${game.turn}:${moves.length}`;
+    if (timeoutRefreshRef.current === key) return;
+    timeoutRefreshRef.current = key;
+    setBusy(true);
+    Promise.resolve(refreshGame(game.id)).finally(() => setBusy(false));
+  }, [clocks, game?.id, game?.status, game?.turn, moves.length, refreshGame]);
+
+  React.useEffect(() => {
+    if (!game?.id || game.status !== 'active' || !game.openingDeadline || openingRemainingMs === null || openingRemainingMs > 0) {
+      if (game?.status !== 'active') openingRefreshRef.current = null;
+      return;
+    }
+    const key = `${game.id}:opening:${game.openingDeadline.color}`;
+    if (openingRefreshRef.current === key) return;
+    openingRefreshRef.current = key;
+    Promise.resolve(refreshGame(game.id)).catch(() => {});
+  }, [game?.id, game?.openingDeadline, game?.status, openingRemainingMs, refreshGame]);
 
   if (!authUser) {
     return (
@@ -934,17 +986,32 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       <main className="online-layout">
         <section className="online-board-section">
           <div className={`online-player-bar top ${game?.turn === topColor && game?.status === 'active' ? 'active-clock' : ''}`}>
+            <PlayerAvatar name={topName} photoURL={topPhotoURL} />
             <strong title={topName}>{topName}</strong>
             <span className="online-player-meta">{topLabel} - {topRating}</span>
             <b className={`online-clock ${topClockLow ? 'low' : ''}`}>{topClock}</b>
           </div>
+          {reviewMode && (
+            <div className="online-review-legend">
+              {REVIEW_LEGEND.map((item) => (
+                <span className={item.tone} key={item.tone}>
+                  <b>{reviewIcon(item.tone)}</b>{item.label}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="online-board-wrap">
+            {openingRemainingMs !== null && (
+              <div className="online-opening-deadline" aria-live="polite">
+                {openingTurnName} cần đi nước đầu trong {Math.ceil(openingRemainingMs / 1000)} giây, nếu không ván sẽ bị hủy.
+              </div>
+            )}
             {showMateBanner && <div className="online-checkmate-banner">Checkmate</div>}
             {terminalGame && !reviewMode && !showResultDialog && (
               <div className="online-ended-overlay">
                 <Trophy size={34} />
-                <strong>Game finished</strong>
-                <span>Open Game Review to inspect the old position.</span>
+                <strong>{game.status === 'abandoned' ? 'Game aborted' : 'Game finished'}</strong>
+                <span>{game.status === 'abandoned' ? 'No rating change. Start a new match.' : 'Open Game Review to inspect the old position.'}</span>
               </div>
             )}
             <OnlineBoard
@@ -961,6 +1028,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
             />
           </div>
           <div className={`online-player-bar ${game?.turn === bottomColor && game?.status === 'active' ? 'active-clock' : ''}`}>
+            <PlayerAvatar name={bottomName} photoURL={bottomPhotoURL} />
             <strong title={bottomName}>{bottomName}</strong>
             <span className="online-player-meta">You - {bottomRating}</span>
             <b className={`online-clock ${bottomClockLow ? 'low' : ''}`}>{bottomClock}</b>
@@ -1051,6 +1119,37 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
           </div>
           )}
 
+          {!playingView && (
+            <div className="online-history-panel">
+              <div className="online-history-head">
+                <strong>Recent online games</strong>
+                <button type="button" onClick={loadHistory} disabled={historyLoading}>
+                  <RefreshCw size={16} /> {historyLoading ? 'Loading' : 'Refresh'}
+                </button>
+              </div>
+              {historyLoading && historyGames.length === 0 && <span>Loading completed games...</span>}
+              {!historyLoading && historyGames.length === 0 && <span>No completed online games yet.</span>}
+              <div className="online-history-list">
+                {historyGames.map((savedGame) => {
+                  const opponent = savedGame.white.you ? savedGame.black : savedGame.white;
+                  const won = (savedGame.result === '1-0' && savedGame.playerColor === 'w')
+                    || (savedGame.result === '0-1' && savedGame.playerColor === 'b');
+                  const resultLabel = savedGame.result === '1/2-1/2' ? 'Draw' : won ? 'Win' : 'Loss';
+                  return (
+                    <button className="online-history-card" key={savedGame.id} type="button" onClick={() => openHistoryReview(savedGame)}>
+                      <MiniBoard fen={savedGame.fen} pieceSet={pieceSet} />
+                      <span>
+                        <strong>{resultLabel} vs {displayName(opponent?.name)}</strong>
+                        <small>{savedGame.timeControl} - {(savedGame.moves || []).length} moves</small>
+                        <small>{savedGame.endReason === 'timeout' ? 'Finished on time' : savedGame.status}</small>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="online-controls">
             <strong>Game</strong>
             <div className="online-game-actions">
@@ -1068,8 +1167,21 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
           </div>
 
           {reviewMode && (
-            <div className="online-review-panel">
-              <strong>Move analysis</strong>
+            <div className="online-review-panel online-review-dashboard">
+              <div className="online-review-coach">
+                <div className="review-coach-avatar">GM</div>
+                <div>
+                  <span className={`move-badge inline ${reviewBadge?.tone ?? 'loading'}`}>
+                    {reviewIcon(reviewBadge?.tone ?? 'loading')}
+                  </span>
+                  <strong>{reviewPly > 0 ? reviewBadge?.label || 'Analyzing move' : 'Start position'}</strong>
+                  <p>
+                    {currentReviewAnalysis?.bestMove
+                      ? `Best move: ${currentReviewAnalysis.bestSan || currentReviewAnalysis.bestMove}.`
+                      : 'Use the arrows or move table to inspect this online game.'}
+                  </p>
+                </div>
+              </div>
               {reviewedMoveCount < moves.length && (
                 <div className="online-review-progress" aria-live="polite">
                   <p>Vui lòng đợi AI của chúng tôi đánh giá ván cờ của bạn</p>
@@ -1080,6 +1192,16 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
               <div className="online-review-accuracy">
                 <span>White <b>{reviewStats.accuracy.w}</b></span>
                 <span>Black <b>{reviewStats.accuracy.b}</b></span>
+              </div>
+              <div className="online-review-breakdown">
+                {REVIEW_LEGEND.map((item) => (
+                  <div key={item.tone}>
+                    <span>{reviewStats.stats.w[item.tone] ?? 0}</span>
+                    <b className={item.tone}>{reviewIcon(item.tone)}</b>
+                    <strong>{item.label}</strong>
+                    <span>{reviewStats.stats.b[item.tone] ?? 0}</span>
+                  </div>
+                ))}
               </div>
               <div className="online-review-controls">
                 <button onClick={() => setReviewPly(0)} disabled={reviewPly === 0}>|&lt;</button>
@@ -1140,12 +1262,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
           onDecline={() => requestRematch('decline')}
         />
       )}
-      {showFirstMoveWarning && firstMoveInfo && (
-        <FirstMoveWarningDialog
-          remainingSeconds={firstMoveInfo.remainingSeconds}
-          onClose={acknowledgeFirstMoveWarning}
-        />
-      )}
     </section>
   );
 }
@@ -1193,15 +1309,15 @@ function OnlineResultDialog({ outcome, rematch, rematchPending, rematchBusy, onR
         <small>{outcome.detail}</small>
         <div className="result-coach">
           <div className="review-coach-avatar">VS</div>
-          <p>{outcome.type === 'win' ? 'Game finished. Review the key moves or ask your opponent for a rematch.' : outcome.type === 'loss' ? 'Game over. Review the critical position before playing again.' : 'Balanced result. Review the turning points or start another game.'}</p>
+          <p>{outcome.aborted ? 'This game was cancelled before both players completed an opening move.' : outcome.type === 'win' ? 'Game finished. Review the key moves or ask your opponent for a rematch.' : outcome.type === 'loss' ? 'Game over. Review the critical position before playing again.' : 'Balanced result. Review the turning points or start another game.'}</p>
           {rematch?.requestedByYou && rematchPending && <small>Rematch request sent. Waiting for opponent.</small>}
           {rematch?.requestedByYou && !rematch.response && !rematchPending && <small>Rematch request expired.</small>}
           {rematch?.response === 'declined' && <small>Opponent declined the rematch.</small>}
         </div>
         <div className="result-actions">
-          <button onClick={onReview}><Brain size={18} /> Game review</button>
+          {!outcome.aborted && <button onClick={onReview}><Brain size={18} /> Game review</button>}
           <button onClick={onNewGame}><Search size={18} /> New game</button>
-          <button disabled={rematchBusy || (rematch?.requestedByYou && rematchPending)} onClick={onRematch}><RotateCcw size={18} /> Rematch</button>
+          {!outcome.aborted && <button disabled={rematchBusy || (rematch?.requestedByYou && rematchPending)} onClick={onRematch}><RotateCcw size={18} /> Rematch</button>}
         </div>
       </div>
     </div>
@@ -1227,21 +1343,36 @@ function RematchRequestDialog({ opponentName, remainingSeconds, busy, onAccept, 
   );
 }
 
-function FirstMoveWarningDialog({ remainingSeconds, onClose }) {
+function MiniBoard({ fen, pieceSet }) {
+  const board = React.useMemo(() => {
+    try {
+      return new Chess(fen);
+    } catch {
+      return new Chess();
+    }
+  }, [fen]);
+
   return (
-    <div className="result-backdrop online-warning-backdrop" role="dialog" aria-modal="true" aria-label="First move warning">
-      <div className="result-dialog compact-result online-warning-dialog" data-result="draw">
-        <div className="result-icon"><Clock size={28} /></div>
-        <h2>Your move</h2>
-        <small>Anti-cheat warning</small>
-        <div className="result-coach">
-          <div className="review-coach-avatar">!</div>
-          <p>Nếu bạn không di chuyển trong {remainingSeconds}s, thì log trận đấu này sẽ được gửi cho hệ thống anti cheat. Sau 10 lần như này tài khoản của bạn sẽ bị ban vĩnh viễn.</p>
-        </div>
-        <div className="result-actions">
-          <button onClick={onClose}>OK</button>
-        </div>
-      </div>
+    <div className={`online-mini-board piece-set-${pieceSet}`} aria-hidden="true">
+      {Array.from({ length: 8 }).map((_, row) => (
+        Array.from({ length: 8 }).map((__, col) => {
+          const square = squareName(row, col, false);
+          const piece = board.get(square);
+          return (
+            <span className={(row + col) % 2 ? 'dark' : 'light'} key={square}>
+              {piece && <img src={PIECE_IMAGES[`${piece.color}${piece.type}`]} alt="" />}
+            </span>
+          );
+        })
+      ))}
     </div>
+  );
+}
+
+function PlayerAvatar({ name, photoURL }) {
+  return (
+    <span className="online-player-avatar">
+      {photoURL ? <img src={photoURL} alt="" /> : <UserRound size={19} aria-label={name} />}
+    </span>
   );
 }

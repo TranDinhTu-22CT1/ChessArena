@@ -47,6 +47,7 @@ import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
 import HomePage from './routes/HomePage';
 import OnlinePage from './routes/OnlinePage';
+import ProfilePage from './routes/ProfilePage';
 import ReviewPage from './routes/ReviewPage';
 import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './routes/routeConfig';
 
@@ -123,7 +124,8 @@ export default function App() {
     signInProvider,
     verifyOtp,
     resendOtp,
-    logout
+    logout,
+    updateSessionProfile
   } = useAuthSession();
   const {
     theme,
@@ -302,7 +304,7 @@ export default function App() {
     game,
     gameFinished,
     timeWinner,
-    historyLength: history.length,
+    clockRunning: gameMode === 'local' || botGameStarted || isCoachGame,
     setClocks,
     setTimeWinner,
     setResultDismissed
@@ -795,6 +797,8 @@ export default function App() {
 
   const whiteName = playerColor === 'w' ? userName : aiDisplayName;
   const blackName = playerColor === 'b' ? userName : aiDisplayName;
+  const whiteAvatarURL = playerColor === 'w' ? authUser?.photoURL : null;
+  const blackAvatarURL = playerColor === 'b' ? authUser?.photoURL : null;
 
   return (
     <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
@@ -899,6 +903,14 @@ export default function App() {
           />
         )}
 
+        {route === 'profile' && (
+          <ProfilePage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+            onProfileUpdated={updateSessionProfile}
+          />
+        )}
+
         {isActiveOnlineRoute && (
           <>
             <TopHeader
@@ -943,7 +955,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}
@@ -965,6 +977,8 @@ export default function App() {
           <GameBoard
             blackName={blackName}
             whiteName={whiteName}
+            blackAvatarURL={blackAvatarURL}
+            whiteAvatarURL={whiteAvatarURL}
             playerColor={playerColor}
             clocks={clocks}
             capturedBlack={capturedBlack}
