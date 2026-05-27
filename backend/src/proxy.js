@@ -10,6 +10,7 @@ function configuredOrigins() {
 
 const allowedOrigins = new Set([
   ...configuredOrigins(),
+  'https://chess-arena-iho3.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173'
 ]);
