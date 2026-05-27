@@ -61,10 +61,12 @@ export function sanitizeTheme(value) {
     lightSquare: value.lightSquare,
     darkSquare: value.darkSquare,
     surface: value.surface,
-    page: value.page
+    page: value.page,
+    appearance: ['system', 'dark', 'light', 'custom'].includes(value.appearance) ? value.appearance : 'custom'
   };
 
-  return Object.values(theme).every((color) => typeof color === 'string' && HEX_COLOR.test(color))
+  return [theme.accent, theme.lightSquare, theme.darkSquare, theme.surface, theme.page]
+    .every((color) => typeof color === 'string' && HEX_COLOR.test(color))
     ? theme
     : null;
 }

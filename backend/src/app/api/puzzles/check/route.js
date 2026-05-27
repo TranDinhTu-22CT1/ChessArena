@@ -1,39 +1,12 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { createStockfish } from '../../../../lib/stockfishEngine';
+import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { PUZZLE_POSITIONS } from '../../../../lib/puzzlePositions';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
-let sharedEngine = null;
-let engineReady = null;
-let engineQueue = Promise.resolve();
 
 function validMove(move) {
   return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move || '');
-}
-
-async function getSharedEngine() {
-  if (!sharedEngine) {
-    sharedEngine = createStockfish();
-    engineReady = sharedEngine.init({ threads: 2, hash: 96, skillLevel: 20 });
-  }
-  await engineReady;
-  return sharedEngine;
-}
-
-function withEngine(task) {
-  const run = engineQueue.then(async () => {
-    try {
-      return await task(await getSharedEngine());
-    } catch (error) {
-      sharedEngine?.close?.();
-      sharedEngine = null;
-      engineReady = null;
-      throw error;
-    }
-  });
-  engineQueue = run.catch(() => {});
-  return run;
 }
 
 function equivalentWinningMove(bestScore, playedScore) {
@@ -57,7 +30,7 @@ export async function POST(request) {
   }
 
   try {
-    const check = await withEngine(async (engine) => {
+    const check = await withStockfishEngine({ skillLevel: 20 }, async (engine) => {
       await engine.configure({ skillLevel: 20 });
       const best = await engine.analyze({ fen: puzzle.fen, depth: 20 });
       const afterPlayed = await engine.analyze({ fen: puzzle.fen, moves: [move], depth: 20 });

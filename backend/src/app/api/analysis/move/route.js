@@ -1,12 +1,9 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { createStockfish } from '../../../../lib/stockfishEngine';
+import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { chooseOpeningBookMove } from '../../../../lib/openingBook';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
-let sharedEngine = null;
-let engineReady = null;
-let engineQueue = Promise.resolve();
 
 function botStrength(elo) {
   const rating = Math.max(1320, Math.min(3190, Number(elo) || 1600));
@@ -31,33 +28,6 @@ function parseMove(bestMove) {
     promotion: bestMove[4] || undefined,
     lan: bestMove
   };
-}
-
-async function getSharedEngine() {
-  if (!sharedEngine) {
-    sharedEngine = createStockfish();
-    engineReady = sharedEngine.init({ threads: 2, hash: 96, skillLevel: 10 });
-  }
-
-  await engineReady;
-  return sharedEngine;
-}
-
-function withEngine(task) {
-  const run = engineQueue.then(async () => {
-    try {
-      const engine = await getSharedEngine();
-      return await task(engine);
-    } catch (error) {
-      sharedEngine?.close?.();
-      sharedEngine = null;
-      engineReady = null;
-      throw error;
-    }
-  });
-
-  engineQueue = run.catch(() => {});
-  return run;
 }
 
 export async function POST(request) {
@@ -92,7 +62,7 @@ export async function POST(request) {
   }
 
   try {
-    const result = await withEngine(async (engine) => {
+    const result = await withStockfishEngine({ skillLevel: 10 }, async (engine) => {
       await engine.configure({
         skillLevel: strength.skillLevel,
         elo: strength.elo
@@ -111,7 +81,7 @@ export async function POST(request) {
 
     return Response.json({
       ok: true,
-      engine: 'stockfish-avx2',
+      engine: 'stockfish-wasm',
       elo,
       strength,
       move: parsedMove,

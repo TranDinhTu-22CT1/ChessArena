@@ -1,12 +1,9 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { createStockfish } from '../../../../lib/stockfishEngine';
+import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { PUZZLE_POSITIONS, PUZZLE_STAGES, PUZZLE_THEMES } from '../../../../lib/puzzlePositions';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
-let sharedEngine = null;
-let engineReady = null;
-let engineQueue = Promise.resolve();
 
 function parseMove(bestMove) {
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove || '')) return null;
@@ -16,33 +13,6 @@ function parseMove(bestMove) {
     promotion: bestMove[4] || undefined,
     lan: bestMove
   };
-}
-
-async function getSharedEngine() {
-  if (!sharedEngine) {
-    sharedEngine = createStockfish();
-    engineReady = sharedEngine.init({ threads: 2, hash: 96, skillLevel: 20 });
-  }
-
-  await engineReady;
-  return sharedEngine;
-}
-
-function withEngine(task) {
-  const run = engineQueue.then(async () => {
-    try {
-      const engine = await getSharedEngine();
-      return await task(engine);
-    } catch (error) {
-      sharedEngine?.close?.();
-      sharedEngine = null;
-      engineReady = null;
-      throw error;
-    }
-  });
-
-  engineQueue = run.catch(() => {});
-  return run;
 }
 
 function dayNumber(value) {
@@ -106,7 +76,7 @@ export async function POST(request) {
   }
 
   try {
-    const result = await withEngine(async (engine) => {
+    const result = await withStockfishEngine({ skillLevel: 20 }, async (engine) => {
       await engine.configure({ skillLevel: 20 });
       return engine.analyze({ fen: candidate.fen, depth: 18 });
     });
@@ -118,7 +88,7 @@ export async function POST(request) {
 
     return Response.json({
       ok: true,
-      engine: 'stockfish-avx2',
+      engine: 'stockfish-wasm',
       puzzle: {
         ...candidate,
         solution,

@@ -48,10 +48,23 @@ export const PIECE_SETS = [
   { id: 'bold', label: 'Bold' }
 ];
 
-export const DEFAULT_THEME = {
+export const DARK_THEME = {
   accent: '#a7c957',
   lightSquare: '#f0ead2',
   darkSquare: '#86a666',
   surface: '#24231e',
   page: '#181713'
+};
+
+export const LIGHT_THEME = {
+  accent: '#6f9d37',
+  lightSquare: '#f3eedc',
+  darkSquare: '#7c9b60',
+  surface: '#ffffff',
+  page: '#eef2e8'
+};
+
+export const DEFAULT_THEME = {
+  ...DARK_THEME,
+  appearance: 'system'
 };

@@ -878,7 +878,7 @@ begin
     and q.status = 'waiting'
     and q.time_control = p_time_control
     and q.mode = p_mode
-    and q.pool = v_pool
+    and q.pool <> 'restricted'
     and q.last_seen >= v_now - interval '30 seconds'
     and abs(q.rating - v_rating) <= public.matchmaking_rating_window(v_me.joined_at, v_me.rating_range_preference)
     and abs(q.rating - v_rating) <= public.matchmaking_rating_window(q.joined_at, q.rating_range_preference)

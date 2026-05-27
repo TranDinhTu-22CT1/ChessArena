@@ -1,41 +1,11 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { createStockfish } from '../../../../lib/stockfishEngine';
+import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { isOpeningBookMove } from '../../../../lib/openingBook';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
 const DEFAULT_MOVETIME = Number(process.env.STOCKFISH_REVIEW_MOVETIME || 180);
-let sharedEngine = null;
-let engineReady = null;
-let engineQueue = Promise.resolve();
-
-async function getSharedEngine() {
-  if (!sharedEngine) {
-    sharedEngine = createStockfish();
-    engineReady = sharedEngine.init({ threads: 2, hash: 96, skillLevel: 20 });
-  }
-
-  await engineReady;
-  return sharedEngine;
-}
-
-function withEngine(task) {
-  const run = engineQueue.then(async () => {
-    try {
-      const engine = await getSharedEngine();
-      return await task(engine);
-    } catch (error) {
-      sharedEngine?.close?.();
-      sharedEngine = null;
-      engineReady = null;
-      throw error;
-    }
-  });
-
-  engineQueue = run.catch(() => {});
-  return run;
-}
 
 function sideToMove(fen) {
   return fen.split(/\s+/)[1] === 'b' ? 'b' : 'w';
@@ -85,8 +55,9 @@ export async function POST(request) {
   const movetime = Math.max(80, Math.min(350, Number(payload.movetime) || DEFAULT_MOVETIME));
   const limitedPositions = positions.slice(0, 24);
   try {
-    const results = await withEngine(async (engine) => {
+    const results = await withStockfishEngine({ skillLevel: 20 }, async (engine) => {
       const analyzed = [];
+      await engine.configure({ skillLevel: 20 });
 
       for (const position of limitedPositions) {
         if (!position?.fen || !position?.move) continue;
@@ -148,7 +119,7 @@ export async function POST(request) {
       return analyzed;
     });
 
-    return Response.json({ ok: true, engine: 'stockfish-avx2', movetime, results });
+    return Response.json({ ok: true, engine: 'stockfish-wasm', movetime, results });
   } catch (error) {
     return Response.json(
       { ok: false, error: error.message || 'Stockfish review failed.' },

@@ -633,9 +633,9 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
     } catch (error) {
       const message = error?.message || '';
       setMessage(
-        message.includes('migration is required')
+        message && !message.toLowerCase().includes('failed to fetch')
           ? message
-          : 'Matchmaking is temporarily slow. Please try again in a moment.'
+          : 'Cannot reach matchmaking right now. Please check the connection and try again.'
       );
     } finally {
       setBusy(false);

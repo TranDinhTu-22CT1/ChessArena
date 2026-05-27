@@ -128,11 +128,14 @@ export default function App() {
   const {
     theme,
     themeStyle,
+    appearance,
+    colorScheme,
     settingsOpen,
     setSettingsOpen,
     pieceSet,
     setPieceSet,
     updateTheme,
+    setAppearance,
     resetTheme,
     applyBoardPreset
   } = useThemeSettings(authUser);
@@ -794,7 +797,7 @@ export default function App() {
   const blackName = playerColor === 'b' ? userName : aiDisplayName;
 
   return (
-    <main className="app-shell" style={themeStyle}>
+    <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
       <Sidebar
         authUser={authUser}
@@ -903,11 +906,13 @@ export default function App() {
               apiOnline={apiOnline}
               settingsOpen={settingsOpen}
               theme={theme}
+              appearance={appearance}
               pieceSet={pieceSet}
               authUser={authUser}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
+              onSetAppearance={setAppearance}
               onApplyBoardPreset={applyBoardPreset}
               onSetPieceSet={setPieceSet}
             />
@@ -922,11 +927,13 @@ export default function App() {
               apiOnline={apiOnline}
               settingsOpen={settingsOpen}
               theme={theme}
+              appearance={appearance}
               pieceSet={pieceSet}
               authUser={authUser}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
+              onSetAppearance={setAppearance}
               onApplyBoardPreset={applyBoardPreset}
               onSetPieceSet={setPieceSet}
             />
@@ -943,11 +950,13 @@ export default function App() {
           apiOnline={apiOnline}
           settingsOpen={settingsOpen}
           theme={theme}
+          appearance={appearance}
           pieceSet={pieceSet}
           authUser={authUser}
           onToggleSettings={() => setSettingsOpen((value) => !value)}
           onResetTheme={resetTheme}
           onUpdateTheme={updateTheme}
+          onSetAppearance={setAppearance}
           onApplyBoardPreset={applyBoardPreset}
           onSetPieceSet={setPieceSet}
         />

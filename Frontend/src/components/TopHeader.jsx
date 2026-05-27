@@ -61,11 +61,13 @@ export default function TopHeader({
   apiOnline,
   settingsOpen,
   theme,
+  appearance,
   pieceSet,
   authUser,
   onToggleSettings,
   onResetTheme,
   onUpdateTheme,
+  onSetAppearance,
   onApplyBoardPreset,
   onSetPieceSet
 }) {
@@ -105,6 +107,15 @@ export default function TopHeader({
             <strong>Cá nhân hóa giao diện</strong>
             <button onClick={onResetTheme}>Đặt lại</button>
           </div>
+          <label>
+            <span>Che do giao dien</span>
+            <select value={appearance} onChange={(event) => onSetAppearance(event.target.value)}>
+              <option value="system">Theo he thong</option>
+              <option value="dark">Toi</option>
+              <option value="light">Sang</option>
+              <option value="custom">Tuy chinh</option>
+            </select>
+          </label>
           <label>
             <span>Màu nhấn</span>
             <input type="color" value={theme.accent} onChange={(event) => onUpdateTheme('accent', event.target.value)} />

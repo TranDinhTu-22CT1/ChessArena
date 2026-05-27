@@ -8,6 +8,11 @@ const nextConfig = {
   turbopack: {
     root: rootDir
   },
+  serverExternalPackages: ['stockfish'],
+  outputFileTracingIncludes: {
+    '/api/analysis/*': ['./node_modules/stockfish/src/stockfish-17.1-lite-single-03e3232.*'],
+    '/api/puzzles/*': ['./node_modules/stockfish/src/stockfish-17.1-lite-single-03e3232.*']
+  },
   async headers() {
     const securityHeaders = [
       { key: 'Content-Security-Policy', value: "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'" },
