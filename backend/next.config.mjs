@@ -9,7 +9,6 @@ const nextConfig = {
     root: rootDir
   },
   async headers() {
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     const securityHeaders = [
       { key: 'Content-Security-Policy', value: "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'" },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
@@ -24,15 +23,6 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: securityHeaders
-      },
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: frontendUrl },
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type' }
-        ]
       }
     ];
   }

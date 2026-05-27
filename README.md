@@ -56,7 +56,6 @@ Thêm các biến này vào `backend/.env`:
 
 ```bash
 SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
@@ -68,3 +67,16 @@ Có thể deploy riêng 2 project:
 
 - `backend` deploy như Next.js project.
 - `Frontend` deploy như Vite project, đặt `VITE_API_URL` trỏ về domain backend.
+
+Biến môi trường bắt buộc khi deploy riêng hai Vercel project:
+
+```bash
+# Frontend project
+VITE_API_URL=https://your-backend.vercel.app
+
+# Backend project
+FRONTEND_URL=https://your-frontend.vercel.app
+COOKIE_SECURE=true
+```
+
+Để cho phép thêm domain preview của frontend, đặt `FRONTEND_URLS` ở backend bằng danh sách origin chính xác, ngăn cách bằng dấu phẩy.

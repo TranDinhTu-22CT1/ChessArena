@@ -8,28 +8,34 @@ export const dynamic = 'force-dynamic';
 
 function allowedOrigin(request) {
   const requestOrigin = request?.headers.get('origin');
-  const configuredOrigins = [
-    process.env.FRONTEND_URL,
-    process.env.NEXT_PUBLIC_APP_URL,
+  const configuredOrigins = [process.env.FRONTEND_URL, process.env.FRONTEND_URLS]
+    .filter(Boolean)
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+  const localOrigins = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:4173',
     'http://127.0.0.1:4173'
-  ].filter(Boolean);
+  ];
 
-  if (requestOrigin && configuredOrigins.includes(requestOrigin)) return requestOrigin;
-  return configuredOrigins[0] || requestOrigin || '*';
+  if (requestOrigin && [...configuredOrigins, ...localOrigins].includes(requestOrigin)) return requestOrigin;
+  return null;
 }
 
 function streamHeaders(request) {
-  return {
+  const headers = {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
-    'Access-Control-Allow-Origin': allowedOrigin(request),
-    'Access-Control-Allow-Credentials': 'true'
+    'Access-Control-Allow-Credentials': 'true',
+    Vary: 'Origin'
   };
+  const origin = allowedOrigin(request);
+  if (origin) headers['Access-Control-Allow-Origin'] = origin;
+  return headers;
 }
 
 async function loadPublicGame(supabase, gameId, userId) {

@@ -1,22 +1,33 @@
 import { NextResponse } from 'next/server';
 
+function configuredOrigins() {
+  return [process.env.FRONTEND_URL, process.env.FRONTEND_URLS]
+    .filter(Boolean)
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+}
+
 const allowedOrigins = new Set([
-  process.env.FRONTEND_URL,
+  ...configuredOrigins(),
   'http://localhost:5173',
   'http://127.0.0.1:5173'
-].filter(Boolean));
+]);
 
 function corsHeaders(request) {
   const origin = request.headers.get('origin');
-  const allowedOrigin = allowedOrigins.has(origin) ? origin : process.env.FRONTEND_URL ?? 'http://localhost:5173';
-
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
+  const headers = {
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     Vary: 'Origin'
   };
+
+  if (origin && allowedOrigins.has(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+
+  return headers;
 }
 
 export function proxy(request) {

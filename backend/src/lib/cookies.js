@@ -4,7 +4,7 @@ export function authCookieOptions(maxAge = 60 * 60) {
   return {
     httpOnly: true,
     secure,
-    sameSite: 'lax',
+    sameSite: secure ? 'none' : 'lax',
     path: '/',
     maxAge
   };
