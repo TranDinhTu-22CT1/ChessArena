@@ -1,6 +1,6 @@
 import React from 'react';
 import { Chess } from 'chess.js';
-import { BarChart3, Brain, Copy, LogIn, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { BarChart3, Brain, Copy, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import {
   cancelOnlineQueue,
   createFriendGame,
@@ -8,6 +8,7 @@ import {
   joinFriendGame,
   joinOnlineQueue,
   onlineGameEventsUrl,
+  reportOnlineGame,
   resignOnlineGame,
   sendOnlineRematch,
   sendOnlineHeartbeat,
@@ -26,6 +27,17 @@ const TIME_CONTROLS = [
   { id: '900+10', label: '15+10' }
 ];
 const REMATCH_RESPONSE_MS = 15_000;
+const REPORT_REASONS = [
+  { id: 'cheating', label: 'Cheating / engine use' },
+  { id: 'stalling', label: 'Stalling / cố tình kéo giờ' },
+  { id: 'toxic', label: 'Toxic behavior' },
+  { id: 'sandbagging', label: 'Sandbagging' },
+  { id: 'harassment', label: 'Harassment' },
+  { id: 'match_abuse', label: 'Match abuse' },
+  { id: 'username', label: 'Username violation' },
+  { id: 'avatar', label: 'Avatar violation' },
+  { id: 'other', label: 'Other' }
+];
 
 function statusText(game) {
   if (!game) return 'Ready';
@@ -173,6 +185,20 @@ function replayOnlineGameAt(moves = [], ply = 0) {
   return chess;
 }
 
+function buildReplayCache(moves = []) {
+  const positions = [new Chess()];
+  const chess = new Chess();
+  for (const move of moves) {
+    try {
+      chess.move({ from: move.from, to: move.to, promotion: move.promotion || undefined });
+      positions.push(new Chess(chess.fen()));
+    } catch {
+      break;
+    }
+  }
+  return positions;
+}
+
 function moveToLan(move) {
   return `${move.from}${move.to}${move.promotion ?? ''}`;
 }
@@ -183,18 +209,37 @@ function buildOnlineReviewPositions(moves = [], stockfishReview = [], pendingAna
     ...stockfishReview.map((item, index) => (item ? index + 1 : null)).filter(Boolean)
   ]);
 
-  return moves
-    .map((move, index) => ({
-      ply: index + 1,
-      fen: replayOnlineGameAt(moves, index).fen(),
-      move: moveToLan(move),
-      san: move.san,
-      piece: move.piece,
-      captured: move.captured,
-      variant: 'standard',
-      priorMoves: moves.slice(0, index).map(moveToLan)
-    }))
-    .filter((item) => !existing.has(item.ply));
+  const positions = [];
+  const chess = new Chess();
+  const priorMoves = [];
+  let replayValid = true;
+
+  moves.forEach((move, index) => {
+    if (!replayValid) return;
+    const fen = chess.fen();
+    const moveLan = moveToLan(move);
+    try {
+      chess.move({ from: move.from, to: move.to, promotion: move.promotion || undefined });
+      if (!existing.has(index + 1)) {
+        positions.push({
+          ply: index + 1,
+          fen,
+          move: moveLan,
+          san: move.san,
+          piece: move.piece,
+          captured: move.captured,
+          variant: 'standard',
+          priorMoves: [...priorMoves]
+        });
+      }
+      priorMoves.push(moveLan);
+    } catch {
+      // Stop analysis on corrupt legacy move data; the board replay remains usable up to this point.
+      replayValid = false;
+    }
+  });
+
+  return positions;
 }
 
 function calculateReviewStats(stockfishReview) {
@@ -273,6 +318,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const [stockfishReview, setStockfishReview] = React.useState([]);
   const [stockfishStatus, setStockfishStatus] = React.useState('idle');
   const [pendingAnalysis, setPendingAnalysis] = React.useState([]);
+  const [reportOpen, setReportOpen] = React.useState(false);
+  const [reportCategory, setReportCategory] = React.useState('cheating');
+  const [reportDescription, setReportDescription] = React.useState('');
+  const [reportBusy, setReportBusy] = React.useState(false);
   const inviteHandledRef = React.useRef(false);
   const reviewLinkHandledRef = React.useRef(null);
   const pendingMoveRef = React.useRef(false);
@@ -285,6 +334,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const openingRefreshRef = React.useRef(null);
   const plan = membershipPlan(membership);
   const premiumReview = hasPremium(membership, 'pro');
+  const historyReviewId = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('review')
+    : null;
+  const openedFromHistory = Boolean(historyReviewId);
 
   const applyGameSnapshot = React.useCallback((incomingGame) => {
     if (!incomingGame) return;
@@ -306,7 +359,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
 
   const moves = game?.moves || [];
   const liveBoard = React.useMemo(() => new Chess(game?.fen), [game?.fen]);
-  const reviewBoard = React.useMemo(() => replayOnlineGameAt(moves, reviewPly), [moves, reviewPly]);
+  const reviewBoards = React.useMemo(() => buildReplayCache(moves), [moves]);
+  const reviewBoard = reviewBoards[Math.min(Math.max(0, reviewPly), reviewBoards.length - 1)] || reviewBoards[0] || new Chess();
   const board = reviewMode ? reviewBoard : liveBoard;
   const flipped = game?.playerColor === 'b';
   const isMyTurn = game?.status === 'active' && game.turn === game.playerColor;
@@ -341,7 +395,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   }, [applyGameSnapshot, game?.status, gameId, inviteCode]);
 
   React.useEffect(() => {
-    if (!authUser) return undefined;
+    if (!authUser || openedFromHistory) return undefined;
 
     let cancelled = false;
     const tick = async () => {
@@ -386,7 +440,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [applyGameSnapshot, authUser, gameId, queueing, realtimeConnected]);
+  }, [applyGameSnapshot, authUser, gameId, openedFromHistory, queueing, realtimeConnected]);
 
   React.useEffect(() => {
     if (!authUser || inviteHandledRef.current) return;
@@ -411,11 +465,18 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
 
   React.useEffect(() => {
     if (!authUser) return;
-    const reviewGameId = new URLSearchParams(window.location.search).get('review');
+    const reviewGameId = historyReviewId;
     if (!reviewGameId || reviewLinkHandledRef.current === reviewGameId) return;
 
     reviewLinkHandledRef.current = reviewGameId;
     setBusy(true);
+    setQueueing(false);
+    setQueueStartedAt(null);
+    setQueueSeconds(0);
+    setGame(null);
+    setGameId(null);
+    setRealtimeConnected(false);
+    setMessage('Đang tải ván đấu từ lịch sử...');
     fetchOnlineGame(reviewGameId)
       .then((data) => {
         setGameId(data.game.id);
@@ -426,20 +487,20 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
         setShowMateBanner(false);
         setStockfishReview([]);
         setPendingAnalysis([]);
-        setMessage('Reviewing saved online game.');
+        setMessage('Đang xem lại ván online đã lưu. Dùng mũi tên trái/phải để chuyển nước.');
       })
       .catch((error) => setMessage(error.message))
       .finally(() => setBusy(false));
-  }, [authUser]);
+  }, [authUser, historyReviewId]);
 
   React.useEffect(() => {
-    if (!gameId) return undefined;
+    if (!gameId || openedFromHistory) return undefined;
     refreshGame(gameId);
     return undefined;
-  }, [gameId, refreshGame]);
+  }, [gameId, openedFromHistory, refreshGame]);
 
   React.useEffect(() => {
-    if (!authUser || !gameId || typeof window.EventSource === 'undefined') {
+    if (!authUser || !gameId || openedFromHistory || typeof window.EventSource === 'undefined') {
       setRealtimeConnected(false);
       return undefined;
     }
@@ -484,7 +545,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       setRealtimeConnected(false);
       source.close();
     };
-  }, [applyGameSnapshot, authUser, gameId]);
+  }, [applyGameSnapshot, authUser, gameId, openedFromHistory]);
 
   React.useEffect(() => {
     const pendingRematch = game?.rematch && !game.rematch.response;
@@ -871,6 +932,25 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     setReviewPly((current) => Math.min(moves.length, Math.max(0, current + direction)));
   };
 
+  const submitReport = async (event) => {
+    event.preventDefault();
+    if (!game?.id) return;
+    setReportBusy(true);
+    try {
+      await reportOnlineGame(game.id, {
+        category: reportCategory,
+        description: reportDescription
+      });
+      setReportOpen(false);
+      setReportDescription('');
+      setMessage('Report đã được gửi tới moderation team.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   React.useEffect(() => {
     if (!reviewMode) return undefined;
 
@@ -951,7 +1031,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const rematchPending = Boolean(rematchRequest && !rematchRequest.response && rematchRemainingMs > 0);
   const rematchFromOpponent = Boolean(terminalGame && rematchRequest && !rematchRequest.requestedByYou && !rematchRequest.response && rematchRemainingMs > 0);
   const rematchSecondsLeft = Math.max(1, Math.ceil(rematchRemainingMs / 1000));
-  const openedFromHistory = Boolean(new URLSearchParams(window.location.search).get('review'));
   const openingExpiresAt = Date.parse(game?.openingDeadline?.expiresAt || '');
   const openingRemainingMs = game?.status === 'active' && Number.isFinite(openingExpiresAt)
     ? Math.max(0, openingExpiresAt - clockNow)
@@ -959,7 +1038,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const openingTurnName = game?.openingDeadline?.color === game?.playerColor ? 'Bạn' : 'Đối thủ';
 
   React.useEffect(() => {
-    if (!game?.id || game.status !== 'active' || !game.turn || (clocks?.[game.turn] ?? 1) > 0) {
+    if (openedFromHistory || !game?.id || game.status !== 'active' || !game.turn || (clocks?.[game.turn] ?? 1) > 0) {
       if (game?.status !== 'active') timeoutRefreshRef.current = null;
       return;
     }
@@ -968,10 +1047,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     timeoutRefreshRef.current = key;
     setBusy(true);
     Promise.resolve(refreshGame(game.id)).finally(() => setBusy(false));
-  }, [clocks, game?.id, game?.status, game?.turn, moves.length, refreshGame]);
+  }, [clocks, game?.id, game?.status, game?.turn, moves.length, openedFromHistory, refreshGame]);
 
   React.useEffect(() => {
-    if (!game?.id || game.status !== 'active' || !game.openingDeadline || openingRemainingMs === null || openingRemainingMs > 0) {
+    if (openedFromHistory || !game?.id || game.status !== 'active' || !game.openingDeadline || openingRemainingMs === null || openingRemainingMs > 0) {
       if (game?.status !== 'active') openingRefreshRef.current = null;
       return;
     }
@@ -979,7 +1058,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     if (openingRefreshRef.current === key) return;
     openingRefreshRef.current = key;
     Promise.resolve(refreshGame(game.id)).catch(() => {});
-  }, [game?.id, game?.openingDeadline, game?.status, openingRemainingMs, refreshGame]);
+  }, [game?.id, game?.openingDeadline, game?.status, openedFromHistory, openingRemainingMs, refreshGame]);
 
   if (!authUser) {
     return (
@@ -989,6 +1068,21 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
           <h1>Online play requires sign in</h1>
           <p>Every online move is verified by the server and tied to your secure session.</p>
           <button onClick={onLogin}><LogIn size={18} /> Sign in</button>
+        </div>
+      </section>
+    );
+  }
+
+  if (openedFromHistory && busy && !game) {
+    return (
+      <section className="online-workspace">
+        <div className="online-history-loading">
+          <div className="online-history-board" aria-hidden="true">
+            {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
+          </div>
+          <span>Game Review</span>
+          <h1>Đang mở lại ván đấu</h1>
+          <p>{message || 'Đang tải bàn cờ và danh sách nước đi từ lịch sử online.'}</p>
         </div>
       </section>
     );
@@ -1222,6 +1316,9 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
                 setReviewMode(false);
                 if (terminalGame) setShowResultDialog(true);
               }}>{openedFromHistory ? 'Back to history' : 'Close review'}</button>
+              {terminalGame && !outcome?.aborted && (
+                <button className="danger" onClick={() => setReportOpen(true)}><Flag size={18} /> Report player</button>
+              )}
             </div>
           )}
 
@@ -1265,6 +1362,19 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
           onNewGame={startQueue}
           onLeaderboard={() => onNavigate?.('leaderboard')}
           onRematch={() => requestRematch('request')}
+          onReport={() => setReportOpen(true)}
+        />
+      )}
+      {reportOpen && (
+        <ReportPlayerDialog
+          category={reportCategory}
+          description={reportDescription}
+          busy={reportBusy}
+          opponentName={topName}
+          onCategoryChange={setReportCategory}
+          onDescriptionChange={setReportDescription}
+          onSubmit={submitReport}
+          onClose={() => setReportOpen(false)}
         />
       )}
       {rematchFromOpponent && (
@@ -1314,7 +1424,7 @@ function OnlineBoard({ board, flipped, pieceSet, selected, targets, lastMove, ch
   );
 }
 
-function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLeaderboard, onRematch }) {
+function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLeaderboard, onRematch, onReport }) {
   const ratingDelta = selfPlayer?.ratingDelta;
   const hasRatingDelta = Number.isFinite(ratingDelta) && game?.rated !== false;
   const ratingAfter = selfPlayer?.ratingAfter ?? selfPlayer?.rating;
@@ -1353,8 +1463,46 @@ function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premium
           <button onClick={onNewGame}><Search size={18} /> New game</button>
           {!outcome.aborted && <button onClick={onLeaderboard}><BarChart3 size={18} /> Leaderboard</button>}
           {!outcome.aborted && <button disabled={rematchBusy || (rematch?.requestedByYou && rematchPending)} onClick={onRematch}><RotateCcw size={18} /> Rematch</button>}
+          {!outcome.aborted && <button className="danger" onClick={onReport}><Flag size={18} /> Report</button>}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReportPlayerDialog({ category, description, busy, opponentName, onCategoryChange, onDescriptionChange, onSubmit, onClose }) {
+  return (
+    <div className="result-backdrop report-player-backdrop" role="dialog" aria-modal="true" aria-label="Report player">
+      <form className="result-dialog report-player-dialog" data-result="draw" onSubmit={onSubmit}>
+        <div className="result-icon"><Flag size={28} /></div>
+        <h2>Report player</h2>
+        <small>Report {opponentName || 'opponent'} for moderation review. False reports can be ignored by admins.</small>
+        <label>
+          Reason
+          <select value={category} onChange={(event) => onCategoryChange(event.target.value)}>
+            {REPORT_REASONS.map((reason) => (
+              <option value={reason.id} key={reason.id}>{reason.label}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Evidence note
+          <textarea
+            value={description}
+            onChange={(event) => onDescriptionChange(event.target.value)}
+            minLength={8}
+            maxLength={1200}
+            placeholder="Ví dụ: đối thủ đi rất nhanh toàn nước engine ở nước 18-35, hoặc cố tình kéo giờ..."
+            required
+          />
+        </label>
+        <div className="result-actions">
+          <button type="submit" disabled={busy || description.trim().length < 8}>
+            <Send size={18} /> {busy ? 'Sending...' : 'Send report'}
+          </button>
+          <button type="button" className="secondary" disabled={busy} onClick={onClose}>Cancel</button>
+        </div>
+      </form>
     </div>
   );
 }

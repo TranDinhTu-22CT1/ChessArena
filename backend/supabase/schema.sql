@@ -438,6 +438,24 @@ create table if not exists public.anti_cheat_reports (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.player_reports (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid references public.online_games(id) on delete cascade,
+  reporter_user_id uuid not null references public.users(id) on delete cascade,
+  reported_user_id uuid references public.users(id) on delete set null,
+  category text not null check (category in ('cheating', 'toxic', 'stalling', 'sandbagging', 'username', 'avatar', 'harassment', 'match_abuse', 'other')),
+  status text not null default 'pending' check (status in ('pending', 'in_review', 'resolved', 'dismissed', 'escalated')),
+  severity text not null default 'medium' check (severity in ('low', 'medium', 'high', 'critical')),
+  description text not null default '',
+  evidence jsonb not null default '{}'::jsonb,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  resolution_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (game_id, reporter_user_id, category)
+);
+
 create table if not exists public.user_matchmaking_stats (
   user_id uuid primary key references public.users(id) on delete cascade,
   finds integer not null default 0,
@@ -1428,6 +1446,15 @@ on public.admin_audit_logs(created_at desc);
 create index if not exists idx_anti_cheat_reports_user_risk
 on public.anti_cheat_reports(user_id, risk_score desc, created_at desc);
 
+create index if not exists idx_player_reports_status_created
+on public.player_reports(status, created_at desc);
+
+create index if not exists idx_player_reports_game
+on public.player_reports(game_id, created_at desc);
+
+create index if not exists idx_player_reports_reported_user
+on public.player_reports(reported_user_id, status, created_at desc);
+
 create index if not exists idx_online_game_moves_game_ply
 on public.online_game_moves(game_id, ply);
 
@@ -1471,6 +1498,7 @@ alter table public.user_devices enable row level security;
 alter table public.user_bans enable row level security;
 alter table public.admin_audit_logs enable row level security;
 alter table public.anti_cheat_reports enable row level security;
+alter table public.player_reports enable row level security;
 alter table public.user_matchmaking_stats enable row level security;
 alter table public.user_memberships enable row level security;
 alter table public.matchmaking_events enable row level security;
@@ -1497,6 +1525,7 @@ drop policy if exists "service role manages user devices" on public.user_devices
 drop policy if exists "service role manages user bans" on public.user_bans;
 drop policy if exists "service role manages admin audit logs" on public.admin_audit_logs;
 drop policy if exists "service role manages anti cheat reports" on public.anti_cheat_reports;
+drop policy if exists "service role manages player reports" on public.player_reports;
 drop policy if exists "service role manages user matchmaking stats" on public.user_matchmaking_stats;
 drop policy if exists "service role manages user memberships" on public.user_memberships;
 drop policy if exists "service role manages matchmaking events" on public.matchmaking_events;
@@ -1594,6 +1623,12 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages anti cheat reports"
 on public.anti_cheat_reports
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages player reports"
+on public.player_reports
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

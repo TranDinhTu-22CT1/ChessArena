@@ -63,6 +63,23 @@ export async function fetchAntiCheatReports() {
   return readJson(response);
 }
 
+export async function fetchModerationReports(status = '') {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  const response = await fetch(apiUrl(`/api/admin/moderation?${params.toString()}`), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function updateModerationReport(reportId, status, resolutionNote = '') {
+  const response = await fetch(apiUrl('/api/admin/moderation'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reportId, status, resolutionNote })
+  });
+  return readJson(response);
+}
+
 export async function fetchAdminMatches() {
   const response = await fetch(apiUrl('/api/admin/matches'), { credentials: 'include' });
   return readJson(response);

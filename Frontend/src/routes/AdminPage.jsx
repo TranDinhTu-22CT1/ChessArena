@@ -24,6 +24,7 @@ import {
   fetchAdminConfig,
   fetchAdminMatches,
   fetchAdminMe,
+  fetchModerationReports,
   fetchAdminPayments,
   fetchAdminSummary,
   fetchAdminUserDetail,
@@ -34,7 +35,8 @@ import {
   scanUserAntiCheat,
   testPayPalSubscription,
   unlockAdmin,
-  updateAntiCheatReport
+  updateAntiCheatReport,
+  updateModerationReport
 } from '../api/admin';
 import { notify } from '../components/ToastHost';
 
@@ -43,6 +45,7 @@ const NAV_ITEMS = [
   { id: 'players', label: 'Users', icon: Users },
   { id: 'matches', label: 'Matches', icon: Swords },
   { id: 'fairplay', label: 'Anti-cheat', icon: ShieldAlert },
+  { id: 'moderation', label: 'Moderation', icon: Shield },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'audit', label: 'Audit logs', icon: FileText },
   { id: 'config', label: 'System config', icon: Settings },
@@ -76,6 +79,7 @@ export default function AdminPage() {
   const [summary, setSummary] = React.useState(null);
   const [users, setUsers] = React.useState([]);
   const [reports, setReports] = React.useState([]);
+  const [moderationReports, setModerationReports] = React.useState([]);
   const [matches, setMatches] = React.useState([]);
   const [payments, setPayments] = React.useState([]);
   const [auditLogs, setAuditLogs] = React.useState([]);
@@ -99,6 +103,7 @@ export default function AdminPage() {
         summaryData,
         usersData,
         reportsData,
+        moderationData,
         matchesData,
         paymentsData,
         auditData,
@@ -108,6 +113,7 @@ export default function AdminPage() {
         fetchAdminSummary(),
         fetchAdminUsers(nextSearch),
         fetchAntiCheatReports(),
+        fetchModerationReports().catch(() => ({ reports: [] })),
         fetchAdminMatches(),
         fetchAdminPayments(),
         fetchAdminAuditLogs(),
@@ -117,6 +123,7 @@ export default function AdminPage() {
       setSummary(summaryData.summary);
       setUsers(usersData.users || []);
       setReports(reportsData.reports || []);
+      setModerationReports(moderationData.reports || []);
       setMatches(matchesData.matches || []);
       setPayments(paymentsData.payments || []);
       setAuditLogs(auditData.logs || []);
@@ -255,7 +262,16 @@ export default function AdminPage() {
             <input type="password" value={unlockPassword} onChange={(event) => setUnlockPassword(event.target.value)} placeholder="ADMIN_PANEL_PASSWORD" autoComplete="current-password" />
           </label>
           {message && <p className="admin-message">{message}</p>}
-          <button disabled={loading || !unlockEmail || !unlockPassword}><LockKeyhole size={18} /> Login</button>
+          {loading && (
+            <div className="admin-form-loading" role="status" aria-live="polite">
+              <span />
+              Securing admin session...
+            </div>
+          )}
+          <button disabled={loading || !unlockEmail || !unlockPassword}>
+            {loading ? <RefreshCw size={18} className="admin-spin" /> : <LockKeyhole size={18} />}
+            {loading ? 'Loading admin...' : 'Login'}
+          </button>
         </form>
       </main>
     );
@@ -270,6 +286,7 @@ export default function AdminPage() {
         <StatCard icon={RefreshCw} label="Matchmaking queue" value={summary?.queueCount} />
         <StatCard icon={Swords} label="Games today" value={summary?.todayGames} />
         <StatCard icon={ShieldAlert} label="Pending reports" value={summary?.openReports} tone="danger" />
+        <StatCard icon={Shield} label="Player reports" value={summary?.openPlayerReports} tone={summary?.openPlayerReports ? 'danger' : ''} />
         <StatCard icon={Shield} label="High risk users" value={summary?.suspectedUsers} tone="danger" />
         <StatCard icon={CreditCard} label="Active subscriptions" value={summary?.activeSubscriptions} />
         <StatCard icon={CreditCard} label="Failed payments" value={summary?.failedPayments} tone="danger" />
@@ -391,6 +408,51 @@ export default function AdminPage() {
               <button onClick={() => updateAntiCheatReport(report.id, 'reviewed').then(() => load())}>Under Review</button>
               <button onClick={() => updateAntiCheatReport(report.id, 'dismissed').then(() => load())}>False positive</button>
               <button onClick={() => updateAntiCheatReport(report.id, 'actioned').then(() => load())}>Punished</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+
+  const changeModerationStatus = async (report, status) => {
+    const resolutionNote = ['resolved', 'dismissed', 'escalated'].includes(status)
+      ? window.prompt('Resolution note', status === 'dismissed' ? 'No policy violation found.' : 'Reviewed by moderation.')
+      : '';
+    if (resolutionNote === null) return;
+    await updateModerationReport(report.id, status, resolutionNote || '');
+    notify('Moderation report updated.', 'success');
+    await load();
+  };
+
+  const renderModeration = () => (
+    <section className="admin-panel">
+      <div className="admin-panel-head">
+        <div>
+          <span>Player reports</span>
+          <h2>Moderation queue</h2>
+        </div>
+      </div>
+      <div className="admin-report-list">
+        {moderationReports.length === 0 && <p>No player reports.</p>}
+        {moderationReports.map((report) => (
+          <article className="admin-report-card admin-moderation-card" key={report.id}>
+            <div>
+              <strong>{report.reported?.display_name || report.reported?.email || report.reported_user_id || 'Unknown player'}</strong>
+              <span>{report.category} · {report.severity} · {report.status}</span>
+              <small>
+                Reporter: {report.reporter?.display_name || report.reporter?.email || report.reporter_user_id}
+                {' '}· Game: {report.game?.white_name || 'White'} vs {report.game?.black_name || 'Black'}
+                {' '}· {time(report.created_at)}
+              </small>
+              <em>{report.description}</em>
+              <small>Evidence: {report.evidence?.moveCount ?? 0} moves · Result {report.evidence?.result || report.game?.result || '*'}</small>
+            </div>
+            <div>
+              <button onClick={() => changeModerationStatus(report, 'in_review')}>Under Review</button>
+              <button onClick={() => changeModerationStatus(report, 'escalated')}>Escalate</button>
+              <button onClick={() => changeModerationStatus(report, 'resolved')}>Resolve</button>
+              <button onClick={() => changeModerationStatus(report, 'dismissed')}>Dismiss</button>
             </div>
           </article>
         ))}
@@ -559,6 +621,7 @@ export default function AdminPage() {
         {section === 'players' && renderPlayers()}
         {section === 'matches' && renderMatches()}
         {section === 'fairplay' && renderFairPlay()}
+        {section === 'moderation' && renderModeration()}
         {section === 'payments' && renderPayments()}
         {section === 'audit' && renderAudit()}
         {section === 'config' && renderConfig()}

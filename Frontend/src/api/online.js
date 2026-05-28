@@ -140,6 +140,16 @@ export async function resignOnlineGame(gameId) {
   return readJson(response);
 }
 
+export async function reportOnlineGame(gameId, payload) {
+  const response = await fetch(apiUrl(`/api/online/games/${gameId}/report`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return readJson(response);
+}
+
 export async function sendOnlineRematch(gameId, action) {
   const response = await fetch(apiUrl(`/api/online/games/${gameId}/rematch`), {
     method: 'POST',

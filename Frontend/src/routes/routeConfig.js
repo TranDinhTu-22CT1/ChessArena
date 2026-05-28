@@ -9,6 +9,7 @@ export const ROUTES = {
   leaderboard: '/leaderboard',
   membership: '/membership',
   admin: '/admin',
+  notFound: '/404',
   review: '/review',
   puzzles: '/puzzles',
   'daily-puzzle': '/puzzles/daily',
@@ -29,6 +30,8 @@ export function isPuzzleRoute(route) {
 }
 
 export function routeFromPath(pathname) {
+  const knownStaticPaths = new Set(Object.values(ROUTES));
+  if (pathname === '/404') return 'notFound';
   if (pathname === '/profile') return 'profile';
   if (pathname === '/history') return 'history';
   if (pathname === '/leaderboard') return 'leaderboard';
@@ -44,7 +47,8 @@ export function routeFromPath(pathname) {
   if (pathname === '/coach' || pathname === '/learn/coach' || pathname === '/play/coach') return 'coach';
   if (pathname === '/play/local' || pathname === '/play/friend') return 'local';
   if (pathname === '/play/bot' || pathname === '/game') return 'bot';
-  return 'home';
+  if (pathname === '/' || knownStaticPaths.has(pathname)) return 'home';
+  return 'notFound';
 }
 
 export function pathForRoute(route) {

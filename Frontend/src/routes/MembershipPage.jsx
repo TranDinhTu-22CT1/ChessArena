@@ -21,19 +21,10 @@ const PAYPAL_PLAN_IDS = {
   }
 };
 
-const PRICES = {
-  plus: {
-    monthly: { value: 9.99, currency: 'USD' },
-    yearly: { value: 99.99, currency: 'USD' }
-  },
-  pro: {
-    monthly: { value: 19.99, currency: 'USD' },
-    yearly: { value: 199.99, currency: 'USD' }
-  },
-  master: {
-    monthly: { value: 39.99, currency: 'USD' },
-    yearly: { value: 399.99, currency: 'USD' }
-  }
+const EMPTY_PRICES = {
+  plus: { monthly: null, yearly: null },
+  pro: { monthly: null, yearly: null },
+  master: { monthly: null, yearly: null }
 };
 
 const PLAN_COPY = {
@@ -66,6 +57,7 @@ const FREE_LIMITS = [
 ];
 
 function currency(price) {
+  if (!price?.value || !price?.currency) return 'Đang lấy giá PayPal';
   const value = Number(price?.value ?? 0);
   const code = price?.currency || 'USD';
   return new Intl.NumberFormat('en-US', {
@@ -85,7 +77,7 @@ function mergePlanPrices(current, remote) {
   for (const tier of PAID_TIERS) {
     next[tier] = { ...current[tier] };
     for (const cycle of ['monthly', 'yearly']) {
-      if (remote?.[tier]?.[cycle]?.value) next[tier][cycle] = remote[tier][cycle];
+      next[tier][cycle] = remote?.[tier]?.[cycle]?.value ? remote[tier][cycle] : null;
     }
   }
   return next;
@@ -108,7 +100,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const [selectedTier, setSelectedTier] = React.useState('pro');
   const [checkoutTier, setCheckoutTier] = React.useState(null);
   const [message, setMessage] = React.useState('');
-  const [prices, setPrices] = React.useState(PRICES);
+  const [prices, setPrices] = React.useState(EMPTY_PRICES);
   const [planHealth, setPlanHealth] = React.useState(null);
   const [checkoutLoading, setCheckoutLoading] = React.useState(false);
   const currentTier = activeTier(membership);
@@ -159,6 +151,10 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const checkoutPrice = checkoutTier ? prices[checkoutTier][cycle] : null;
   const checkoutPlanId = checkoutTier ? planIdFor(checkoutTier, cycle) : '';
   const planHealthNote = checkoutTier ? planHealthMessage(checkoutPlanId, planHealth, checkoutPrice?.currency || PAYPAL_CURRENCY) : '';
+  const checkoutBlocked = !checkoutPlanId
+    || !checkoutPrice?.value
+    || planHealth?.ok === false
+    || planHealth?.plan?.status !== 'ACTIVE';
 
   const startServerCheckout = async () => {
     setCheckoutLoading(true);
@@ -242,7 +238,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
             </div>
             <strong className="membership-price payment-price">
               {currency(checkoutPrice)}
-              <small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small>
+              <small>{checkoutPrice?.value ? `/${cycle === 'monthly' ? 'tháng' : 'năm'}` : ''}</small>
             </strong>
             <div className="membership-payment-meta">
               <span>Plan ID: <b>{checkoutPlanId || 'Chưa cấu hình'}</b></span>
@@ -250,6 +246,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
               <span>Status: <b>{planHealth?.plan?.status || checkoutPrice?.status || 'Đang kiểm tra'}</b></span>
             </div>
             {planHealthNote && <p className="membership-config-note">{planHealthNote}</p>}
+            {!checkoutPrice?.value && <p className="membership-config-note">Không hiển thị giá fallback để tránh sai tiền. Backend phải đọc được giá thật từ PayPal plan trước khi thanh toán.</p>}
             <ul>
               {checkoutPlan.benefits.map((benefit) => (
                 <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
@@ -264,7 +261,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
             <button
               className="membership-paypal-primary"
               onClick={startServerCheckout}
-              disabled={checkoutLoading || !checkoutPlanId || planHealth?.plan?.status === 'INACTIVE'}
+              disabled={checkoutLoading || checkoutBlocked}
             >
               <CreditCard size={18} />
               {checkoutLoading ? 'Đang mở PayPal...' : 'Sang trang thanh toán PayPal'}
@@ -328,7 +325,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
                   <h2>{plan.title}</h2>
                 </div>
               </div>
-              <strong className="membership-price">{currency(prices[tier][cycle])}<small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small></strong>
+              <strong className="membership-price">{currency(prices[tier][cycle])}<small>{prices[tier][cycle]?.value ? `/${cycle === 'monthly' ? 'tháng' : 'năm'}` : ''}</small></strong>
               <ul>
                 {plan.benefits.map((benefit) => (
                   <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>

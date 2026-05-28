@@ -78,6 +78,7 @@ const HistoryPage = lazyWithReload(() => import('./routes/HistoryPage'));
 const HomePage = lazyWithReload(() => import('./routes/HomePage'));
 const LeaderboardPage = lazyWithReload(() => import('./routes/LeaderboardPage'));
 const MembershipPage = lazyWithReload(() => import('./routes/MembershipPage'));
+const NotFoundPage = lazyWithReload(() => import('./routes/NotFoundPage'));
 const OnlinePage = lazyWithReload(() => import('./routes/OnlinePage'));
 const ProfilePage = lazyWithReload(() => import('./routes/ProfilePage'));
 const ReviewPage = lazyWithReload(() => import('./routes/ReviewPage'));
@@ -93,6 +94,35 @@ function storedFinishedOutcome() {
   } catch {
     return null;
   }
+}
+
+function RouteLoading({ label = 'Đang tải bàn cờ...' }) {
+  return (
+    <div className="route-loading chess-loading">
+      <div className="loading-board" aria-hidden="true">
+        {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
+      </div>
+      <div>
+        <strong>{label}</strong>
+        <p>Đang chuẩn bị thế cờ mới cho bạn.</p>
+      </div>
+    </div>
+  );
+}
+
+function OfflineOverlay({ visible }) {
+  if (!visible) return null;
+  return (
+    <div className="offline-overlay" role="status" aria-live="polite">
+      <div className="offline-card">
+        <div className="offline-king">♔</div>
+        <span>Mất kết nối internet</span>
+        <h2>Ván cờ đang tạm dừng</h2>
+        <p>Kiểm tra mạng của bạn. ChessArena sẽ tự tiếp tục khi kết nối trở lại.</p>
+        <div className="offline-loader"><i /><i /><i /><i /></div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -135,6 +165,8 @@ export default function App() {
   const [dragEnabled, setDragEnabled] = React.useState(true);
   const [promotionRequest, setPromotionRequest] = React.useState(null);
   const [resultDismissed, setResultDismissed] = React.useState(false);
+  const [appSettling, setAppSettling] = React.useState(false);
+  const [isOffline, setIsOffline] = React.useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
   const {
     userName,
     authMode,
@@ -179,6 +211,23 @@ export default function App() {
   const aiTimerRef = React.useRef(null);
   const premoveRef = React.useRef([]);
   const { ensureAudioContext, playMoveSound, speakCoachText, stopSpeech } = useGameAudio();
+
+  React.useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    setAppSettling(true);
+    const timer = window.setTimeout(() => setAppSettling(false), 420);
+    return () => window.clearTimeout(timer);
+  }, [authUser, authMode, route]);
 
   React.useEffect(() => {
     if (!authUser) {
@@ -848,33 +897,11 @@ export default function App() {
   const blackAvatarURL = playerColor === 'b' ? authUser?.photoURL : null;
 
   if (route === 'admin') {
-    return authMode && !authUser ? (
-      <>
+    return (
+      <React.Suspense fallback={<RouteLoading label="Đang mở bảng quản trị..." />}>
         <ToastHost />
-        <AuthPage
-          authMode={authMode}
-          authForm={authForm}
-          authMessage={authMessage}
-          authMessageTone={authMessageTone}
-          authBusy={authBusy}
-          otpState={otpState}
-          otpSecondsLeft={otpSecondsLeft}
-          onAuthFormChange={(patch) => setAuthForm((form) => ({ ...form, ...patch }))}
-          onSubmitAuth={submitAuth}
-          onProviderSignIn={signInProvider}
-          onSetAuthMode={(mode) => {
-            clearAuthMessage();
-            setOtpState(null);
-            setAuthMode(mode);
-          }}
-          onVerifyOtp={verifyOtp}
-          onResendOtp={resendOtp}
-        />
-      </>
-    ) : (
-      <React.Suspense fallback={<div className="route-loading">Loading admin...</div>}>
-        <ToastHost />
-        <AdminPage authUser={authUser} onLogin={() => setAuthMode('login')} />
+        <OfflineOverlay visible={isOffline} />
+        <AdminPage />
       </React.Suspense>
     );
   }
@@ -882,6 +909,8 @@ export default function App() {
   return (
     <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
       <ToastHost />
+      <OfflineOverlay visible={isOffline} />
+      {appSettling && <RouteLoading label={authBusy ? 'Đang xác thực tài khoản...' : 'Đang chuyển trang...'} />}
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
       <Sidebar
         authUser={authUser}
@@ -947,7 +976,7 @@ export default function App() {
         )}
 
         {(!authMode || authUser) && (
-        <React.Suspense fallback={<div className="route-loading">Loading...</div>}>
+        <React.Suspense fallback={<RouteLoading />}>
         {route === 'home' && (
           <HomePage
             userName={userName}
@@ -1021,6 +1050,10 @@ export default function App() {
           />
         )}
 
+        {route === 'notFound' && (
+          <NotFoundPage onNavigate={navigate} />
+        )}
+
         {isActiveOnlineRoute && (
           <>
             <TopHeader
@@ -1063,7 +1096,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}

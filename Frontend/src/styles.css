@@ -46,6 +46,41 @@ body {
 
 .app-shell[data-color-scheme="light"] {
   color: #1d261a;
+  --readable-text: #102416;
+  --readable-muted: #43543f;
+}
+
+.app-shell[data-color-scheme="light"] .content-shell,
+.app-shell[data-color-scheme="light"] .home-route-shell,
+.app-shell[data-color-scheme="light"] .profile-page,
+.app-shell[data-color-scheme="light"] .history-page,
+.app-shell[data-color-scheme="light"] .leaderboard-page,
+.app-shell[data-color-scheme="light"] .membership-page,
+.app-shell[data-color-scheme="light"] .puzzle-page,
+.app-shell[data-color-scheme="light"] .online-page {
+  color: var(--readable-text);
+}
+
+@supports not (color: color-mix(in srgb, #000 50%, #fff)) {
+  .theme-panel,
+  .player-card,
+  .review-topbar,
+  .review-scorecard,
+  .match-panel,
+  .membership-card {
+    background: #2f3429;
+  }
+
+  .app-shell[data-color-scheme="light"] .theme-panel,
+  .app-shell[data-color-scheme="light"] .player-card,
+  .app-shell[data-color-scheme="light"] .review-topbar,
+  .app-shell[data-color-scheme="light"] .review-scorecard,
+  .app-shell[data-color-scheme="light"] .match-panel,
+  .app-shell[data-color-scheme="light"] .membership-card {
+    color: #102416;
+    background: #f5f8ef;
+    border-color: rgba(31, 46, 23, 0.16);
+  }
 }
 
 .app-shell[data-color-scheme="light"] .theme-panel {
@@ -2874,6 +2909,384 @@ input {
   font-weight: 950;
 }
 
+/* Production polish: explicit colors keep Chrome, Edge and Coc Coc rendering consistent. */
+.admin-page,
+.admin-login-shell {
+  color: #132515;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(178, 214, 112, 0.52), transparent 28%),
+    radial-gradient(circle at 86% 14%, rgba(255, 255, 255, 0.76), transparent 30%),
+    linear-gradient(135deg, #f7fbef 0%, #dcebd8 48%, #eef6df 100%);
+}
+
+.admin-login-shell section,
+.admin-unlock-card,
+.admin-hero,
+.admin-stats div,
+.admin-panel,
+.admin-message,
+.admin-sidebar {
+  color: #132515;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(245, 250, 236, 0.78)),
+    #ffffff;
+  border: 1px solid rgba(57, 89, 54, 0.16);
+  box-shadow: 0 24px 70px rgba(42, 72, 44, 0.16);
+  animation: adminSurfaceIn 420ms ease both;
+}
+
+.admin-sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(235, 246, 221, 0.9)),
+    #f8fbf0;
+}
+
+.admin-login-banner {
+  color: #142813;
+  background:
+    radial-gradient(circle at 48% 5%, rgba(178, 214, 112, 0.5), transparent 58%),
+    linear-gradient(135deg, #eef8dc, #ffffff);
+  border-color: rgba(57, 89, 54, 0.18);
+}
+
+.admin-login-banner span,
+.admin-hero span,
+.admin-panel-head span,
+.admin-sidebar-brand svg,
+.admin-stats svg,
+.admin-stat-card svg,
+.admin-login-banner svg {
+  color: #5e7f1f;
+}
+
+.admin-sidebar-brand span,
+.admin-hero p,
+.admin-user-card span,
+.admin-user-card small,
+.admin-user-card em,
+.admin-report-card span,
+.admin-report-card small,
+.admin-message,
+.admin-report-card em,
+.admin-diagnostic-card,
+.admin-config-grid div,
+.admin-unlock-card label {
+  color: #496046;
+}
+
+.admin-hero h1,
+.admin-panel h2,
+.admin-stats strong,
+.admin-stat-card strong,
+.admin-user-card strong,
+.admin-report-card strong {
+  color: #132515;
+}
+
+.admin-sidebar nav button,
+.admin-lock-button,
+.admin-user-card,
+.admin-report-card,
+.admin-diagnostic-card,
+.admin-config-grid div {
+  color: #173018;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(57, 89, 54, 0.14);
+}
+
+.admin-sidebar nav button {
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.admin-sidebar nav button:hover,
+.admin-panel button:hover,
+.admin-hero button:hover,
+.admin-unlock-card button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(71, 108, 41, 0.18);
+}
+
+.admin-sidebar nav button.active {
+  color: #12200f;
+  background: #b2d660;
+  box-shadow: 0 14px 30px rgba(95, 126, 41, 0.22);
+}
+
+.admin-lock-button {
+  color: #8f2525;
+  background: #fff2f0;
+}
+
+.admin-unlock-card input,
+.admin-panel-head input {
+  color: #102416;
+  background: #ffffff;
+  border-color: rgba(57, 89, 54, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.admin-unlock-card input::placeholder,
+.admin-panel-head input::placeholder {
+  color: #71826b;
+}
+
+.admin-form-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 0 13px;
+  color: #37571d;
+  background: #edf7dc;
+  border: 1px solid rgba(94, 127, 31, 0.22);
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.admin-form-loading span,
+.admin-spin {
+  animation: adminSpin 850ms linear infinite;
+}
+
+.admin-form-loading span {
+  width: 14px;
+  height: 14px;
+  border: 3px solid rgba(94, 127, 31, 0.22);
+  border-top-color: #5e7f1f;
+  border-radius: 999px;
+}
+
+.route-loading,
+.offline-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 22px;
+  color: #132515;
+  background:
+    radial-gradient(circle at 20% 18%, rgba(178, 214, 112, 0.5), transparent 28%),
+    linear-gradient(135deg, rgba(248, 252, 239, 0.94), rgba(218, 235, 211, 0.94));
+  backdrop-filter: blur(12px);
+}
+
+.chess-loading {
+  grid-template-columns: auto minmax(0, 360px);
+  gap: 24px;
+  text-align: left;
+}
+
+.loading-board,
+.not-found-board {
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(44, 70, 39, 0.22);
+  animation: loadingBoardFloat 1300ms ease-in-out infinite alternate;
+}
+
+.loading-board span,
+.not-found-board span {
+  width: 28px;
+  height: 28px;
+  background: #f2efd9;
+}
+
+.loading-board span:nth-child(2n),
+.not-found-board span:nth-child(2n) {
+  background: #7ca15b;
+}
+
+.route-loading strong,
+.offline-card h2,
+.not-found-card h1 {
+  color: #132515;
+  font-size: clamp(1.4rem, 3vw, 2.4rem);
+  line-height: 1.05;
+}
+
+.route-loading p,
+.offline-card p,
+.not-found-card p {
+  margin-top: 8px;
+  color: #496046;
+  font-weight: 800;
+}
+
+.offline-overlay {
+  z-index: 2200;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(178, 214, 112, 0.52), transparent 25%),
+    linear-gradient(135deg, rgba(13, 30, 17, 0.9), rgba(69, 98, 51, 0.82)),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.06) 0 12px, transparent 12px 24px);
+}
+
+.offline-card,
+.not-found-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  width: min(520px, 100%);
+  padding: clamp(24px, 5vw, 42px);
+  color: #132515;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  border-radius: 32px;
+  box-shadow: 0 32px 90px rgba(6, 20, 10, 0.34);
+  animation: adminSurfaceIn 360ms ease both;
+}
+
+.offline-king {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  color: #132515;
+  background: #b2d660;
+  border-radius: 24px;
+  box-shadow: 0 18px 36px rgba(95, 126, 41, 0.28);
+  font-size: 2.4rem;
+  animation: loadingBoardFloat 1000ms ease-in-out infinite alternate;
+}
+
+.offline-card > span,
+.not-found-card > span {
+  color: #5e7f1f;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.offline-loader {
+  display: grid;
+  grid-template-columns: repeat(4, 18px);
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 2px rgba(19, 37, 21, 0.08);
+}
+
+.offline-loader i {
+  width: 18px;
+  height: 18px;
+  background: #f2efd9;
+  animation: offlineSquare 900ms ease-in-out infinite;
+}
+
+.offline-loader i:nth-child(2n) {
+  background: #7ca15b;
+  animation-delay: 120ms;
+}
+
+.not-found-page {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 80px);
+  padding: clamp(24px, 6vw, 70px);
+  overflow: hidden;
+}
+
+.not-found-page::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  background:
+    radial-gradient(circle at 24% 22%, rgba(178, 214, 112, 0.42), transparent 28%),
+    radial-gradient(circle at 76% 72%, rgba(255, 255, 255, 0.82), transparent 30%);
+  pointer-events: none;
+}
+
+.not-found-board {
+  position: absolute;
+  top: 10%;
+  right: 12%;
+  opacity: 0.32;
+  transform: rotate(10deg);
+}
+
+.not-found-card {
+  position: relative;
+  width: min(560px, 100%);
+}
+
+.not-found-card svg {
+  color: #5e7f1f;
+}
+
+.not-found-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 18px;
+  color: #132515;
+  background: #b2d660;
+  cursor: pointer;
+  font-weight: 950;
+}
+
+@media (max-width: 680px) {
+  .chess-loading {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .not-found-board {
+    right: -20px;
+    top: 36px;
+  }
+}
+
+@keyframes adminSurfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes adminSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loadingBoardFloat {
+  from {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  to {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes offlineSquare {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes toastIn {
   from {
     opacity: 0;
@@ -5275,6 +5688,54 @@ h2 {
   background: #34342e;
 }
 
+.result-actions button.danger,
+.online-controls button.danger,
+.report-player-dialog .result-actions button.secondary {
+  color: #fff4f2;
+  background: #9f3f35;
+}
+
+.report-player-dialog {
+  width: min(560px, 100%);
+  justify-items: stretch;
+  text-align: left;
+}
+
+.report-player-dialog .result-icon,
+.report-player-dialog h2,
+.report-player-dialog > small {
+  justify-self: center;
+  text-align: center;
+}
+
+.report-player-dialog label {
+  display: grid;
+  gap: 8px;
+  color: #e7eadf;
+  font-weight: 900;
+}
+
+.report-player-dialog select,
+.report-player-dialog textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: #f8f9f2;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  outline: none;
+}
+
+.report-player-dialog textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.report-player-dialog .result-actions {
+  grid-template-columns: 1fr auto;
+}
+
 .compact-result .result-actions {
   grid-template-columns: 1fr 1fr;
 }
@@ -6390,6 +6851,61 @@ h2 {
   gap: 18px;
   width: min(100%, 1280px);
   margin: 16px auto 0;
+}
+
+.online-history-loading {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(560px, calc(100vw - 32px));
+  margin: min(12vh, 90px) auto;
+  padding: clamp(28px, 5vw, 48px);
+  color: #132515;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(167, 201, 87, 0.38), transparent 52%),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(38, 84, 51, 0.14);
+  border-radius: 32px;
+  box-shadow: 0 28px 80px rgba(43, 83, 52, 0.2);
+  animation: adminSurfaceIn 360ms ease both;
+}
+
+.online-history-loading > span {
+  color: #5e7f1f;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.online-history-loading h1,
+.online-history-loading p {
+  margin: 0;
+}
+
+.online-history-loading p {
+  color: #496046;
+  font-weight: 800;
+}
+
+.online-history-board {
+  display: grid;
+  grid-template-columns: repeat(4, 26px);
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 16px 38px rgba(44, 70, 39, 0.2);
+  animation: loadingBoardFloat 1100ms ease-in-out infinite alternate;
+}
+
+.online-history-board span {
+  width: 26px;
+  height: 26px;
+  background: #f2efd9;
+}
+
+.online-history-board span:nth-child(2n) {
+  background: #7ca15b;
 }
 
 .online-header,
