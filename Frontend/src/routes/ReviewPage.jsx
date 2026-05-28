@@ -1,5 +1,7 @@
 import React from 'react';
+import { Crown } from 'lucide-react';
 import { REVIEW_LEGEND, reviewIcon } from '../data/review';
+import { hasPremium, membershipPlan } from '../membership/plans';
 
 export default function ReviewPage({
   stockfishStatus,
@@ -10,6 +12,7 @@ export default function ReviewPage({
   history,
   stockfishReview,
   reviewStats,
+  membership,
   whiteName,
   blackName,
   returnRoute,
@@ -22,6 +25,8 @@ export default function ReviewPage({
   onSetReviewPly,
   onQueueMissingReviewAnalysis
 }) {
+  const plan = membershipPlan(membership);
+  const premiumReview = hasPremium(membership, 'pro');
   return (
     <section className="review-dashboard">
       <div className="review-topbar">
@@ -74,9 +79,18 @@ export default function ReviewPage({
             </div>
 
             <div className="review-action-row">
-              <button type="button" disabled={!currentReviewAnalysis}>Explain</button>
+              <button type="button" disabled={!currentReviewAnalysis || !premiumReview}>
+                {premiumReview ? 'Explain' : 'Explain Pro'}
+              </button>
               <button type="button" onClick={() => onReviewStep(1)} disabled={reviewPly >= history.length}>Next</button>
             </div>
+
+            {!premiumReview && (
+              <div className="review-premium-note">
+                <Crown size={18} />
+                <span>Gói {plan.name} vẫn xem được review cơ bản. Nâng cấp Pro để mở giải thích sâu cho từng nước.</span>
+              </div>
+            )}
 
             <div className="review-move-list">
               {history.length === 0 && <p className="empty-state">No moves to review.</p>}

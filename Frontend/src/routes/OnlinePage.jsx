@@ -1,6 +1,6 @@
 import React from 'react';
 import { Chess } from 'chess.js';
-import { Brain, Copy, LogIn, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { BarChart3, Brain, Copy, LogIn, Radio, RefreshCw, RotateCcw, Search, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import {
   cancelOnlineQueue,
   createFriendGame,
@@ -17,6 +17,7 @@ import { apiUrl } from '../api/config';
 import { REVIEW_LEGEND, reviewIcon } from '../data/review';
 import { PIECE_IMAGES } from '../game/pieces';
 import { squareName } from '../game/chessLogic';
+import { hasPremium, membershipPlan } from '../membership/plans';
 
 const TIME_CONTROLS = [
   { id: '180+0', label: '3+0' },
@@ -44,6 +45,28 @@ function displayName(value, fallback = 'Player') {
 function formatSearchTime(seconds) {
   const minutes = Math.floor(seconds / 60);
   return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function modeFromTimeControl(value) {
+  const [base = '600'] = String(value || '600+0').split('+');
+  const seconds = Number(base) || 600;
+  if (seconds < 180) return 'bullet';
+  if (seconds < 600) return 'blitz';
+  if (seconds < 3600) return 'rapid';
+  return 'classical';
+}
+
+function clientRatingWindow(seconds) {
+  if (seconds < 3) return 50;
+  if (seconds < 8) return 100;
+  if (seconds < 15) return 200;
+  if (seconds < 30) return 350;
+  return 500;
+}
+
+function signedRating(value) {
+  if (!Number.isFinite(value)) return '0';
+  return value > 0 ? `+${value}` : String(value);
 }
 
 function parseTimeControl(value) {
@@ -220,7 +243,7 @@ function playMoveSound(audioRef) {
   oscillator.stop(context.currentTime + 0.1);
 }
 
-export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
+export default function OnlinePage({ authUser, userName, pieceSet, membership, onLogin, onNavigate }) {
   const [summary, setSummary] = React.useState({ onlineCount: 0, queueCount: 0 });
   const [timeControl, setTimeControl] = React.useState('600+0');
   const [queueing, setQueueing] = React.useState(false);
@@ -238,6 +261,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const [queueStartedAt, setQueueStartedAt] = React.useState(null);
   const [queueSeconds, setQueueSeconds] = React.useState(0);
   const [myRating, setMyRating] = React.useState(400);
+  const [queueRatingWindow, setQueueRatingWindow] = React.useState(50);
   const [clockNow, setClockNow] = React.useState(Date.now());
   const [showMateBanner, setShowMateBanner] = React.useState(false);
   const [showResultDialog, setShowResultDialog] = React.useState(false);
@@ -259,6 +283,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const lastTerminalKeyRef = React.useRef(null);
   const timeoutRefreshRef = React.useRef(null);
   const openingRefreshRef = React.useRef(null);
+  const plan = membershipPlan(membership);
+  const premiumReview = hasPremium(membership, 'pro');
 
   const applyGameSnapshot = React.useCallback((incomingGame) => {
     if (!incomingGame) return;
@@ -631,6 +657,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
         setQueueing(true);
         setQueueStartedAt(Date.now());
         setQueueSeconds(0);
+        setQueueRatingWindow(data.ratingWindow ?? 50);
         setMessage('Finding a real player...');
       }
     } catch (error) {
@@ -653,6 +680,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       setQueueing(false);
       setQueueStartedAt(null);
       setQueueSeconds(0);
+      setQueueRatingWindow(50);
       setMessage('Queue cancelled.');
     } catch (error) {
       setMessage(error.message);
@@ -721,6 +749,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
     setQueueing(false);
     setQueueStartedAt(null);
     setQueueSeconds(0);
+    setQueueRatingWindow(50);
     setMessage('Back to online lobby.');
   };
 
@@ -899,6 +928,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
   const selfPlayer = game?.white?.you ? game.white : game?.black?.you ? game.black : null;
   const bottomPhotoURL = selfPlayer?.photoURL || authUser?.photoURL;
   const bottomRating = selfPlayer?.rating || myRating;
+  const activeQueueWindow = queueing ? Math.max(queueRatingWindow, clientRatingWindow(queueSeconds)) : queueRatingWindow;
+  const queueMinRating = Math.max(100, myRating - activeQueueWindow);
+  const queueMaxRating = Math.min(4000, myRating + activeQueueWindow);
+  const activeMode = modeFromTimeControl(timeControl);
   const playerColorLabel = game?.playerColor === 'w' ? 'White' : game?.playerColor === 'b' ? 'Black' : 'Choose match';
   const pairs = movePairs(moves);
   const topColor = game?.playerColor === 'w' ? 'b' : 'w';
@@ -1045,10 +1078,19 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
                 <p>{reviewPly > 0 ? reviewBadge?.label || 'Analyzing move' : 'Start position'}</p>
               </div>
             )}
-            {queueing && (
+          {queueing && (
               <div className="search-timer" aria-live="polite">
                 <Search size={17} />
                 Searching {formatSearchTime(queueSeconds)}
+              </div>
+            )}
+            {queueing && (
+              <div className="online-search-details">
+                <span>Mode <b>{activeMode}</b></span>
+                <span>Your rating <b>{myRating}</b></span>
+                <span>Opponent range <b>{queueMinRating}-{queueMaxRating}</b></span>
+                <span>Plan <b>{plan.name}</b></span>
+                <small>{queueSeconds < 30 ? 'Range expands automatically while you wait.' : 'Maximum fair range is active. Oldest compatible player is prioritized.'}</small>
               </div>
             )}
             {message && <p>{message}</p>}
@@ -1212,11 +1254,16 @@ export default function OnlinePage({ authUser, userName, pieceSet, onLogin }) {
       {showResultDialog && outcome && !rematchFromOpponent && (
         <OnlineResultDialog
           outcome={outcome}
+          game={game}
+          selfPlayer={selfPlayer}
+          opponentPlayer={opponentPlayer}
+          premiumReview={premiumReview}
           rematch={rematchRequest}
           rematchPending={rematchPending}
           rematchBusy={rematchBusy}
           onReview={openOnlineReview}
           onNewGame={startQueue}
+          onLeaderboard={() => onNavigate?.('leaderboard')}
           onRematch={() => requestRematch('request')}
         />
       )}
@@ -1267,23 +1314,44 @@ function OnlineBoard({ board, flipped, pieceSet, selected, targets, lastMove, ch
   );
 }
 
-function OnlineResultDialog({ outcome, rematch, rematchPending, rematchBusy, onReview, onNewGame, onRematch }) {
+function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLeaderboard, onRematch }) {
+  const ratingDelta = selfPlayer?.ratingDelta;
+  const hasRatingDelta = Number.isFinite(ratingDelta) && game?.rated !== false;
+  const ratingAfter = selfPlayer?.ratingAfter ?? selfPlayer?.rating;
+  const ratingBefore = selfPlayer?.ratingBefore;
   return (
     <div className="result-backdrop" role="dialog" aria-modal="true" aria-label="Online game result">
       <div className="result-dialog compact-result online-result-dialog" data-result={outcome.type}>
         <div className="result-icon"><Trophy size={28} /></div>
         <h2>{outcome.title}</h2>
         <small>{outcome.detail}</small>
+        <div className="online-rating-result">
+          <div>
+            <span>Your rating</span>
+            <strong>{hasRatingDelta ? ratingAfter : ratingBefore ?? selfPlayer?.rating ?? '-'}</strong>
+            <b className={ratingDelta > 0 ? 'up' : ratingDelta < 0 ? 'down' : 'same'}>
+              {outcome.aborted || !hasRatingDelta ? 'unchanged' : signedRating(ratingDelta)}
+            </b>
+          </div>
+          <div>
+            <span>Opponent</span>
+            <strong>{opponentPlayer?.rating ?? '-'}</strong>
+            <b>{opponentPlayer?.name || 'Player'}</b>
+          </div>
+        </div>
         <div className="result-coach">
           <div className="review-coach-avatar">VS</div>
           <p>{outcome.aborted ? 'This game was cancelled before both players completed an opening move.' : outcome.type === 'win' ? 'Game finished. Review the key moves or ask your opponent for a rematch.' : outcome.type === 'loss' ? 'Game over. Review the critical position before playing again.' : 'Balanced result. Review the turning points or start another game.'}</p>
           {rematch?.requestedByYou && rematchPending && <small>Rematch request sent. Waiting for opponent.</small>}
           {rematch?.requestedByYou && !rematch.response && !rematchPending && <small>Rematch request expired.</small>}
           {rematch?.response === 'declined' && <small>Opponent declined the rematch.</small>}
+          {!outcome.aborted && !premiumReview && <small>Pro opens unlimited game review and deeper explanations after each game.</small>}
+          {!outcome.aborted && premiumReview && <small>Premium active: deep game review is ready for this game.</small>}
         </div>
         <div className="result-actions">
           {!outcome.aborted && <button onClick={onReview}><Brain size={18} /> Game review</button>}
           <button onClick={onNewGame}><Search size={18} /> New game</button>
+          {!outcome.aborted && <button onClick={onLeaderboard}><BarChart3 size={18} /> Leaderboard</button>}
           {!outcome.aborted && <button disabled={rematchBusy || (rematch?.requestedByYou && rematchPending)} onClick={onRematch}><RotateCcw size={18} /> Rematch</button>}
         </div>
       </div>

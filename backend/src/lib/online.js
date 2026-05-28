@@ -491,6 +491,14 @@ export function publicGame(game, moves, userId) {
   const clocks = onlineClockMilliseconds(game, moves);
   const endedByTimeout = game.status === 'resigned' && clocks[game.turn] <= 0;
   const openingDeadline = openingMoveDeadline(game, moves);
+  const whiteRatingBefore = game.white_rating_before ?? game.white_rating ?? DEFAULT_ONLINE_RATING;
+  const blackRatingBefore = game.black_rating_before ?? game.black_rating ?? DEFAULT_ONLINE_RATING;
+  const whiteRatingAfter = game.white_rating_after ?? null;
+  const blackRatingAfter = game.black_rating_after ?? null;
+  const whiteRatingDelta = Number.isFinite(whiteRatingAfter) ? whiteRatingAfter - whiteRatingBefore : null;
+  const blackRatingDelta = Number.isFinite(blackRatingAfter) ? blackRatingAfter - blackRatingBefore : null;
+  const whiteDisplayRating = whiteRatingAfter ?? whiteRatingBefore;
+  const blackDisplayRating = blackRatingAfter ?? blackRatingBefore;
   return {
     id: game.id,
     inviteCode: game.invite_code,
@@ -514,14 +522,20 @@ export function publicGame(game, moves, userId) {
     white: {
       id: game.white_user_id,
       name: whiteName,
-      rating: game.white_rating ?? DEFAULT_ONLINE_RATING,
+      rating: whiteDisplayRating,
+      ratingBefore: whiteRatingBefore,
+      ratingAfter: whiteRatingAfter,
+      ratingDelta: whiteRatingDelta,
       photoURL: game.white_photo_url ?? null,
       you: game.white_user_id === userId
     },
     black: {
       id: game.black_user_id,
       name: blackName,
-      rating: game.black_rating ?? DEFAULT_ONLINE_RATING,
+      rating: blackDisplayRating,
+      ratingBefore: blackRatingBefore,
+      ratingAfter: blackRatingAfter,
+      ratingDelta: blackRatingDelta,
       photoURL: game.black_photo_url ?? null,
       you: game.black_user_id === userId
     },

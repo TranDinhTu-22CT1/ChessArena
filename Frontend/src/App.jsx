@@ -1,6 +1,7 @@
 import React from 'react';
 import './styles.css';
 import { apiUrl } from './api/config';
+import { fetchMembership } from './api/membership';
 import { requestStockfishMove } from './api/stockfish';
 import { PIECE_IMAGES } from './game/pieces';
 import {
@@ -47,6 +48,8 @@ import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
 import HomePage from './routes/HomePage';
 import HistoryPage from './routes/HistoryPage';
+import LeaderboardPage from './routes/LeaderboardPage';
+import MembershipPage from './routes/MembershipPage';
 import OnlinePage from './routes/OnlinePage';
 import ProfilePage from './routes/ProfilePage';
 import ReviewPage from './routes/ReviewPage';
@@ -88,6 +91,7 @@ export default function App() {
   const [coachLesson, setCoachLesson] = React.useState(() => coachLessonFromMode('basic'));
   const [botGameStarted, setBotGameStarted] = React.useState(false);
   const [manualResult, setManualResult] = React.useState(() => storedFinishedOutcome());
+  const [membership, setMembership] = React.useState(null);
   const [hintMove, setHintMove] = React.useState(null);
   const [premoveQueue, setPremoveQueue] = React.useState([]);
   const [suggestionMove, setSuggestionMove] = React.useState(null);
@@ -151,6 +155,24 @@ export default function App() {
   const aiTimerRef = React.useRef(null);
   const premoveRef = React.useRef([]);
   const { ensureAudioContext, playMoveSound, speakCoachText, stopSpeech } = useGameAudio();
+
+  React.useEffect(() => {
+    if (!authUser) {
+      setMembership(null);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchMembership()
+      .then((nextMembership) => {
+        if (!cancelled) setMembership(nextMembership);
+      })
+      .catch(() => {
+        if (!cancelled) setMembership(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
 
   const isActiveGameRoute = isGameRoute(route);
   const isActiveOnlineRoute = route === 'online';
@@ -808,6 +830,7 @@ export default function App() {
         authUser={authUser}
         userName={userName}
         activeRoute={route}
+        membership={membership}
         mobileOpen={mobileSidebarOpen}
         onToggleMobile={() => setMobileSidebarOpen((open) => !open)}
         onCloseMobile={() => setMobileSidebarOpen(false)}
@@ -890,6 +913,7 @@ export default function App() {
             history={history}
             stockfishReview={stockfishReview}
             reviewStats={reviewStats}
+            membership={membership}
             whiteName={whiteName}
             blackName={blackName}
             returnRoute={gameMode}
@@ -924,6 +948,22 @@ export default function App() {
           />
         )}
 
+        {route === 'leaderboard' && (
+          <LeaderboardPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+          />
+        )}
+
+        {route === 'membership' && (
+          <MembershipPage
+            authUser={authUser}
+            membership={membership}
+            onLogin={() => setAuthMode('login')}
+            onMembershipUpdated={setMembership}
+          />
+        )}
+
         {isActiveOnlineRoute && (
           <>
             <TopHeader
@@ -941,7 +981,7 @@ export default function App() {
               onApplyBoardPreset={applyBoardPreset}
               onSetPieceSet={setPieceSet}
             />
-            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} onLogin={() => setAuthMode('login')} />
+            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} membership={membership} onLogin={() => setAuthMode('login')} onNavigate={navigate} />
           </>
         )}
 
@@ -963,12 +1003,12 @@ export default function App() {
               onSetPieceSet={setPieceSet}
             />
             <React.Suspense fallback={<div className="puzzle-loading">Đang mở khu luyện câu đố...</div>}>
-              <PuzzlePage activeRoute={route} pieceSet={pieceSet} onNavigate={navigate} />
+              <PuzzlePage activeRoute={route} pieceSet={pieceSet} membership={membership} onNavigate={navigate} />
             </React.Suspense>
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'history' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}

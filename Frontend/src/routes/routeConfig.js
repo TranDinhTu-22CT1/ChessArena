@@ -6,6 +6,8 @@ export const ROUTES = {
   local: '/play/local',
   profile: '/profile',
   history: '/history',
+  leaderboard: '/leaderboard',
+  membership: '/membership',
   review: '/review',
   puzzles: '/puzzles',
   'daily-puzzle': '/puzzles/daily',
@@ -28,6 +30,8 @@ export function isPuzzleRoute(route) {
 export function routeFromPath(pathname) {
   if (pathname === '/profile') return 'profile';
   if (pathname === '/history') return 'history';
+  if (pathname === '/leaderboard') return 'leaderboard';
+  if (pathname === '/membership' || pathname === '/premium') return 'membership';
   if (pathname === '/review') return 'review';
   if (pathname === '/puzzles/daily') return 'daily-puzzle';
   if (pathname === '/puzzles/rush') return 'puzzle-rush';

@@ -13,3 +13,4 @@ npm-debug.log*
 backend/logs/
 backend/stockfish/*.exe
 *.log
+*.docx

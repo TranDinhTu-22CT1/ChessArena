@@ -401,6 +401,29 @@ create table if not exists public.user_matchmaking_stats (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.user_memberships (
+  user_id uuid primary key references public.users(id) on delete cascade,
+  tier text not null default 'free' check (tier in ('free', 'plus', 'pro', 'master')),
+  status text not null default 'inactive' check (status in ('inactive', 'active', 'cancelled', 'expired', 'pending')),
+  billing_cycle text not null default 'monthly' check (billing_cycle in ('monthly', 'yearly')),
+  provider text,
+  provider_subscription_id text,
+  provider_plan_id text,
+  started_at timestamptz,
+  current_period_end timestamptz,
+  cancelled_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_memberships
+add column if not exists provider text;
+
+alter table public.user_memberships
+add column if not exists provider_subscription_id text;
+
+alter table public.user_memberships
+add column if not exists provider_plan_id text;
+
 alter table public.user_matchmaking_stats
 add column if not exists last_client_id text;
 
@@ -1335,6 +1358,9 @@ on public.matchmaking_claim_logs(created_at desc);
 create index if not exists idx_matchmaking_abuse_user_created
 on public.matchmaking_abuse_logs(user_id, created_at desc);
 
+create index if not exists idx_user_memberships_status
+on public.user_memberships(status, tier, updated_at desc);
+
 create index if not exists idx_online_game_moves_game_ply
 on public.online_game_moves(game_id, ply);
 
@@ -1375,6 +1401,7 @@ alter table public.online_ratings enable row level security;
 alter table public.user_ratings enable row level security;
 alter table public.user_trust_scores enable row level security;
 alter table public.user_matchmaking_stats enable row level security;
+alter table public.user_memberships enable row level security;
 alter table public.matchmaking_events enable row level security;
 alter table public.matchmaking_claim_logs enable row level security;
 alter table public.matchmaking_abuse_logs enable row level security;
@@ -1396,6 +1423,7 @@ drop policy if exists "service role manages online ratings" on public.online_rat
 drop policy if exists "service role manages user ratings" on public.user_ratings;
 drop policy if exists "service role manages user trust scores" on public.user_trust_scores;
 drop policy if exists "service role manages user matchmaking stats" on public.user_matchmaking_stats;
+drop policy if exists "service role manages user memberships" on public.user_memberships;
 drop policy if exists "service role manages matchmaking events" on public.matchmaking_events;
 drop policy if exists "service role manages matchmaking claim logs" on public.matchmaking_claim_logs;
 drop policy if exists "service role manages matchmaking abuse logs" on public.matchmaking_abuse_logs;
@@ -1473,6 +1501,12 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages user matchmaking stats"
 on public.user_matchmaking_stats
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user memberships"
+on public.user_memberships
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

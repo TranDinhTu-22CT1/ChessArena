@@ -6,33 +6,25 @@ import {
   CalendarDays,
   ChevronRight,
   Crown,
-  Dumbbell,
-  GraduationCap,
   History,
   Lock,
   LogOut,
   Menu,
   MessageSquare,
-  MoreHorizontal,
   Puzzle,
-  Radio,
   Shield,
   Swords,
   Trophy,
   UserRound,
-  Users,
   X,
   Zap
 } from 'lucide-react';
+import { membershipPlan } from '../membership/plans';
 
 const menuItems = [
   { icon: Swords, label: 'Play', active: true, hasFlyout: true },
   { icon: Puzzle, label: 'Puzzles', route: 'puzzles', hasPuzzleFlyout: true },
-  { icon: GraduationCap, label: 'Learn' },
-  { icon: Dumbbell, label: 'Train' },
-  { icon: Radio, label: 'Watch' },
-  { icon: Users, label: 'Community' },
-  { icon: MoreHorizontal, label: 'Other' }
+  { icon: Crown, label: 'Premium', route: 'membership' }
 ];
 
 const playMenuItems = [
@@ -40,9 +32,8 @@ const playMenuItems = [
   { icon: Bot, label: 'Chơi với bot', route: 'bot' },
   { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
-  { icon: BarChart3, label: 'Stats' },
-  { icon: Trophy, label: 'Tournaments' },
-  { icon: Zap, label: 'Variants' },
+  { icon: Trophy, label: 'Leaderboard', route: 'leaderboard' },
+  { icon: BarChart3, label: 'Profile', route: 'profile' },
   { icon: History, label: 'Game History', route: 'history' }
 ];
 
@@ -50,14 +41,14 @@ const puzzleMenuItems = [
   { icon: Puzzle, label: 'Puzzles', route: 'puzzles' },
   { icon: CalendarDays, label: 'Daily Puzzle', route: 'daily-puzzle' },
   { icon: Zap, label: 'Puzzle Rush', route: 'puzzle-rush' },
-  { icon: Swords, label: 'Puzzle Battle', route: 'puzzle-battle' },
-  { icon: GraduationCap, label: 'Custom Puzzles', route: 'custom-puzzles' }
+  { icon: Trophy, label: 'Custom Puzzles', route: 'custom-puzzles' }
 ];
 
 export default function Sidebar({
   authUser,
   userName,
   activeRoute,
+  membership,
   mobileOpen,
   onToggleMobile,
   onCloseMobile,
@@ -68,6 +59,7 @@ export default function Sidebar({
   onLogout
 }) {
   const [openFlyout, setOpenFlyout] = React.useState(null);
+  const plan = membershipPlan(membership);
 
   const handleNavigate = (nextRoute) => {
     setOpenFlyout(null);
@@ -99,10 +91,10 @@ export default function Sidebar({
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.hasFlyout
-            ? ['online', 'bot', 'coach', 'local', 'review', 'history'].includes(activeRoute)
+            ? ['online', 'bot', 'coach', 'local', 'review', 'history', 'leaderboard'].includes(activeRoute)
             : item.hasPuzzleFlyout
               ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
-              : item.active;
+              : item.route === activeRoute || item.active;
           return (
             <div className={`nav-item ${isActive ? 'active' : ''} ${(item.hasFlyout || item.hasPuzzleFlyout) ? 'has-flyout' : ''} ${openFlyout === item.label ? 'open' : ''}`} key={item.label}>
               <button className={isActive ? 'active' : ''} onClick={() => {
@@ -156,9 +148,9 @@ export default function Sidebar({
         })}
       </nav>
 
-      <button className="sidebar-offer">
+      <button className="sidebar-offer" onClick={() => handleNavigate('membership')}>
         <Crown size={18} />
-        Get 50% Off
+        {plan.id === 'free' ? 'Upgrade Premium' : `${plan.badge} active`}
       </button>
 
       <div className="sidebar-account">

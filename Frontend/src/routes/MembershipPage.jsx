@@ -1,0 +1,228 @@
+import React from 'react';
+import { Brain, CheckCircle2, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
+import { activateMembership } from '../api/membership';
+import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../membership/plans';
+
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
+const PAYPAL_PLAN_IDS = {
+  plus: {
+    monthly: import.meta.env.VITE_PAYPAL_PLUS_MONTHLY_PLAN_ID || '',
+    yearly: import.meta.env.VITE_PAYPAL_PLUS_YEARLY_PLAN_ID || ''
+  },
+  pro: {
+    monthly: import.meta.env.VITE_PAYPAL_PRO_MONTHLY_PLAN_ID || '',
+    yearly: import.meta.env.VITE_PAYPAL_PRO_YEARLY_PLAN_ID || ''
+  },
+  master: {
+    monthly: import.meta.env.VITE_PAYPAL_MASTER_MONTHLY_PLAN_ID || '',
+    yearly: import.meta.env.VITE_PAYPAL_MASTER_YEARLY_PLAN_ID || ''
+  }
+};
+
+const PRICES = {
+  plus: { monthly: 49000, yearly: 490000 },
+  pro: { monthly: 99000, yearly: 990000 },
+  master: { monthly: 179000, yearly: 1790000 }
+};
+
+const PLAN_COPY = {
+  plus: {
+    icon: Sparkles,
+    title: 'Plus',
+    tag: 'Tập tactics đều mỗi ngày',
+    benefits: ['10 game review cơ bản mỗi ngày', '80 puzzle mỗi ngày', 'Mở Puzzle Rush không giới hạn lượt', 'Hồ sơ có huy hiệu Plus']
+  },
+  pro: {
+    icon: Gem,
+    title: 'Pro',
+    tag: 'Gói đáng mua nhất',
+    benefits: ['Game review không giới hạn', 'Puzzle và Custom Puzzles không giới hạn', 'Explain Pro cho từng nước đi', 'Thống kê sau trận rõ hơn']
+  },
+  master: {
+    icon: Crown,
+    title: 'Master',
+    tag: 'Cho người chơi nghiêm túc',
+    benefits: ['Toàn bộ quyền lợi Pro', 'Coach định hướng luyện tập nâng cao', 'Huy hiệu Master nổi bật', 'Ưu tiên khi mở tính năng giải đấu']
+  }
+};
+
+const FREE_LIMITS = [
+  '5 puzzle mỗi ngày',
+  '1 game review cơ bản mỗi ngày',
+  'Không có Puzzle Rush',
+  'Không có Custom Puzzles',
+  'Không có Explain Pro'
+];
+
+function currency(value) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
+}
+
+function planIdFor(tier, cycle) {
+  return PAYPAL_PLAN_IDS[tier]?.[cycle] || '';
+}
+
+function loadPayPalSdk() {
+  if (!PAYPAL_CLIENT_ID) return Promise.reject(new Error('Thiếu VITE_PAYPAL_CLIENT_ID trong Frontend/.env.'));
+  if (window.paypal?.Buttons) return Promise.resolve(window.paypal);
+  const existing = document.querySelector('script[data-chessarena-paypal]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener('load', () => resolve(window.paypal), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Không thể tải PayPal SDK.')), { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&vault=true&intent=subscription`;
+    script.async = true;
+    script.dataset.chessarenaPaypal = 'true';
+    script.onload = () => resolve(window.paypal);
+    script.onerror = () => reject(new Error('Không thể tải PayPal SDK.'));
+    document.head.appendChild(script);
+  });
+}
+
+function PayPalSubscribeButton({ tier, cycle, onActivated, onMessage }) {
+  const buttonRef = React.useRef(null);
+  const planId = planIdFor(tier, cycle);
+
+  React.useEffect(() => {
+    if (!buttonRef.current || !planId) return undefined;
+    let cancelled = false;
+    let renderedButtons = null;
+    buttonRef.current.innerHTML = '';
+    loadPayPalSdk()
+      .then((paypal) => {
+        if (cancelled || !buttonRef.current) return;
+        renderedButtons = paypal.Buttons({
+          style: { layout: 'vertical', color: 'gold', shape: 'pill', label: 'subscribe' },
+          createSubscription: (data, actions) => actions.subscription.create({ plan_id: planId }),
+          onApprove: async (data) => {
+            const membership = await activateMembership({
+              tier,
+              billingCycle: cycle,
+              planId,
+              subscriptionId: data.subscriptionID
+            });
+            onActivated(membership);
+            onMessage('Thanh toán sandbox thành công. Gói đã được kích hoạt cho tài khoản này.');
+          },
+          onError: () => onMessage('PayPal Sandbox đang lỗi hoặc cấu hình chưa đúng.')
+        });
+        renderedButtons.render(buttonRef.current);
+      })
+      .catch((error) => onMessage(error.message));
+    return () => {
+      cancelled = true;
+      renderedButtons?.close?.();
+    };
+  }, [cycle, onActivated, onMessage, planId, tier]);
+
+  if (!planId) {
+    return <p className="membership-config-note">Thiếu PayPal plan id cho gói này. Thêm biến env rồi deploy lại.</p>;
+  }
+
+  return <div className="paypal-button-slot" ref={buttonRef} />;
+}
+
+export default function MembershipPage({ authUser, membership, onLogin, onMembershipUpdated }) {
+  const [cycle, setCycle] = React.useState('monthly');
+  const [selectedTier, setSelectedTier] = React.useState('pro');
+  const [message, setMessage] = React.useState('');
+  const currentTier = activeTier(membership);
+
+  if (!authUser) {
+    return (
+      <section className="membership-auth-required">
+        <Crown size={48} />
+        <h1>Chess Arena Premium</h1>
+        <p>Đăng nhập để mua gói, lưu quyền lợi và đồng bộ với hồ sơ người chơi.</p>
+        <button onClick={onLogin}><LogIn size={18} /> Đăng nhập</button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="membership-page">
+      <header className="membership-hero">
+        <div>
+          <span><Crown size={18} /> Chess Arena Premium</span>
+          <h1>Nâng cấp để luyện cờ hiệu quả hơn</h1>
+          <p>Học theo mô hình premium của các nền tảng lớn: Free chỉ đủ trải nghiệm cơ bản, còn gói trả phí mở review sâu, puzzle nhiều hơn, coach hữu ích hơn và thống kê rõ sau trận.</p>
+        </div>
+        <div className="membership-current">
+          <strong>{MEMBERSHIP_TIERS[currentTier].name}</strong>
+          <span>Gói hiện tại</span>
+        </div>
+      </header>
+
+      <div className="membership-value-grid">
+        <div><Brain size={22} /><strong>Game Review</strong><span>Biết nước sai, nước tốt và xem lại ván nhanh hơn.</span></div>
+        <div><Puzzle size={22} /><strong>Puzzle</strong><span>Mở thêm Rush và Custom để luyện theo chủ đề.</span></div>
+        <div><Trophy size={22} /><strong>Rating</strong><span>Gắn với leaderboard, lịch sử và kết quả sau trận.</span></div>
+        <div><Zap size={22} /><strong>Coach</strong><span>Gợi ý sâu hơn theo thế cờ và cấp độ người chơi.</span></div>
+      </div>
+
+      <section className="membership-free-limits">
+        <div>
+          <ShieldCheck size={22} />
+          <strong>Free vẫn chơi được, nhưng bị giới hạn</strong>
+          <span>Giữ free đủ dùng thử sản phẩm, còn giá trị luyện tập nghiêm túc nằm ở Plus/Pro/Master.</span>
+        </div>
+        <ul>
+          {FREE_LIMITS.map((limit) => <li key={limit}>{limit}</li>)}
+        </ul>
+      </section>
+
+      <div className="billing-toggle" aria-label="Billing cycle">
+        <button className={cycle === 'monthly' ? 'active' : ''} onClick={() => setCycle('monthly')}>Theo tháng</button>
+        <button className={cycle === 'yearly' ? 'active' : ''} onClick={() => setCycle('yearly')}>Theo năm <small>tiết kiệm 2 tháng</small></button>
+      </div>
+
+      <div className="membership-plans">
+        {PAID_TIERS.map((tier) => {
+          const plan = PLAN_COPY[tier];
+          const Icon = plan.icon;
+          const selected = selectedTier === tier;
+          const active = currentTier === tier;
+          return (
+            <article className={`membership-plan ${selected ? 'selected' : ''} ${active ? 'active' : ''}`} key={tier}>
+              <div className="membership-plan-head">
+                <Icon size={28} />
+                <div>
+                  <span>{plan.tag}</span>
+                  <h2>{plan.title}</h2>
+                </div>
+              </div>
+              <strong className="membership-price">{currency(PRICES[tier][cycle])}<small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small></strong>
+              <ul>
+                {plan.benefits.map((benefit) => (
+                  <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
+                ))}
+              </ul>
+              <button className="membership-select" onClick={() => setSelectedTier(tier)}>
+                {active ? 'Đang dùng' : selected ? 'Đã chọn' : 'Chọn gói'}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+
+      <section className="membership-checkout">
+        <div>
+          <span>Thanh toán PayPal Sandbox</span>
+          <h2>{PLAN_COPY[selectedTier].title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
+          <p>Thêm `VITE_PAYPAL_CLIENT_ID` và các `VITE_PAYPAL_*_PLAN_ID` trong env để PayPal button hoạt động. Backend sẽ lưu subscription vào Supabase sau khi sandbox approve.</p>
+        </div>
+        <PayPalSubscribeButton
+          tier={selectedTier}
+          cycle={cycle}
+          onActivated={onMembershipUpdated}
+          onMessage={setMessage}
+        />
+        {message && <p className="membership-message">{message}</p>}
+      </section>
+    </section>
+  );
+}

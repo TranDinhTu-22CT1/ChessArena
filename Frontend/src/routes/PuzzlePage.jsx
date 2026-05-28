@@ -1,9 +1,10 @@
 import React from 'react';
 import { Chess } from 'chess.js';
-import { CalendarDays, Check, Flame, Puzzle, Swords, Timer, Trophy, X, Zap } from 'lucide-react';
+import { CalendarDays, Check, Crown, Flame, Lock, Puzzle, Swords, Timer, Trophy, X, Zap } from 'lucide-react';
 import { checkPuzzleMove, requestPuzzle } from '../api/puzzles';
 import { PIECE_IMAGES } from '../game/pieces';
 import { squareName } from '../game/chessLogic';
+import { formatLimit, hasPremium, membershipPlan } from '../membership/plans';
 
 const STORAGE_KEY = 'chess-arena-puzzle-progress';
 const POOL_VERSION = 'progressive-tactics-v5';
@@ -38,13 +39,19 @@ const MODES = [
 function initialProgress() {
   try {
     const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null');
-    if (saved?.poolVersion === POOL_VERSION) return saved;
+    if (saved?.poolVersion === POOL_VERSION) {
+      return {
+        ...saved,
+        dailyPuzzleUsage: saved.dailyPuzzleUsage ?? {}
+      };
+    }
     if (saved) {
       return {
         ...saved,
         poolVersion: POOL_VERSION,
         dailyAssignments: {},
         dailySolved: {},
+        dailyPuzzleUsage: {},
         dailyStreak: 0,
         seen: []
       };
@@ -62,6 +69,7 @@ function initialProgress() {
     rushBest: 0,
     dailySolved: {},
     dailyAssignments: {},
+    dailyPuzzleUsage: {},
     dailyStreak: 0,
     seen: []
   };
@@ -79,9 +87,22 @@ function updateDailyStreak(progress, key) {
   return progress.dailySolved[previousKey] ? progress.dailyStreak + 1 : 1;
 }
 
-export default function PuzzlePage({ activeRoute, pieceSet, onNavigate }) {
+function puzzleUsage(progress) {
+  return progress.dailyPuzzleUsage?.[dateKey()] ?? 0;
+}
+
+function puzzleQuotaReached(plan, progress, mode) {
+  return mode === 'rated' && Number.isFinite(plan.puzzleLimit) && puzzleUsage(progress) >= plan.puzzleLimit;
+}
+
+export default function PuzzlePage({ activeRoute, pieceSet, membership, onNavigate }) {
   const mode = ROUTE_MODES[activeRoute] ?? 'rated';
+  const plan = membershipPlan(membership);
+  const rushLocked = mode === 'rush' && !hasPremium(membership, 'plus');
+  const customLocked = mode === 'custom' && !hasPremium(membership, 'pro');
+  const premiumLocked = rushLocked || customLocked;
   const [progress, setProgress] = React.useState(initialProgress);
+  const quotaLocked = puzzleQuotaReached(plan, progress, mode);
   const [puzzle, setPuzzle] = React.useState(null);
   const [position, setPosition] = React.useState(null);
   const [selected, setSelected] = React.useState(null);
@@ -105,6 +126,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, onNavigate }) {
 
   const loadPuzzle = React.useCallback(async (nextMode = mode, additionalExcluded = []) => {
     if (nextMode === 'battle') return;
+    if (puzzleQuotaReached(plan, progress, nextMode)) return;
     const [minRating, maxRating] = ratingBand.split('-').map(Number);
     setLoading(true);
     setFeedback(null);
@@ -144,7 +166,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, onNavigate }) {
     } finally {
       setLoading(false);
     }
-  }, [mode, progress.seen, ratingBand, stage, theme]);
+  }, [mode, plan, progress.dailyPuzzleUsage, progress.seen, ratingBand, stage, theme]);
 
   React.useEffect(() => {
     setPuzzle(null);
@@ -200,6 +222,10 @@ export default function PuzzlePage({ activeRoute, pieceSet, onNavigate }) {
         correct: current.correct + 1,
         points: current.points + reward,
         rating: current.rating + reward,
+        dailyPuzzleUsage: {
+          ...(current.dailyPuzzleUsage ?? {}),
+          [today]: (current.dailyPuzzleUsage?.[today] ?? 0) + 1
+        },
         seen: current.seen.includes(puzzle.id) ? current.seen : [...current.seen, puzzle.id]
       }));
     } else if (mode === 'daily') {
@@ -319,10 +345,17 @@ export default function PuzzlePage({ activeRoute, pieceSet, onNavigate }) {
       <nav className="puzzle-mode-nav" aria-label="Chế độ câu đố">
         {MODES.map((item) => {
           const Icon = item.icon;
+          const locked = (item.id === 'rush' && !hasPremium(membership, 'plus'))
+            || (item.id === 'custom' && !hasPremium(membership, 'pro'));
           return (
-            <button className={mode === item.id ? 'active' : ''} key={item.id} onClick={() => onNavigate(item.route)}>
+            <button
+              className={`${mode === item.id ? 'active' : ''} ${locked ? 'locked' : ''}`}
+              key={item.id}
+              onClick={() => locked ? onNavigate('membership') : onNavigate(item.route)}
+            >
               <Icon size={20} />
               <span>{item.label}</span>
+              {locked && <Lock size={15} />}
             </button>
           );
         })}
@@ -340,7 +373,21 @@ export default function PuzzlePage({ activeRoute, pieceSet, onNavigate }) {
           </div>
         </header>
 
-        {mode === 'battle' ? (
+        {quotaLocked ? (
+          <section className="puzzle-unavailable premium-puzzle-lock">
+            <Crown size={42} />
+            <h2>Đã hết {formatLimit(plan.puzzleLimit)} puzzle hôm nay</h2>
+            <p>Gói hiện tại của bạn là {plan.name}. Nâng cấp để mở thêm quota puzzle, Puzzle Rush và bài tập theo chủ đề.</p>
+            <button onClick={() => onNavigate('membership')}>Nâng cấp Premium</button>
+          </section>
+        ) : premiumLocked ? (
+          <section className="puzzle-unavailable premium-puzzle-lock">
+            <Crown size={42} />
+            <h2>{mode === 'rush' ? 'Puzzle Rush thuộc gói Plus' : 'Custom Puzzles thuộc gói Pro'}</h2>
+            <p>Gói hiện tại của bạn là {plan.name}. Nâng cấp để mở thêm puzzle, luyện theo chủ đề và tăng tiến độ nhanh hơn.</p>
+            <button onClick={() => onNavigate('membership')}>Xem gói Premium</button>
+          </section>
+        ) : mode === 'battle' ? (
           <section className="puzzle-unavailable">
             <Swords size={42} />
             <h2>Puzzle Battle cần đối thủ realtime</h2>

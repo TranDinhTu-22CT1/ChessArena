@@ -74,11 +74,17 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
         {games.map((game) => {
           const opponent = game.white.you ? game.black : game.white;
           const result = gameResult(game);
+          const player = game.playerColor === 'w' ? game.white : game.black;
+          const ratingDelta = player?.ratingDelta;
+          const ratingDeltaText = Number.isFinite(ratingDelta)
+            ? `${ratingDelta > 0 ? '+' : ''}${ratingDelta} rating`
+            : '';
           return (
             <button className="history-row" key={game.id} onClick={() => onOpenReview(game.id)}>
               <b className={result.tone}>{result.label}</b>
               <span>
                 <strong>vs {opponent?.name || 'Player'}</strong>
+                {ratingDeltaText && <small className={ratingDelta > 0 ? 'rating-up' : ratingDelta < 0 ? 'rating-down' : ''}>{ratingDeltaText}</small>}
                 <small>{game.mode || 'rapid'} - {game.timeControl} - {(game.moves || []).length} nước</small>
               </span>
               <time>{formatDate(game.finishedAt)}</time>

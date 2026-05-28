@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, CheckCircle2, History, ImagePlus, Mail, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
+import { CalendarDays, CheckCircle2, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
 import { fetchProfile, saveProfile } from '../api/profile';
 
 const MODE_LABELS = {
@@ -193,6 +193,9 @@ export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUp
             })}
           </div>
           {profile?.ratings?.length === 0 && <p className="profile-empty">Chưa có rating online được ghi nhận.</p>}
+          <button className="profile-leaderboard-link" onClick={() => onNavigate?.('leaderboard')}>
+            <Medal size={17} /> Xem bảng xếp hạng
+          </button>
         </div>
       </div>
 
