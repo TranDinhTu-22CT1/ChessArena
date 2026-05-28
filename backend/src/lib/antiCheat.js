@@ -105,3 +105,40 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
     }
   };
 }
+
+export async function createAntiCheatReportsForGame(supabase, game, moves, options = {}) {
+  if (!game?.id || !game.white_user_id || !game.black_user_id || !Array.isArray(moves) || moves.length < 12) {
+    return [];
+  }
+
+  const reports = [];
+  for (const userId of [game.white_user_id, game.black_user_id]) {
+    const { data: existing } = await supabase
+      .from('anti_cheat_reports')
+      .select('id')
+      .eq('game_id', game.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existing) continue;
+
+    const analysis = await analyzeOnlineGameForUser(game, moves, userId, options);
+    if (analysis.riskScore < 45) continue;
+
+    const { data: report, error } = await supabase
+      .from('anti_cheat_reports')
+      .insert({
+        user_id: userId,
+        game_id: game.id,
+        risk_score: analysis.riskScore,
+        engine_match_rate: analysis.engineMatchRate,
+        low_time_consistency: analysis.lowTimeConsistency,
+        suspicious_move_count: analysis.suspiciousMoveCount,
+        total_moves: analysis.totalMoves,
+        details: analysis.details
+      })
+      .select('*')
+      .single();
+    if (!error && report) reports.push(report);
+  }
+  return reports;
+}

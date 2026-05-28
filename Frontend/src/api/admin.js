@@ -25,6 +25,11 @@ export async function fetchAdminUsers(search = '') {
   return readJson(response);
 }
 
+export async function fetchAdminUserDetail(userId) {
+  const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(userId)}`), { credentials: 'include' });
+  return readJson(response);
+}
+
 export async function adminUserAction(payload) {
   const response = await fetch(apiUrl('/api/admin/users'), {
     method: 'PATCH',

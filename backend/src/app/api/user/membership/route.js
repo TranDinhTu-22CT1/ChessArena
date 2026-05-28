@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
+import { fetchPayPalSubscription } from '../../../../lib/paypal';
 
 export const runtime = 'nodejs';
 
@@ -105,6 +106,20 @@ export async function POST(request) {
     return Response.json({ ok: false, error: 'PayPal plan does not match the selected membership.' }, { status: 400 });
   }
 
+  const subscription = await fetchPayPalSubscription(providerSubscriptionId);
+  if (!subscription) {
+    return Response.json({ ok: false, error: 'PayPal subscription was not found by the backend.' }, { status: 400 });
+  }
+  if (subscription.plan_id !== providerPlanId) {
+    return Response.json({ ok: false, error: 'PayPal subscription plan does not match checkout plan.' }, { status: 400 });
+  }
+  const subscriptionStatus = String(subscription.status || '').toUpperCase();
+  const active = subscriptionStatus === 'ACTIVE';
+  const pending = ['APPROVAL_PENDING', 'APPROVED'].includes(subscriptionStatus);
+  if (!active && !pending) {
+    return Response.json({ ok: false, error: `PayPal subscription is ${subscriptionStatus || 'unknown'}.` }, { status: 400 });
+  }
+
   const now = new Date();
   const currentPeriodEnd = new Date(now);
   currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + (billingCycle === 'yearly' ? 12 : 1));
@@ -114,7 +129,7 @@ export async function POST(request) {
     .upsert({
       user_id: context.user.id,
       tier,
-      status: 'active',
+      status: active ? 'active' : 'pending',
       billing_cycle: billingCycle,
       provider: 'paypal',
       provider_subscription_id: providerSubscriptionId,

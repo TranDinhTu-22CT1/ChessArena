@@ -1,7 +1,8 @@
 import React from 'react';
 import { ArrowLeft, Brain, CheckCircle2, CreditCard, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
 import { activateMembership } from '../api/membership';
-import { fetchPayPalPlanPrices } from '../api/paypalPlans';
+import { fetchPayPalPlan, fetchPayPalPlanPrices } from '../api/paypalPlans';
+import { notify } from '../components/ToastHost';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../membership/plans';
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
@@ -20,6 +21,7 @@ const PAYPAL_PLAN_IDS = {
     yearly: import.meta.env.VITE_PAYPAL_MASTER_YEARLY_PLAN_ID || ''
   }
 };
+const PAYPAL_SDK_KEY = 'chessArenaPayPalSdkCurrency';
 
 const PRICES = {
   plus: {
@@ -93,20 +95,22 @@ function mergePlanPrices(current, remote) {
 
 function loadPayPalSdk(currencyCode) {
   if (!PAYPAL_CLIENT_ID) return Promise.reject(new Error('Thiếu VITE_PAYPAL_CLIENT_ID trong Frontend/.env.'));
-  if (window.paypal?.Buttons) return Promise.resolve(window.paypal);
+  const requestedCurrency = currencyCode || PAYPAL_CURRENCY;
+  if (window.paypal?.Buttons && window[PAYPAL_SDK_KEY] === requestedCurrency) return Promise.resolve(window.paypal);
   const existing = document.querySelector('script[data-chessarena-paypal]');
   if (existing) {
-    return new Promise((resolve, reject) => {
-      existing.addEventListener('load', () => resolve(window.paypal), { once: true });
-      existing.addEventListener('error', () => reject(new Error('Không thể tải PayPal SDK.')), { once: true });
-    });
+    existing.remove();
+    window.paypal = undefined;
   }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&components=buttons&vault=true&intent=subscription&currency=${encodeURIComponent(currencyCode || PAYPAL_CURRENCY)}`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&components=buttons&vault=true&intent=subscription&currency=${encodeURIComponent(requestedCurrency)}`;
     script.async = true;
     script.dataset.chessarenaPaypal = 'true';
-    script.onload = () => resolve(window.paypal);
+    script.onload = () => {
+      window[PAYPAL_SDK_KEY] = requestedCurrency;
+      resolve(window.paypal);
+    };
     script.onerror = () => reject(new Error('Không thể tải PayPal SDK.'));
     document.head.appendChild(script);
   });
@@ -137,10 +141,13 @@ function PayPalSubscribeButton({ tier, cycle, price, onActivated, onMessage }) {
             });
             onActivated(membership);
             onMessage('Thanh toán sandbox thành công. Gói đã được kích hoạt cho tài khoản này.');
+            notify('Thanh toán PayPal thành công. Gói đã được cập nhật.', 'success');
           },
           onError: (error) => {
             console.error('PayPal subscription error', error);
-            onMessage(`PayPal Sandbox chưa tạo được subscription. Gói đang dùng plan ${planId}, currency ${currencyCode}. Kiểm tra plan đang ACTIVE, plan thuộc đúng sandbox app/client id và đã redeploy sau khi thêm env.`);
+            const errorMessage = `PayPal Sandbox chưa tạo được subscription. Gói đang dùng plan ${planId}, currency ${currencyCode}. Kiểm tra plan đang ACTIVE, plan thuộc đúng sandbox app/client id và đã redeploy sau khi thêm env.`;
+            onMessage(errorMessage);
+            notify(errorMessage, 'error');
           }
         });
         renderedButtons.render(buttonRef.current);
@@ -159,12 +166,25 @@ function PayPalSubscribeButton({ tier, cycle, price, onActivated, onMessage }) {
   return <div className="paypal-button-slot" ref={buttonRef} />;
 }
 
+function planHealthMessage(planId, planHealth, fallbackCurrency) {
+  if (!planId) return 'Thiếu PayPal plan id cho gói này.';
+  if (!planHealth) return 'Đang kiểm tra plan PayPal...';
+  if (planHealth.ok === false) return planHealth.error || 'Backend không lấy được PayPal plan bằng credential hiện tại.';
+  if (planHealth.plan?.status && planHealth.plan.status !== 'ACTIVE') return `Plan đang ở trạng thái ${planHealth.plan.status}, cần ACTIVE.`;
+  const planCurrency = planHealth.plan?.currency;
+  if (planCurrency && planCurrency !== fallbackCurrency) {
+    return `Plan dùng ${planCurrency}, SDK sẽ tải lại theo currency này.`;
+  }
+  return '';
+}
+
 export default function MembershipPage({ authUser, membership, onLogin, onMembershipUpdated }) {
   const [cycle, setCycle] = React.useState('monthly');
   const [selectedTier, setSelectedTier] = React.useState('pro');
   const [checkoutTier, setCheckoutTier] = React.useState(null);
   const [message, setMessage] = React.useState('');
   const [prices, setPrices] = React.useState(PRICES);
+  const [planHealth, setPlanHealth] = React.useState(null);
   const currentTier = activeTier(membership);
 
   React.useEffect(() => {
@@ -184,6 +204,36 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const checkoutPlan = checkoutTier ? PLAN_COPY[checkoutTier] : null;
   const checkoutPrice = checkoutTier ? prices[checkoutTier][cycle] : null;
   const checkoutPlanId = checkoutTier ? planIdFor(checkoutTier, cycle) : '';
+  const planHealthNote = checkoutTier ? planHealthMessage(checkoutPlanId, planHealth, checkoutPrice?.currency || PAYPAL_CURRENCY) : '';
+
+  React.useEffect(() => {
+    if (!checkoutPlanId) {
+      setPlanHealth(null);
+      return undefined;
+    }
+    let ignore = false;
+    setPlanHealth(null);
+    fetchPayPalPlan(checkoutPlanId)
+      .then((data) => {
+        if (ignore) return;
+        setPlanHealth(data);
+        if (data?.plan?.value) {
+          setPrices((current) => ({
+            ...current,
+            [checkoutTier]: {
+              ...current[checkoutTier],
+              [cycle]: data.plan
+            }
+          }));
+        }
+      })
+      .catch((error) => {
+        if (!ignore) setPlanHealth({ ok: false, error: error.message });
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [checkoutPlanId, checkoutTier, cycle]);
 
   if (!authUser) {
     return (
@@ -224,8 +274,9 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
             <div className="membership-payment-meta">
               <span>Plan ID: <b>{checkoutPlanId || 'Chưa cấu hình'}</b></span>
               <span>Currency: <b>{checkoutPrice?.currency || PAYPAL_CURRENCY}</b></span>
-              <span>Status: <b>{checkoutPrice?.status || 'Không lấy được từ PayPal'}</b></span>
+              <span>Status: <b>{planHealth?.plan?.status || checkoutPrice?.status || 'Đang kiểm tra'}</b></span>
             </div>
+            {planHealthNote && <p className="membership-config-note">{planHealthNote}</p>}
             <ul>
               {checkoutPlan.benefits.map((benefit) => (
                 <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
@@ -240,7 +291,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
             <PayPalSubscribeButton
               tier={checkoutTier}
               cycle={cycle}
-              price={checkoutPrice}
+              price={planHealth?.plan || checkoutPrice}
               onActivated={onMembershipUpdated}
               onMessage={setMessage}
             />

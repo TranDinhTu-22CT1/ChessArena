@@ -31,6 +31,7 @@ import MatchPanel from './components/MatchPanel';
 import ResultDialog from './components/ResultDialog';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
+import ToastHost from './components/ToastHost';
 import {
   buildCoachInsight,
   coachBehaviorFromMode,
@@ -46,18 +47,18 @@ import { useGameAudio } from './hooks/useGameAudio';
 import { useGameReview } from './hooks/useGameReview';
 import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
-import HomePage from './routes/HomePage';
-import HistoryPage from './routes/HistoryPage';
-import AdminPage from './routes/AdminPage';
-import LeaderboardPage from './routes/LeaderboardPage';
-import MembershipPage from './routes/MembershipPage';
-import OnlinePage from './routes/OnlinePage';
-import ProfilePage from './routes/ProfilePage';
-import ReviewPage from './routes/ReviewPage';
 import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './routes/routeConfig';
 
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
 const FINISHED_GAME_KEY = 'chess-arena-finished-game';
+const AdminPage = React.lazy(() => import('./routes/AdminPage'));
+const HistoryPage = React.lazy(() => import('./routes/HistoryPage'));
+const HomePage = React.lazy(() => import('./routes/HomePage'));
+const LeaderboardPage = React.lazy(() => import('./routes/LeaderboardPage'));
+const MembershipPage = React.lazy(() => import('./routes/MembershipPage'));
+const OnlinePage = React.lazy(() => import('./routes/OnlinePage'));
+const ProfilePage = React.lazy(() => import('./routes/ProfilePage'));
+const ReviewPage = React.lazy(() => import('./routes/ReviewPage'));
 const PuzzlePage = React.lazy(() => import('./routes/PuzzlePage'));
 
 function storedFinishedOutcome() {
@@ -826,32 +827,39 @@ export default function App() {
 
   if (route === 'admin') {
     return authMode && !authUser ? (
-      <AuthPage
-        authMode={authMode}
-        authForm={authForm}
-        authMessage={authMessage}
-        authMessageTone={authMessageTone}
-        authBusy={authBusy}
-        otpState={otpState}
-        otpSecondsLeft={otpSecondsLeft}
-        onAuthFormChange={(patch) => setAuthForm((form) => ({ ...form, ...patch }))}
-        onSubmitAuth={submitAuth}
-        onProviderSignIn={signInProvider}
-        onSetAuthMode={(mode) => {
-          clearAuthMessage();
-          setOtpState(null);
-          setAuthMode(mode);
-        }}
-        onVerifyOtp={verifyOtp}
-        onResendOtp={resendOtp}
-      />
+      <>
+        <ToastHost />
+        <AuthPage
+          authMode={authMode}
+          authForm={authForm}
+          authMessage={authMessage}
+          authMessageTone={authMessageTone}
+          authBusy={authBusy}
+          otpState={otpState}
+          otpSecondsLeft={otpSecondsLeft}
+          onAuthFormChange={(patch) => setAuthForm((form) => ({ ...form, ...patch }))}
+          onSubmitAuth={submitAuth}
+          onProviderSignIn={signInProvider}
+          onSetAuthMode={(mode) => {
+            clearAuthMessage();
+            setOtpState(null);
+            setAuthMode(mode);
+          }}
+          onVerifyOtp={verifyOtp}
+          onResendOtp={resendOtp}
+        />
+      </>
     ) : (
-      <AdminPage authUser={authUser} onLogin={() => setAuthMode('login')} />
+      <React.Suspense fallback={<div className="route-loading">Loading admin...</div>}>
+        <ToastHost />
+        <AdminPage authUser={authUser} onLogin={() => setAuthMode('login')} />
+      </React.Suspense>
     );
   }
 
   return (
     <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
+      <ToastHost />
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
       <Sidebar
         authUser={authUser}
@@ -917,7 +925,7 @@ export default function App() {
         )}
 
         {(!authMode || authUser) && (
-        <>
+        <React.Suspense fallback={<div className="route-loading">Loading...</div>}>
         {route === 'home' && (
           <HomePage
             userName={userName}
@@ -1029,9 +1037,7 @@ export default function App() {
               onApplyBoardPreset={applyBoardPreset}
               onSetPieceSet={setPieceSet}
             />
-            <React.Suspense fallback={<div className="puzzle-loading">Đang mở khu luyện câu đố...</div>}>
-              <PuzzlePage activeRoute={route} pieceSet={pieceSet} membership={membership} onNavigate={navigate} />
-            </React.Suspense>
+            <PuzzlePage activeRoute={route} pieceSet={pieceSet} membership={membership} onNavigate={navigate} />
           </>
         )}
 
@@ -1158,7 +1164,7 @@ export default function App() {
         </section>
         </>
         )}
-        </>
+        </React.Suspense>
         )}
       </section>
 

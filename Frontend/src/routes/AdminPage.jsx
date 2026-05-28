@@ -4,11 +4,13 @@ import {
   adminUserAction,
   fetchAdminMe,
   fetchAdminSummary,
+  fetchAdminUserDetail,
   fetchAdminUsers,
   fetchAntiCheatReports,
   scanUserAntiCheat,
   updateAntiCheatReport
 } from '../api/admin';
+import { notify } from '../components/ToastHost';
 
 function pct(value) {
   return `${Math.round(Number(value || 0) * 100)}%`;
@@ -25,6 +27,7 @@ export default function AdminPage({ authUser, onLogin }) {
   const [reports, setReports] = React.useState([]);
   const [search, setSearch] = React.useState('');
   const [message, setMessage] = React.useState('');
+  const [selectedDetail, setSelectedDetail] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
 
   const load = React.useCallback(async (nextSearch = search) => {
@@ -44,6 +47,7 @@ export default function AdminPage({ authUser, onLogin }) {
       setReports(reportsData.reports || []);
     } catch (error) {
       setMessage(error.message || 'Không thể tải admin.');
+      notify(error.message || 'Không thể tải admin.', 'error');
     } finally {
       setLoading(false);
     }
@@ -59,18 +63,22 @@ export default function AdminPage({ authUser, onLogin }) {
     if (!reason) return;
     try {
       await adminUserAction({ action: 'ban', userId: user.id, banType, deviceFingerprint, reason });
+      notify('Đã ban người chơi.', 'success');
       await load();
     } catch (error) {
       setMessage(error.message);
+      notify(error.message, 'error');
     }
   };
 
   const unbanUser = async (user) => {
     try {
       await adminUserAction({ action: 'unban', userId: user.id });
+      notify('Đã gỡ ban người chơi.', 'success');
       await load();
     } catch (error) {
       setMessage(error.message);
+      notify(error.message, 'error');
     }
   };
 
@@ -79,7 +87,20 @@ export default function AdminPage({ authUser, onLogin }) {
     try {
       const data = await scanUserAntiCheat(user.id);
       setMessage(`Đã scan ${data.reports?.length || 0} ván gần nhất.`);
+      notify('Anti-cheat scan hoàn tất.', 'success');
       await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
+  const openDetail = async (user) => {
+    setMessage(`Đang tải chi tiết ${user.display_name}...`);
+    try {
+      const detail = await fetchAdminUserDetail(user.id);
+      setSelectedDetail(detail);
+      setMessage('');
     } catch (error) {
       setMessage(error.message);
     }
@@ -150,6 +171,7 @@ export default function AdminPage({ authUser, onLogin }) {
                   {ban && <b className="admin-ban-note">Banned: {ban.reason}</b>}
                 </div>
                 <div className="admin-user-actions">
+                  <button onClick={() => openDetail(user)}><UserCog size={16} /> Detail</button>
                   <button onClick={() => scanUser(user)}><ShieldAlert size={16} /> Scan</button>
                   {ban ? (
                     <button onClick={() => unbanUser(user)}><CheckCircle2 size={16} /> Unban</button>
@@ -165,6 +187,45 @@ export default function AdminPage({ authUser, onLogin }) {
           })}
         </div>
       </section>
+
+      {selectedDetail && (
+        <section className="admin-panel admin-detail-panel">
+          <div className="admin-panel-head">
+            <div>
+              <span>Player detail</span>
+              <h2>{selectedDetail.user.display_name}</h2>
+            </div>
+            <button onClick={() => setSelectedDetail(null)}>Đóng</button>
+          </div>
+          <div className="admin-detail-grid">
+            <div>
+              <strong>Thiết bị</strong>
+              {selectedDetail.devices.length === 0 && <p>Chưa có fingerprint.</p>}
+              {selectedDetail.devices.map((device) => (
+                <p key={device.id}>{device.device_fingerprint}<br /><small>{device.user_agent || 'unknown'} · {new Date(device.last_seen_at).toLocaleString()}</small></p>
+              ))}
+            </div>
+            <div>
+              <strong>Ban history</strong>
+              {selectedDetail.bans.length === 0 && <p>Không có ban.</p>}
+              {selectedDetail.bans.map((ban) => (
+                <p key={ban.id}>{ban.status} · {ban.ban_type}<br /><small>{ban.reason}</small></p>
+              ))}
+            </div>
+          </div>
+          <div className="admin-game-replay-list">
+            <strong>Replay ván gần đây</strong>
+            {selectedDetail.games.map((game) => (
+              <details key={game.id} className="admin-replay-card">
+                <summary>{game.white.name} vs {game.black.name} · {game.result || '*'} · {(game.moves || []).length} nước</summary>
+                <div className="admin-replay-moves">
+                  {(game.moves || []).map((move) => <span key={move.ply}>{move.ply}. {move.san}</span>)}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="admin-panel">
         <div className="admin-panel-head">

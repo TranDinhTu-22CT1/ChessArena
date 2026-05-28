@@ -13,6 +13,7 @@ import {
   touchPresence
 } from '../../../../../../lib/online';
 import { publishOnlineGame } from '../../../../../../lib/onlineEvents';
+import { createAntiCheatReportsForGame } from '../../../../../../lib/antiCheat';
 
 export const runtime = 'nodejs';
 
@@ -158,7 +159,10 @@ export async function POST(request, { params }) {
       currentGameId: updatedGame.status === 'active' ? updatedGame.id : null
     }),
     updatedGame.status !== 'active'
-      ? applyOnlineRatingResult(supabase, updatedGame, updatedGame.result)
+      ? Promise.all([
+          applyOnlineRatingResult(supabase, updatedGame, updatedGame.result),
+          createAntiCheatReportsForGame(supabase, updatedGame, nextMoves, { movetime: 80 })
+        ])
       : Promise.resolve()
   ]);
 
