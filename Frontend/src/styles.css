@@ -2614,18 +2614,30 @@ input {
   gap: 12px;
 }
 
-.admin-stats div {
+.admin-stats-wide {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-stats div,
+.admin-stat-card {
   display: grid;
   gap: 6px;
   padding: 18px;
 }
 
-.admin-stats svg {
+.admin-stats svg,
+.admin-stat-card svg {
   color: var(--accent);
 }
 
-.admin-stats strong {
+.admin-stats strong,
+.admin-stat-card strong {
   font-size: 2rem;
+}
+
+.admin-stat-card.danger svg,
+.admin-diagnostic-card.danger strong {
+  color: #ff9a9a;
 }
 
 .admin-message {
@@ -2662,7 +2674,8 @@ input {
 }
 
 .admin-user-list,
-.admin-report-list {
+.admin-report-list,
+.admin-table-list {
   display: grid;
   gap: 10px;
 }
@@ -2731,6 +2744,41 @@ input {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.admin-report-card em {
+  color: #aab9a6;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-diagnostic-grid,
+.admin-config-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-diagnostic-card,
+.admin-config-grid div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  color: #dcebd7;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(198, 232, 178, 0.1);
+  border-radius: 16px;
+  overflow-wrap: anywhere;
+}
+
+.admin-diagnostic-card.ok {
+  border-color: rgba(167, 201, 87, 0.32);
+}
+
 @media (max-width: 900px) {
   .admin-page {
     grid-template-columns: 1fr;
@@ -2741,7 +2789,9 @@ input {
   }
 
   .admin-sidebar nav,
-  .admin-ops-grid {
+  .admin-ops-grid,
+  .admin-diagnostic-grid,
+  .admin-config-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -2775,6 +2825,12 @@ input {
   .admin-user-actions button,
   .admin-report-card button {
     width: 100%;
+  }
+
+  .admin-stats-wide,
+  .admin-diagnostic-grid,
+  .admin-config-grid {
+    grid-template-columns: 1fr;
   }
 }
 

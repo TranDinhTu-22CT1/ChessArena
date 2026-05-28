@@ -5,7 +5,6 @@ import { createPayPalSubscriptionCheckout, fetchPayPalPlan, fetchPayPalPlanPrice
 import { notify } from '../components/ToastHost';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../membership/plans';
 
-const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
 const PAYPAL_CURRENCY = import.meta.env.VITE_PAYPAL_CURRENCY || 'USD';
 const PAYPAL_PLAN_IDS = {
   plus: {
@@ -21,7 +20,6 @@ const PAYPAL_PLAN_IDS = {
     yearly: import.meta.env.VITE_PAYPAL_MASTER_YEARLY_PLAN_ID || ''
   }
 };
-const PAYPAL_SDK_KEY = 'chessArenaPayPalSdkCurrency';
 
 const PRICES = {
   plus: {
@@ -91,79 +89,6 @@ function mergePlanPrices(current, remote) {
     }
   }
   return next;
-}
-
-function loadPayPalSdk(currencyCode) {
-  if (!PAYPAL_CLIENT_ID) return Promise.reject(new Error('Thiếu VITE_PAYPAL_CLIENT_ID trong Frontend/.env.'));
-  const requestedCurrency = currencyCode || PAYPAL_CURRENCY;
-  if (window.paypal?.Buttons && window[PAYPAL_SDK_KEY] === requestedCurrency) return Promise.resolve(window.paypal);
-  const existing = document.querySelector('script[data-chessarena-paypal]');
-  if (existing) {
-    existing.remove();
-    window.paypal = undefined;
-  }
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&components=buttons&vault=true&intent=subscription&currency=${encodeURIComponent(requestedCurrency)}`;
-    script.async = true;
-    script.dataset.chessarenaPaypal = 'true';
-    script.onload = () => {
-      window[PAYPAL_SDK_KEY] = requestedCurrency;
-      resolve(window.paypal);
-    };
-    script.onerror = () => reject(new Error('Không thể tải PayPal SDK.'));
-    document.head.appendChild(script);
-  });
-}
-
-function PayPalSubscribeButton({ tier, cycle, price, onActivated, onMessage }) {
-  const buttonRef = React.useRef(null);
-  const planId = planIdFor(tier, cycle);
-  const currencyCode = price?.currency || PAYPAL_CURRENCY;
-
-  React.useEffect(() => {
-    if (!buttonRef.current || !planId) return undefined;
-    let cancelled = false;
-    let renderedButtons = null;
-    buttonRef.current.innerHTML = '';
-    loadPayPalSdk(currencyCode)
-      .then((paypal) => {
-        if (cancelled || !buttonRef.current) return;
-        renderedButtons = paypal.Buttons({
-          style: { layout: 'vertical', color: 'gold', shape: 'pill', label: 'subscribe' },
-          createSubscription: (data, actions) => actions.subscription.create({ plan_id: planId }),
-          onApprove: async (data) => {
-            const membership = await activateMembership({
-              tier,
-              billingCycle: cycle,
-              planId,
-              subscriptionId: data.subscriptionID
-            });
-            onActivated(membership);
-            onMessage('Thanh toán sandbox thành công. Gói đã được kích hoạt cho tài khoản này.');
-            notify('Thanh toán PayPal thành công. Gói đã được cập nhật.', 'success');
-          },
-          onError: (error) => {
-            console.error('PayPal subscription error', error);
-            const errorMessage = `PayPal Sandbox chưa tạo được subscription. Gói đang dùng plan ${planId}, currency ${currencyCode}. Kiểm tra plan đang ACTIVE, plan thuộc đúng sandbox app/client id và đã redeploy sau khi thêm env.`;
-            onMessage(errorMessage);
-            notify(errorMessage, 'error');
-          }
-        });
-        renderedButtons.render(buttonRef.current);
-      })
-      .catch((error) => onMessage(error.message));
-    return () => {
-      cancelled = true;
-      renderedButtons?.close?.();
-    };
-  }, [currencyCode, cycle, onActivated, onMessage, planId, tier]);
-
-  if (!planId) {
-    return <p className="membership-config-note">Thiếu PayPal plan id cho gói này. Thêm biến env rồi deploy lại.</p>;
-  }
-
-  return <div className="paypal-button-slot" ref={buttonRef} />;
 }
 
 function planHealthMessage(planId, planHealth, fallbackCurrency) {
@@ -335,7 +260,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           <div className="membership-payment-card">
             <span>Hoàn tất đăng ký</span>
             <h2>{checkoutPlan.title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
-            <p>Nút chính sẽ tạo subscription từ backend bằng server credential rồi chuyển sang trang approve của PayPal. Nếu lỗi, backend sẽ trả đúng lý do PayPal từ chối.</p>
+            <p>Nút này tạo subscription từ backend bằng server credential rồi chuyển sang trang approve của PayPal. Nếu lỗi, backend sẽ trả đúng lý do PayPal từ chối.</p>
             <button
               className="membership-paypal-primary"
               onClick={startServerCheckout}
@@ -344,14 +269,6 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
               <CreditCard size={18} />
               {checkoutLoading ? 'Đang mở PayPal...' : 'Sang trang thanh toán PayPal'}
             </button>
-            <small className="membership-paypal-fallback-title">Hoặc dùng PayPal button trực tiếp</small>
-            <PayPalSubscribeButton
-              tier={checkoutTier}
-              cycle={cycle}
-              price={planHealth?.plan || checkoutPrice}
-              onActivated={onMembershipUpdated}
-              onMessage={setMessage}
-            />
             {message && <p className="membership-message">{message}</p>}
           </div>
         </section>

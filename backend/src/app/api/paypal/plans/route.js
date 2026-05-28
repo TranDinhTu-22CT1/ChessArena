@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { paypalAccessToken, paypalBaseUrl } from '../../../../lib/paypal';
+import { fetchPayPalPlan, paypalAccessToken, paypalBaseUrl } from '../../../../lib/paypal';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +48,7 @@ function planSummary(plan, planId) {
 
 async function fetchPlan(planId, token) {
   if (!planId) return null;
+  if (!token) return planSummary(await fetchPayPalPlan(planId), planId);
   const response = await fetch(`${paypalBaseUrl()}/v1/billing/plans/${encodeURIComponent(planId)}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -68,12 +69,16 @@ export async function GET(request) {
   try {
     const token = await paypalAccessToken();
     if (singlePlanId) {
-      const plan = await fetchPlan(singlePlanId, token);
-      return Response.json({
-        ok: Boolean(plan),
-        plan,
-        error: plan ? null : 'PayPal plan was not found for these server credentials.'
-      }, { status: 200 });
+      try {
+        const plan = await fetchPlan(singlePlanId, token);
+        return Response.json({
+          ok: Boolean(plan),
+          plan,
+          error: plan ? null : 'PayPal plan was not found for these server credentials.'
+        }, { status: 200 });
+      } catch (error) {
+        return Response.json({ ok: false, plan: null, error: error.message }, { status: 200 });
+      }
     }
 
     await Promise.all(Object.entries(PLAN_IDS).flatMap(([tier, cycles]) => (

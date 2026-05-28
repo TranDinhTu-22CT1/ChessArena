@@ -63,6 +63,41 @@ export async function fetchAntiCheatReports() {
   return readJson(response);
 }
 
+export async function fetchAdminMatches() {
+  const response = await fetch(apiUrl('/api/admin/matches'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function fetchAdminPayments() {
+  const response = await fetch(apiUrl('/api/admin/payments'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function fetchAdminAuditLogs() {
+  const response = await fetch(apiUrl('/api/admin/audit'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function fetchAdminConfig() {
+  const response = await fetch(apiUrl('/api/admin/config'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function fetchPayPalDiagnostics() {
+  const response = await fetch(apiUrl('/api/admin/paypal/diagnostics'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function testPayPalSubscription(tier = 'master', cycle = 'monthly') {
+  const response = await fetch(apiUrl('/api/admin/paypal/diagnostics'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tier, cycle })
+  });
+  return readJson(response);
+}
+
 export async function scanUserAntiCheat(userId) {
   const response = await fetch(apiUrl('/api/admin/anti-cheat/scan'), {
     method: 'POST',

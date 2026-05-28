@@ -13,6 +13,14 @@ function adminEmails() {
     .filter(Boolean);
 }
 
+function adminRoleFor(email) {
+  const assignment = String(process.env.ADMIN_ROLE_ASSIGNMENTS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith(`${email}:`));
+  return assignment?.split(':')[1]?.trim() || 'owner';
+}
+
 function cleanDeviceFingerprint(value) {
   return String(value || '').trim().slice(0, 160);
 }
@@ -30,6 +38,8 @@ function adminIdentityFromEmail(value) {
   return {
     id: null,
     email,
+    role: adminRoleFor(email),
+    permissions: ['*'],
     username: email.split('@')[0],
     displayName: 'Admin',
     photoURL: null

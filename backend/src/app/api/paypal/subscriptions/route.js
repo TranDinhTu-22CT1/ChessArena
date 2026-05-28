@@ -67,7 +67,7 @@ export async function POST(request) {
   } catch (error) {
     return Response.json({
       ok: false,
-      error: `PayPal Sandbox chưa tạo được subscription: ${error.message}`
+      error: `PayPal Sandbox could not create the subscription for plan ${planId}: ${error.message}`
     }, { status: 502 });
   }
 }

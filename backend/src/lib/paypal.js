@@ -25,8 +25,10 @@ export async function paypalAccessToken() {
     body: 'grant_type=client_credentials'
   });
 
-  if (!response.ok) throw new Error('PayPal token request failed.');
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error_description || data.error || `PayPal token request failed (${response.status}).`);
+  }
   if (!data.access_token) throw new Error('PayPal token is empty.');
 
   tokenCache = {
@@ -74,8 +76,28 @@ export async function createPayPalSubscription({ planId, customId, returnUrl, ca
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const detail = data.details?.[0]?.issue || data.message || 'PayPal subscription create failed.';
-    throw new Error(detail);
+    const debugId = response.headers.get('paypal-debug-id');
+    const issue = data.details?.map((detail) => [detail.issue, detail.description].filter(Boolean).join(': ')).filter(Boolean).join('; ');
+    const detail = issue || data.message || data.name || 'PayPal subscription create failed.';
+    const suffix = debugId ? ` PayPal-Debug-Id: ${debugId}.` : '';
+    throw new Error(`${detail}${suffix}`);
+  }
+  return data;
+}
+
+export async function fetchPayPalPlan(planId) {
+  const token = await paypalAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans/${encodeURIComponent(planId)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const debugId = response.headers.get('paypal-debug-id');
+    const message = data.message || data.name || `PayPal plan request failed (${response.status}).`;
+    throw new Error(debugId ? `${message} PayPal-Debug-Id: ${debugId}.` : message);
   }
   return data;
 }
