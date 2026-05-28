@@ -21,7 +21,7 @@ const PLAN_IDS = {
   }
 };
 
-function emptyPrices() {
+function emptyPlans() {
   return Object.fromEntries(
     Object.entries(PLAN_IDS).map(([tier, cycles]) => [
       tier,
@@ -51,15 +51,22 @@ async function paypalAccessToken() {
   return data.access_token;
 }
 
-function planPrice(plan) {
-  const regularCycle = plan.billing_cycles?.find((cycle) => cycle.tenure_type === 'REGULAR')
-    ?? plan.billing_cycles?.[0];
+function planSummary(plan, planId) {
+  const billingCycles = Array.isArray(plan.billing_cycles) ? plan.billing_cycles : [];
+  const regularCycle = billingCycles.find((cycle) => cycle.tenure_type === 'REGULAR')
+    ?? billingCycles[billingCycles.length - 1]
+    ?? null;
   const fixedPrice = regularCycle?.pricing_scheme?.fixed_price;
   if (!fixedPrice?.value || !fixedPrice?.currency_code) return null;
   return {
+    id: planId,
+    name: plan.name || null,
     value: Number(fixedPrice.value),
     currency: fixedPrice.currency_code,
-    status: plan.status || null
+    status: plan.status || null,
+    tenureType: regularCycle?.tenure_type || null,
+    intervalUnit: regularCycle?.frequency?.interval_unit || null,
+    intervalCount: regularCycle?.frequency?.interval_count || null
   };
 }
 
@@ -72,14 +79,14 @@ async function fetchPlan(planId, token) {
     }
   });
   if (!response.ok) return null;
-  return planPrice(await response.json());
+  return planSummary(await response.json(), planId);
 }
 
 export async function GET(request) {
   const blocked = rateLimit(request, { scope: 'paypal-plans', limit: 30, windowMs: 60_000 });
   if (blocked) return blocked;
 
-  const prices = emptyPrices();
+  const prices = emptyPlans();
   try {
     const token = await paypalAccessToken();
     await Promise.all(Object.entries(PLAN_IDS).flatMap(([tier, cycles]) => (

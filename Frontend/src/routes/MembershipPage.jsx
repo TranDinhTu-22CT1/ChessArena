@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, CheckCircle2, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, Brain, CheckCircle2, CreditCard, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
 import { activateMembership } from '../api/membership';
 import { fetchPayPalPlanPrices } from '../api/paypalPlans';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../membership/plans';
@@ -91,7 +91,7 @@ function mergePlanPrices(current, remote) {
   return next;
 }
 
-function loadPayPalSdk() {
+function loadPayPalSdk(currencyCode) {
   if (!PAYPAL_CLIENT_ID) return Promise.reject(new Error('Thiếu VITE_PAYPAL_CLIENT_ID trong Frontend/.env.'));
   if (window.paypal?.Buttons) return Promise.resolve(window.paypal);
   const existing = document.querySelector('script[data-chessarena-paypal]');
@@ -103,7 +103,7 @@ function loadPayPalSdk() {
   }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&components=buttons&vault=true&intent=subscription&currency=${encodeURIComponent(PAYPAL_CURRENCY)}`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&components=buttons&vault=true&intent=subscription&currency=${encodeURIComponent(currencyCode || PAYPAL_CURRENCY)}`;
     script.async = true;
     script.dataset.chessarenaPaypal = 'true';
     script.onload = () => resolve(window.paypal);
@@ -112,16 +112,17 @@ function loadPayPalSdk() {
   });
 }
 
-function PayPalSubscribeButton({ tier, cycle, onActivated, onMessage }) {
+function PayPalSubscribeButton({ tier, cycle, price, onActivated, onMessage }) {
   const buttonRef = React.useRef(null);
   const planId = planIdFor(tier, cycle);
+  const currencyCode = price?.currency || PAYPAL_CURRENCY;
 
   React.useEffect(() => {
     if (!buttonRef.current || !planId) return undefined;
     let cancelled = false;
     let renderedButtons = null;
     buttonRef.current.innerHTML = '';
-    loadPayPalSdk()
+    loadPayPalSdk(currencyCode)
       .then((paypal) => {
         if (cancelled || !buttonRef.current) return;
         renderedButtons = paypal.Buttons({
@@ -139,7 +140,7 @@ function PayPalSubscribeButton({ tier, cycle, onActivated, onMessage }) {
           },
           onError: (error) => {
             console.error('PayPal subscription error', error);
-            onMessage('PayPal Sandbox chưa tạo được subscription. Kiểm tra plan đang Active, plan id thuộc cùng sandbox app/client id, currency đúng USD và đã redeploy sau khi thêm env.');
+            onMessage(`PayPal Sandbox chưa tạo được subscription. Gói đang dùng plan ${planId}, currency ${currencyCode}. Kiểm tra plan đang ACTIVE, plan thuộc đúng sandbox app/client id và đã redeploy sau khi thêm env.`);
           }
         });
         renderedButtons.render(buttonRef.current);
@@ -149,7 +150,7 @@ function PayPalSubscribeButton({ tier, cycle, onActivated, onMessage }) {
       cancelled = true;
       renderedButtons?.close?.();
     };
-  }, [cycle, onActivated, onMessage, planId, tier]);
+  }, [currencyCode, cycle, onActivated, onMessage, planId, tier]);
 
   if (!planId) {
     return <p className="membership-config-note">Thiếu PayPal plan id cho gói này. Thêm biến env rồi deploy lại.</p>;
@@ -161,6 +162,7 @@ function PayPalSubscribeButton({ tier, cycle, onActivated, onMessage }) {
 export default function MembershipPage({ authUser, membership, onLogin, onMembershipUpdated }) {
   const [cycle, setCycle] = React.useState('monthly');
   const [selectedTier, setSelectedTier] = React.useState('pro');
+  const [checkoutTier, setCheckoutTier] = React.useState(null);
   const [message, setMessage] = React.useState('');
   const [prices, setPrices] = React.useState(PRICES);
   const currentTier = activeTier(membership);
@@ -179,6 +181,10 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
     };
   }, []);
 
+  const checkoutPlan = checkoutTier ? PLAN_COPY[checkoutTier] : null;
+  const checkoutPrice = checkoutTier ? prices[checkoutTier][cycle] : null;
+  const checkoutPlanId = checkoutTier ? planIdFor(checkoutTier, cycle) : '';
+
   if (!authUser) {
     return (
       <section className="membership-auth-required">
@@ -186,6 +192,61 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
         <h1>Chess Arena Premium</h1>
         <p>Đăng nhập để mua gói, lưu quyền lợi và đồng bộ với hồ sơ người chơi.</p>
         <button onClick={onLogin}><LogIn size={18} /> Đăng nhập</button>
+      </section>
+    );
+  }
+
+  if (checkoutTier && checkoutPlan) {
+    const Icon = checkoutPlan.icon;
+    return (
+      <section className="membership-page membership-checkout-page">
+        <button className="membership-back" onClick={() => {
+          setCheckoutTier(null);
+          setMessage('');
+        }}>
+          <ArrowLeft size={18} /> Quay lại chọn gói
+        </button>
+
+        <section className="membership-payment-shell">
+          <div className="membership-payment-summary">
+            <span><CreditCard size={18} /> Thanh toán PayPal Sandbox</span>
+            <div className="membership-payment-title">
+              <Icon size={34} />
+              <div>
+                <h1>{checkoutPlan.title}</h1>
+                <p>{checkoutPlan.tag}</p>
+              </div>
+            </div>
+            <strong className="membership-price payment-price">
+              {currency(checkoutPrice)}
+              <small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small>
+            </strong>
+            <div className="membership-payment-meta">
+              <span>Plan ID: <b>{checkoutPlanId || 'Chưa cấu hình'}</b></span>
+              <span>Currency: <b>{checkoutPrice?.currency || PAYPAL_CURRENCY}</b></span>
+              <span>Status: <b>{checkoutPrice?.status || 'Không lấy được từ PayPal'}</b></span>
+            </div>
+            <ul>
+              {checkoutPlan.benefits.map((benefit) => (
+                <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="membership-payment-card">
+            <span>Hoàn tất đăng ký</span>
+            <h2>{checkoutPlan.title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
+            <p>Nút PayPal bên dưới sẽ tạo subscription trực tiếp với PayPal bằng plan id của gói này. Nếu lỗi, kiểm tra plan đang ACTIVE và thuộc cùng sandbox app với client id.</p>
+            <PayPalSubscribeButton
+              tier={checkoutTier}
+              cycle={cycle}
+              price={checkoutPrice}
+              onActivated={onMembershipUpdated}
+              onMessage={setMessage}
+            />
+            {message && <p className="membership-message">{message}</p>}
+          </div>
+        </section>
       </section>
     );
   }
@@ -248,8 +309,14 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
                   <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
                 ))}
               </ul>
-              <button className="membership-select" onClick={() => setSelectedTier(tier)}>
-                {active ? 'Đang dùng' : selected ? 'Đã chọn' : 'Chọn gói'}
+              <button className="membership-select" onClick={() => {
+                setSelectedTier(tier);
+                if (!active) {
+                  setCheckoutTier(tier);
+                  setMessage('');
+                }
+              }}>
+                {active ? 'Đang dùng' : 'Chọn gói'}
               </button>
             </article>
           );
@@ -258,17 +325,16 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
 
       <section className="membership-checkout">
         <div>
-          <span>Thanh toán PayPal Sandbox</span>
+          <span>Bước tiếp theo</span>
           <h2>{PLAN_COPY[selectedTier].title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
-          <p>Giá hiển thị được lấy từ PayPal plan qua backend. Nếu vừa sửa env trên Vercel, redeploy cả frontend và backend để build/runtime nhận biến mới.</p>
+          <p>Giá hiển thị được lấy từ PayPal plan qua backend. Nhấn tiếp tục để sang trang thanh toán riêng, xem lại gói và hoàn tất bằng PayPal Sandbox.</p>
         </div>
-        <PayPalSubscribeButton
-          tier={selectedTier}
-          cycle={cycle}
-          onActivated={onMembershipUpdated}
-          onMessage={setMessage}
-        />
-        {message && <p className="membership-message">{message}</p>}
+        <button className="membership-checkout-button" onClick={() => {
+          setCheckoutTier(selectedTier);
+          setMessage('');
+        }}>
+          Tiếp tục thanh toán <CreditCard size={18} />
+        </button>
       </section>
     </section>
   );

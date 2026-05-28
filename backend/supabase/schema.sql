@@ -386,6 +386,58 @@ add column if not exists games_played integer not null default 0;
 alter table public.user_trust_scores
 add column if not exists policy_version integer not null default 1;
 
+create table if not exists public.user_devices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete cascade,
+  device_fingerprint text not null,
+  user_agent text,
+  ip_address inet,
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  unique (user_id, device_fingerprint)
+);
+
+create table if not exists public.user_bans (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete cascade,
+  device_fingerprint text,
+  ban_type text not null default 'account' check (ban_type in ('account', 'device', 'account_device')),
+  reason text not null default 'Policy violation',
+  status text not null default 'active' check (status in ('active', 'lifted')),
+  created_by uuid references public.users(id) on delete set null,
+  lifted_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  lifted_at timestamptz,
+  expires_at timestamptz
+);
+
+create table if not exists public.admin_audit_logs (
+  id bigserial primary key,
+  admin_user_id uuid references public.users(id) on delete set null,
+  action text not null,
+  target_user_id uuid references public.users(id) on delete set null,
+  target_device_fingerprint text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.anti_cheat_reports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  game_id uuid references public.online_games(id) on delete cascade,
+  status text not null default 'open' check (status in ('open', 'reviewed', 'dismissed', 'actioned')),
+  risk_score integer not null default 0 check (risk_score between 0 and 100),
+  engine_match_rate numeric(6,5) not null default 0,
+  low_time_consistency numeric(6,5) not null default 0,
+  suspicious_move_count integer not null default 0,
+  total_moves integer not null default 0,
+  details jsonb not null default '{}'::jsonb,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.user_matchmaking_stats (
   user_id uuid primary key references public.users(id) on delete cascade,
   finds integer not null default 0,
@@ -1361,6 +1413,21 @@ on public.matchmaking_abuse_logs(user_id, created_at desc);
 create index if not exists idx_user_memberships_status
 on public.user_memberships(status, tier, updated_at desc);
 
+create index if not exists idx_user_devices_fingerprint
+on public.user_devices(device_fingerprint, last_seen_at desc);
+
+create index if not exists idx_user_bans_active_user
+on public.user_bans(user_id, status, created_at desc);
+
+create index if not exists idx_user_bans_active_device
+on public.user_bans(device_fingerprint, status, created_at desc);
+
+create index if not exists idx_admin_audit_logs_created
+on public.admin_audit_logs(created_at desc);
+
+create index if not exists idx_anti_cheat_reports_user_risk
+on public.anti_cheat_reports(user_id, risk_score desc, created_at desc);
+
 create index if not exists idx_online_game_moves_game_ply
 on public.online_game_moves(game_id, ply);
 
@@ -1400,6 +1467,10 @@ alter table public.online_games enable row level security;
 alter table public.online_ratings enable row level security;
 alter table public.user_ratings enable row level security;
 alter table public.user_trust_scores enable row level security;
+alter table public.user_devices enable row level security;
+alter table public.user_bans enable row level security;
+alter table public.admin_audit_logs enable row level security;
+alter table public.anti_cheat_reports enable row level security;
 alter table public.user_matchmaking_stats enable row level security;
 alter table public.user_memberships enable row level security;
 alter table public.matchmaking_events enable row level security;
@@ -1422,6 +1493,10 @@ drop policy if exists "service role manages online games" on public.online_games
 drop policy if exists "service role manages online ratings" on public.online_ratings;
 drop policy if exists "service role manages user ratings" on public.user_ratings;
 drop policy if exists "service role manages user trust scores" on public.user_trust_scores;
+drop policy if exists "service role manages user devices" on public.user_devices;
+drop policy if exists "service role manages user bans" on public.user_bans;
+drop policy if exists "service role manages admin audit logs" on public.admin_audit_logs;
+drop policy if exists "service role manages anti cheat reports" on public.anti_cheat_reports;
 drop policy if exists "service role manages user matchmaking stats" on public.user_matchmaking_stats;
 drop policy if exists "service role manages user memberships" on public.user_memberships;
 drop policy if exists "service role manages matchmaking events" on public.matchmaking_events;
@@ -1495,6 +1570,30 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages user trust scores"
 on public.user_trust_scores
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user devices"
+on public.user_devices
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user bans"
+on public.user_bans
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages admin audit logs"
+on public.admin_audit_logs
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages anti cheat reports"
+on public.anti_cheat_reports
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

@@ -2070,6 +2070,7 @@ input {
     linear-gradient(90deg, rgba(9, 10, 8, 0.86), rgba(18, 21, 16, 0.62) 45%, rgba(8, 9, 8, 0.9)),
     radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 30%),
     linear-gradient(135deg, #12130f, color-mix(in srgb, var(--surface) 80%, #111) 48%, #090a08);
+  animation: authPageIn 520ms ease both;
 }
 
 .auth-background {
@@ -2101,6 +2102,7 @@ input {
   filter: blur(0.2px);
   transform: rotate(-8deg);
   box-shadow: 0 42px 100px rgba(0, 0, 0, 0.5);
+  animation: authBoardDrift 9000ms ease-in-out infinite alternate;
 }
 
 .auth-board-ghost span {
@@ -2128,6 +2130,7 @@ input {
   left: 30%;
   top: 11%;
   font-size: clamp(8rem, 15vw, 18rem);
+  animation: authPieceFloat 5200ms ease-in-out infinite alternate;
 }
 
 .auth-chess-piece.knight {
@@ -2136,12 +2139,14 @@ input {
   color: color-mix(in srgb, var(--accent) 18%, transparent);
   font-size: clamp(7rem, 12vw, 15rem);
   transform: rotate(10deg);
+  animation: authKnightFloat 6200ms ease-in-out infinite alternate;
 }
 
 .auth-copy {
   display: grid;
   gap: 34px;
   color: #f7f8ef;
+  animation: authCopyIn 620ms ease both;
 }
 
 .auth-copy-main {
@@ -2177,6 +2182,7 @@ input {
 }
 
 .auth-card {
+  position: relative;
   align-content: start;
   gap: 16px;
   min-height: auto;
@@ -2189,6 +2195,30 @@ input {
   border-radius: 30px;
   box-shadow: 0 32px 90px rgba(0, 0, 0, 0.48);
   backdrop-filter: blur(18px);
+  overflow: hidden;
+  animation: authCardIn 700ms ease both;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 38%);
+  opacity: 0.75;
+  transform: translate3d(24%, -24%, 0);
+}
+
+.auth-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 38%, rgba(255, 255, 255, 0.16));
+  box-shadow: 0 38px 110px rgba(0, 0, 0, 0.52);
 }
 
 .auth-card-header h1 {
@@ -2205,6 +2235,13 @@ input {
   min-height: 48px;
   background: rgba(255, 255, 255, 0.075);
   border-color: rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.auth-input:focus-within {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.2);
 }
 
 .auth-input svg {
@@ -2219,6 +2256,7 @@ input {
 .auth-primary {
   min-height: 50px;
   border-radius: 999px;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .auth-divider {
@@ -2333,6 +2371,291 @@ input {
   color: #dfead0;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.admin-page,
+.admin-login-shell {
+  min-height: 100vh;
+  padding: clamp(18px, 4vw, 48px);
+  color: #eef5ea;
+  background:
+    radial-gradient(circle at 80% 12%, rgba(167, 201, 87, 0.24), transparent 32%),
+    linear-gradient(135deg, #0c120f, #17251d 52%, #08100c);
+}
+
+.admin-login-shell {
+  display: grid;
+  place-items: center;
+}
+
+.admin-login-shell section,
+.admin-hero,
+.admin-stats div,
+.admin-panel,
+.admin-message {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), transparent 42%),
+    rgba(20, 35, 27, 0.92);
+  border: 1px solid rgba(198, 232, 178, 0.14);
+  border-radius: 26px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+
+.admin-login-shell section {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(560px, 100%);
+  padding: 30px;
+  text-align: center;
+}
+
+.admin-login-shell h1,
+.admin-login-shell p,
+.admin-hero h1,
+.admin-hero p,
+.admin-panel h2 {
+  margin: 0;
+}
+
+.admin-login-shell button,
+.admin-hero button,
+.admin-panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #142113;
+  background: var(--accent);
+  cursor: pointer;
+  font-weight: 950;
+}
+
+.admin-page {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px;
+}
+
+.admin-hero span,
+.admin-panel-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.admin-hero h1 {
+  margin-top: 8px;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  line-height: 1;
+}
+
+.admin-hero p,
+.admin-user-card span,
+.admin-user-card small,
+.admin-user-card em,
+.admin-report-card span,
+.admin-report-card small,
+.admin-message {
+  color: #c8d7c0;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-stats div {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+}
+
+.admin-stats svg {
+  color: var(--accent);
+}
+
+.admin-stats strong {
+  font-size: 2rem;
+}
+
+.admin-message {
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.admin-panel-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-panel-head form {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-panel-head input {
+  min-height: 42px;
+  min-width: min(320px, 48vw);
+  border: 1px solid rgba(198, 232, 178, 0.16);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #eef5ea;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.admin-user-list,
+.admin-report-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-user-card,
+.admin-report-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.065);
+  border: 1px solid rgba(198, 232, 178, 0.1);
+  border-radius: 18px;
+}
+
+.admin-user-card img {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.admin-user-card div,
+.admin-report-card div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-user-card em {
+  overflow-wrap: anywhere;
+  font-style: normal;
+  font-size: 0.78rem;
+}
+
+.admin-ban-note {
+  width: fit-content;
+  padding: 4px 8px;
+  color: #ffd9d9;
+  background: rgba(164, 54, 54, 0.28);
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.admin-user-actions,
+.admin-report-card > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.admin-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.admin-report-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@keyframes authPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes authCopyIn {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes authCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes authBoardDrift {
+  from {
+    transform: rotate(-8deg) translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: rotate(-5deg) translate3d(-18px, -10px, 0);
+  }
+}
+
+@keyframes authPieceFloat {
+  from {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  to {
+    transform: translateY(-16px) rotate(3deg);
+  }
+}
+
+@keyframes authKnightFloat {
+  from {
+    transform: translateY(0) rotate(10deg);
+  }
+
+  to {
+    transform: translateY(18px) rotate(4deg);
+  }
 }
 
 .top-header {
@@ -5582,14 +5905,20 @@ h2 {
 
   .membership-hero,
   .membership-free-limits,
-  .membership-checkout {
+  .membership-checkout,
+  .membership-payment-shell,
+  .admin-hero,
+  .admin-panel-head,
+  .admin-user-card,
+  .admin-report-card {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: stretch;
   }
 
   .membership-value-grid,
-  .membership-plans {
+  .membership-plans,
+  .admin-stats {
     grid-template-columns: 1fr;
   }
 
@@ -7256,6 +7585,165 @@ h2 {
   margin: 6px 0;
 }
 
+.membership-checkout-button,
+.membership-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 52px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 18px;
+  color: #122115;
+  background: var(--accent);
+  cursor: pointer;
+  font-weight: 950;
+  transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease;
+}
+
+.membership-checkout-button:hover,
+.membership-back:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.membership-back {
+  justify-self: start;
+  color: #f4f6ee;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.membership-payment-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.membership-payment-summary,
+.membership-payment-card {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  color: #f4f6ee;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), transparent 45%),
+    color-mix(in srgb, var(--surface) 92%, #050605);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.22);
+  animation: premiumPlanIn 560ms ease both;
+}
+
+.membership-payment-card {
+  animation-delay: 90ms;
+}
+
+.membership-payment-summary::before,
+.membership-payment-card::before {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent), transparent 42%);
+  opacity: 0.72;
+  transform: translate3d(-20%, -18%, 0);
+}
+
+.membership-payment-summary > *,
+.membership-payment-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.membership-payment-summary > span,
+.membership-payment-card > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.membership-payment-title {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 18px;
+}
+
+.membership-payment-title svg {
+  color: var(--accent);
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 48%, transparent));
+}
+
+.membership-payment-title h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+}
+
+.membership-payment-title p,
+.membership-payment-card p {
+  margin: 0;
+  color: #c6dbc2;
+  line-height: 1.55;
+}
+
+.payment-price {
+  display: block;
+  margin: 20px 0 14px;
+}
+
+.membership-payment-meta {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  color: #c6dbc2;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.membership-payment-meta b {
+  color: #f4f6ee;
+}
+
+.membership-payment-summary ul {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.membership-payment-summary li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d8e8d0;
+  font-weight: 850;
+}
+
+.membership-payment-summary li svg {
+  color: var(--accent);
+}
+
+.membership-payment-card {
+  display: grid;
+  gap: 14px;
+}
+
+.membership-payment-card h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+}
+
 .paypal-button-slot {
   min-height: 52px;
 }
@@ -7328,6 +7816,12 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .auth-page,
+  .auth-copy,
+  .auth-card,
+  .auth-board-ghost,
+  .auth-chess-piece.king,
+  .auth-chess-piece.knight,
   .membership-page,
   .membership-hero,
   .membership-value-grid div,
@@ -7335,6 +7829,8 @@ h2 {
   .billing-toggle,
   .membership-plan,
   .membership-checkout,
+  .membership-payment-summary,
+  .membership-payment-card,
   .membership-current,
   .membership-plan li svg {
     animation: none;
@@ -7342,6 +7838,8 @@ h2 {
 
   .membership-plan,
   .membership-value-grid div,
+  .auth-card,
+  .auth-input,
   .membership-plan-head svg {
     transition: none;
   }

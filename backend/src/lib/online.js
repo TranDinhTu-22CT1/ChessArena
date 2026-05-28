@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { Chess } from 'chess.js';
 import { verifyFirebaseSession } from './firebaseAdmin';
 import { getSupabaseAdmin } from './supabaseAdmin';
+import { activeBanForUser } from './admin';
 
 const ONLINE_WINDOW_MS = 45_000;
 const QUEUE_STALE_MS = 30_000;
@@ -85,11 +86,15 @@ export async function requireOnlineUser() {
   const username = safeUsername(decoded.email || decoded.uid);
   const { data: storedUser } = await supabase
     .from('users')
-    .select('id, username, display_name, firebase_uid, photo_url')
+    .select('id, username, display_name, firebase_uid, photo_url, email')
     .eq('firebase_uid', decoded.uid)
     .maybeSingle();
 
   if (storedUser) {
+    const activeBan = await activeBanForUser(supabase, storedUser.id);
+    if (activeBan) {
+      return { error: Response.json({ ok: false, error: activeBan.reason || 'This account is banned.' }, { status: 403 }) };
+    }
     return {
       supabase,
       user: {
@@ -97,6 +102,7 @@ export async function requireOnlineUser() {
         username: storedUser.username,
         displayName: cleanName(storedUser.display_name, username),
         firebaseUid: storedUser.firebase_uid,
+        email: storedUser.email,
         photoURL: storedUser.photo_url
       }
     };

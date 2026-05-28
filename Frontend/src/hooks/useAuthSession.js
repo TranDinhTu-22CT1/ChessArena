@@ -13,6 +13,7 @@ import {
   signInWithPopup,
   signOut
 } from '../firebase';
+import { getDeviceFingerprint } from '../security/deviceFingerprint';
 
 const OAUTH_REDIRECT_PROVIDER_KEY = 'chessArenaOAuthProvider';
 const OAUTH_PENDING_LINK_KEY = 'chessArenaPendingOAuthLink';
@@ -104,6 +105,7 @@ export function useAuthSession() {
 
   const createBackendSession = async (firebaseUser, providerProfile = {}) => {
     const token = await firebaseUser.getIdToken();
+    const deviceId = await getDeviceFingerprint().catch(() => null);
     const response = await fetch(apiUrl('/api/auth/session'), {
       method: 'POST',
       credentials: 'include',
@@ -111,7 +113,7 @@ export function useAuthSession() {
       body: JSON.stringify({
         idToken: token,
         remember: Boolean(authForm.remember),
-        deviceId: null,
+        deviceId,
         profile: {
           displayName: providerProfile.displayName || firebaseUser.displayName || '',
           githubLogin: providerProfile.githubLogin || '',

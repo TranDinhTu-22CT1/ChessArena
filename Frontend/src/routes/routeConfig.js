@@ -8,6 +8,7 @@ export const ROUTES = {
   history: '/history',
   leaderboard: '/leaderboard',
   membership: '/membership',
+  admin: '/amdin',
   review: '/review',
   puzzles: '/puzzles',
   'daily-puzzle': '/puzzles/daily',
@@ -32,6 +33,7 @@ export function routeFromPath(pathname) {
   if (pathname === '/history') return 'history';
   if (pathname === '/leaderboard') return 'leaderboard';
   if (pathname === '/membership' || pathname === '/premium') return 'membership';
+  if (pathname === '/amdin') return 'admin';
   if (pathname === '/review') return 'review';
   if (pathname === '/puzzles/daily') return 'daily-puzzle';
   if (pathname === '/puzzles/rush') return 'puzzle-rush';

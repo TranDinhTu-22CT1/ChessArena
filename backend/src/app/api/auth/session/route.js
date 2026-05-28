@@ -4,6 +4,7 @@ import { createFirebaseSessionCookie, verifyFirebaseToken } from '../../../../li
 import { rateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { readJsonPayload, validateSessionPayload } from '../../../../lib/validation';
+import { activeBanForUser, recordUserDevice } from '../../../../lib/admin';
 
 export const runtime = 'nodejs';
 const ONE_HOUR = 60 * 60;
@@ -84,15 +85,16 @@ export async function POST(request) {
     const displayName = displayNameFromIdentity(decoded, profile);
     const photoURL = cleanProfileText(profile?.photoURL) || decoded.picture || null;
     let existingProfile = null;
+    let storedUserId = null;
 
     if (supabase) {
       const { data } = await supabase
         .from('users')
-        .select('display_name, photo_url')
+        .select('id, display_name, photo_url')
         .eq('firebase_uid', decoded.uid)
         .maybeSingle();
       existingProfile = data;
-      const { error } = await supabase.from('users').upsert(
+      const { data: savedUser, error } = await supabase.from('users').upsert(
         {
           username,
           display_name: existingProfile?.display_name || displayName,
@@ -103,9 +105,18 @@ export async function POST(request) {
           updated_at: new Date().toISOString()
         },
         { onConflict: 'firebase_uid' }
-      );
+      ).select('id').single();
 
       if (error) throw error;
+      storedUserId = savedUser?.id || existingProfile?.id || null;
+      await recordUserDevice(supabase, storedUserId, deviceId);
+      const activeBan = await activeBanForUser(supabase, storedUserId, deviceId);
+      if (activeBan) {
+        return Response.json({
+          ok: false,
+          error: activeBan.reason || 'This account or device is banned.'
+        }, { status: 403 });
+      }
     }
 
     const cookieMaxAge = remember ? REMEMBER_48_HOURS : ONE_HOUR;

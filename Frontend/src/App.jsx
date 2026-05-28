@@ -48,6 +48,7 @@ import { useMoveGuidance } from './hooks/useMoveGuidance';
 import { useThemeSettings } from './hooks/useThemeSettings';
 import HomePage from './routes/HomePage';
 import HistoryPage from './routes/HistoryPage';
+import AdminPage from './routes/AdminPage';
 import LeaderboardPage from './routes/LeaderboardPage';
 import MembershipPage from './routes/MembershipPage';
 import OnlinePage from './routes/OnlinePage';
@@ -822,6 +823,32 @@ export default function App() {
   const blackName = playerColor === 'b' ? userName : aiDisplayName;
   const whiteAvatarURL = playerColor === 'w' ? authUser?.photoURL : null;
   const blackAvatarURL = playerColor === 'b' ? authUser?.photoURL : null;
+
+  if (route === 'admin') {
+    return authMode && !authUser ? (
+      <AuthPage
+        authMode={authMode}
+        authForm={authForm}
+        authMessage={authMessage}
+        authMessageTone={authMessageTone}
+        authBusy={authBusy}
+        otpState={otpState}
+        otpSecondsLeft={otpSecondsLeft}
+        onAuthFormChange={(patch) => setAuthForm((form) => ({ ...form, ...patch }))}
+        onSubmitAuth={submitAuth}
+        onProviderSignIn={signInProvider}
+        onSetAuthMode={(mode) => {
+          clearAuthMessage();
+          setOtpState(null);
+          setAuthMode(mode);
+        }}
+        onVerifyOtp={verifyOtp}
+        onResendOtp={resendOtp}
+      />
+    ) : (
+      <AdminPage authUser={authUser} onLogin={() => setAuthMode('login')} />
+    );
+  }
 
   return (
     <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
