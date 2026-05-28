@@ -6951,6 +6951,7 @@ h2 {
   width: min(1180px, 100%);
   margin: 22px auto;
   color: #f4f6ee;
+  animation: membershipPageIn 520ms ease both;
 }
 
 .membership-hero,
@@ -6969,11 +6970,32 @@ h2 {
 }
 
 .membership-hero {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 22px;
+  overflow: hidden;
   padding: 28px;
+  animation: premiumFloatIn 620ms ease both;
+}
+
+.membership-hero::before,
+.membership-plan::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 28%, transparent), transparent 38%);
+  opacity: 0;
+  transform: translate3d(-20%, -10%, 0) scale(0.8);
+  transition: opacity 220ms ease, transform 520ms ease;
+}
+
+.membership-hero:hover::before,
+.membership-plan:hover::before {
+  opacity: 1;
+  transform: translate3d(8%, 4%, 0) scale(1);
 }
 
 .membership-hero span,
@@ -7012,6 +7034,8 @@ h2 {
   color: #122115;
   background: var(--accent);
   border-radius: 20px;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 48%, transparent);
+  animation: premiumPulse 2200ms ease-in-out infinite;
 }
 
 .membership-current strong {
@@ -7032,6 +7056,13 @@ h2 {
   display: grid;
   gap: 8px;
   padding: 18px;
+  animation: premiumFloatIn 520ms ease both;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.membership-value-grid div:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
 }
 
 .membership-value-grid svg {
@@ -7049,6 +7080,7 @@ h2 {
   gap: 18px;
   align-items: center;
   padding: 18px;
+  animation: premiumFloatIn 600ms ease both;
 }
 
 .membership-free-limits div {
@@ -7078,6 +7110,7 @@ h2 {
   gap: 8px;
   width: fit-content;
   padding: 8px;
+  animation: premiumFloatIn 660ms ease both;
 }
 
 .billing-toggle button,
@@ -7112,9 +7145,33 @@ h2 {
 }
 
 .membership-plan {
+  position: relative;
   display: grid;
   gap: 16px;
+  overflow: hidden;
   padding: 22px;
+  isolation: isolate;
+  animation: premiumPlanIn 700ms ease both;
+  transition: transform 190ms ease, box-shadow 190ms ease, border-color 190ms ease;
+}
+
+.membership-plan:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.membership-plan:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+.membership-plan > * {
+  position: relative;
+  z-index: 1;
+}
+
+.membership-plan:hover {
+  transform: translateY(-7px) scale(1.01);
+  border-color: color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.28);
 }
 
 .membership-plan.selected {
@@ -7136,6 +7193,12 @@ h2 {
 
 .membership-plan-head svg {
   color: var(--accent);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 48%, transparent));
+  transition: transform 180ms ease;
+}
+
+.membership-plan:hover .membership-plan-head svg {
+  transform: rotate(-7deg) scale(1.12);
 }
 
 .membership-plan-head h2 {
@@ -7177,6 +7240,7 @@ h2 {
 .membership-plan li svg {
   color: var(--accent);
   flex: 0 0 auto;
+  animation: premiumCheckIn 420ms ease both;
 }
 
 .membership-checkout {
@@ -7185,6 +7249,7 @@ h2 {
   gap: 18px;
   align-items: start;
   padding: 22px;
+  animation: premiumFloatIn 780ms ease both;
 }
 
 .membership-checkout h2 {
@@ -7201,6 +7266,85 @@ h2 {
   padding: 12px;
   background: rgba(255, 255, 255, 0.07);
   border-radius: 14px;
+}
+
+@keyframes membershipPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes premiumFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes premiumPlanIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes premiumPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 36%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+@keyframes premiumCheckIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .membership-page,
+  .membership-hero,
+  .membership-value-grid div,
+  .membership-free-limits,
+  .billing-toggle,
+  .membership-plan,
+  .membership-checkout,
+  .membership-current,
+  .membership-plan li svg {
+    animation: none;
+  }
+
+  .membership-plan,
+  .membership-value-grid div,
+  .membership-plan-head svg {
+    transition: none;
+  }
 }
 
 .membership-auth-required {

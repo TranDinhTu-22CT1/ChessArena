@@ -1,9 +1,11 @@
 import React from 'react';
 import { Brain, CheckCircle2, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
 import { activateMembership } from '../api/membership';
+import { fetchPayPalPlanPrices } from '../api/paypalPlans';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../membership/plans';
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
+const PAYPAL_CURRENCY = import.meta.env.VITE_PAYPAL_CURRENCY || 'USD';
 const PAYPAL_PLAN_IDS = {
   plus: {
     monthly: import.meta.env.VITE_PAYPAL_PLUS_MONTHLY_PLAN_ID || '',
@@ -20,9 +22,18 @@ const PAYPAL_PLAN_IDS = {
 };
 
 const PRICES = {
-  plus: { monthly: 49000, yearly: 490000 },
-  pro: { monthly: 99000, yearly: 990000 },
-  master: { monthly: 179000, yearly: 1790000 }
+  plus: {
+    monthly: { value: 9.99, currency: 'USD' },
+    yearly: { value: 99.99, currency: 'USD' }
+  },
+  pro: {
+    monthly: { value: 19.99, currency: 'USD' },
+    yearly: { value: 199.99, currency: 'USD' }
+  },
+  master: {
+    monthly: { value: 39.99, currency: 'USD' },
+    yearly: { value: 399.99, currency: 'USD' }
+  }
 };
 
 const PLAN_COPY = {
@@ -54,12 +65,30 @@ const FREE_LIMITS = [
   'Không có Explain Pro'
 ];
 
-function currency(value) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
+function currency(price) {
+  const value = Number(price?.value ?? 0);
+  const code = price?.currency || 'USD';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: code,
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(value);
 }
 
 function planIdFor(tier, cycle) {
   return PAYPAL_PLAN_IDS[tier]?.[cycle] || '';
+}
+
+function mergePlanPrices(current, remote) {
+  const next = { ...current };
+  for (const tier of PAID_TIERS) {
+    next[tier] = { ...current[tier] };
+    for (const cycle of ['monthly', 'yearly']) {
+      if (remote?.[tier]?.[cycle]?.value) next[tier][cycle] = remote[tier][cycle];
+    }
+  }
+  return next;
 }
 
 function loadPayPalSdk() {
@@ -74,7 +103,7 @@ function loadPayPalSdk() {
   }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&vault=true&intent=subscription`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&components=buttons&vault=true&intent=subscription&currency=${encodeURIComponent(PAYPAL_CURRENCY)}`;
     script.async = true;
     script.dataset.chessarenaPaypal = 'true';
     script.onload = () => resolve(window.paypal);
@@ -108,7 +137,10 @@ function PayPalSubscribeButton({ tier, cycle, onActivated, onMessage }) {
             onActivated(membership);
             onMessage('Thanh toán sandbox thành công. Gói đã được kích hoạt cho tài khoản này.');
           },
-          onError: () => onMessage('PayPal Sandbox đang lỗi hoặc cấu hình chưa đúng.')
+          onError: (error) => {
+            console.error('PayPal subscription error', error);
+            onMessage('PayPal Sandbox chưa tạo được subscription. Kiểm tra plan đang Active, plan id thuộc cùng sandbox app/client id, currency đúng USD và đã redeploy sau khi thêm env.');
+          }
         });
         renderedButtons.render(buttonRef.current);
       })
@@ -130,7 +162,22 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const [cycle, setCycle] = React.useState('monthly');
   const [selectedTier, setSelectedTier] = React.useState('pro');
   const [message, setMessage] = React.useState('');
+  const [prices, setPrices] = React.useState(PRICES);
   const currentTier = activeTier(membership);
+
+  React.useEffect(() => {
+    let ignore = false;
+    fetchPayPalPlanPrices()
+      .then((remotePrices) => {
+        if (!ignore && remotePrices) {
+          setPrices((current) => mergePlanPrices(current, remotePrices));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   if (!authUser) {
     return (
@@ -195,7 +242,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
                   <h2>{plan.title}</h2>
                 </div>
               </div>
-              <strong className="membership-price">{currency(PRICES[tier][cycle])}<small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small></strong>
+              <strong className="membership-price">{currency(prices[tier][cycle])}<small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small></strong>
               <ul>
                 {plan.benefits.map((benefit) => (
                   <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
@@ -213,7 +260,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
         <div>
           <span>Thanh toán PayPal Sandbox</span>
           <h2>{PLAN_COPY[selectedTier].title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
-          <p>Thêm `VITE_PAYPAL_CLIENT_ID` và các `VITE_PAYPAL_*_PLAN_ID` trong env để PayPal button hoạt động. Backend sẽ lưu subscription vào Supabase sau khi sandbox approve.</p>
+          <p>Giá hiển thị được lấy từ PayPal plan qua backend. Nếu vừa sửa env trên Vercel, redeploy cả frontend và backend để build/runtime nhận biến mới.</p>
         </div>
         <PayPalSubscribeButton
           tier={selectedTier}
