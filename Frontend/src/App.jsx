@@ -51,15 +51,37 @@ import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './
 
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
 const FINISHED_GAME_KEY = 'chess-arena-finished-game';
-const AdminPage = React.lazy(() => import('./routes/AdminPage'));
-const HistoryPage = React.lazy(() => import('./routes/HistoryPage'));
-const HomePage = React.lazy(() => import('./routes/HomePage'));
-const LeaderboardPage = React.lazy(() => import('./routes/LeaderboardPage'));
-const MembershipPage = React.lazy(() => import('./routes/MembershipPage'));
-const OnlinePage = React.lazy(() => import('./routes/OnlinePage'));
-const ProfilePage = React.lazy(() => import('./routes/ProfilePage'));
-const ReviewPage = React.lazy(() => import('./routes/ReviewPage'));
-const PuzzlePage = React.lazy(() => import('./routes/PuzzlePage'));
+const ROUTE_CHUNK_RELOAD_KEY = 'chess-arena-route-chunk-reload';
+
+function lazyWithReload(importer) {
+  return React.lazy(async () => {
+    try {
+      const module = await importer();
+      window.sessionStorage.removeItem(ROUTE_CHUNK_RELOAD_KEY);
+      return module;
+    } catch (error) {
+      const message = String(error?.message || error || '');
+      const chunkLoadFailed = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError/i.test(message);
+      const alreadyReloaded = window.sessionStorage.getItem(ROUTE_CHUNK_RELOAD_KEY) === '1';
+      if (chunkLoadFailed && !alreadyReloaded) {
+        window.sessionStorage.setItem(ROUTE_CHUNK_RELOAD_KEY, '1');
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      throw error;
+    }
+  });
+}
+
+const AdminPage = lazyWithReload(() => import('./routes/AdminPage'));
+const HistoryPage = lazyWithReload(() => import('./routes/HistoryPage'));
+const HomePage = lazyWithReload(() => import('./routes/HomePage'));
+const LeaderboardPage = lazyWithReload(() => import('./routes/LeaderboardPage'));
+const MembershipPage = lazyWithReload(() => import('./routes/MembershipPage'));
+const OnlinePage = lazyWithReload(() => import('./routes/OnlinePage'));
+const ProfilePage = lazyWithReload(() => import('./routes/ProfilePage'));
+const ReviewPage = lazyWithReload(() => import('./routes/ReviewPage'));
+const PuzzlePage = lazyWithReload(() => import('./routes/PuzzlePage'));
 
 function storedFinishedOutcome() {
   const currentRoute = routeFromPath(window.location.pathname);
