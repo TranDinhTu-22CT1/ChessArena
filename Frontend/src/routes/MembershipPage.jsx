@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Brain, CheckCircle2, CreditCard, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
 import { activateMembership } from '../api/membership';
-import { fetchPayPalPlan, fetchPayPalPlanPrices } from '../api/paypalPlans';
+import { createPayPalSubscriptionCheckout, fetchPayPalPlan, fetchPayPalPlanPrices } from '../api/paypalPlans';
 import { notify } from '../components/ToastHost';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../membership/plans';
 
@@ -185,6 +185,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const [message, setMessage] = React.useState('');
   const [prices, setPrices] = React.useState(PRICES);
   const [planHealth, setPlanHealth] = React.useState(null);
+  const [checkoutLoading, setCheckoutLoading] = React.useState(false);
   const currentTier = activeTier(membership);
 
   React.useEffect(() => {
@@ -201,10 +202,57 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
     };
   }, []);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('paypal') === 'cancelled') {
+      setMessage('Bạn đã hủy thanh toán PayPal.');
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+    if (params.get('paypal') !== 'approved') return;
+
+    const subscriptionId = params.get('subscription_id') || params.get('subscriptionID') || '';
+    const approvedTier = params.get('tier') || '';
+    const approvedCycle = params.get('cycle') || 'monthly';
+    const planId = planIdFor(approvedTier, approvedCycle);
+    if (!subscriptionId || !planId) {
+      setMessage('PayPal đã approve nhưng chưa trả subscription_id. Webhook sẽ đồng bộ khi PayPal gửi sự kiện.');
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    activateMembership({ tier: approvedTier, billingCycle: approvedCycle, planId, subscriptionId })
+      .then((data) => {
+        onMembershipUpdated(data);
+        notify('Gói PayPal đã được kích hoạt.', 'success');
+      })
+      .catch((error) => setMessage(error.message))
+      .finally(() => window.history.replaceState({}, '', window.location.pathname));
+  }, [onMembershipUpdated]);
+
   const checkoutPlan = checkoutTier ? PLAN_COPY[checkoutTier] : null;
   const checkoutPrice = checkoutTier ? prices[checkoutTier][cycle] : null;
   const checkoutPlanId = checkoutTier ? planIdFor(checkoutTier, cycle) : '';
   const planHealthNote = checkoutTier ? planHealthMessage(checkoutPlanId, planHealth, checkoutPrice?.currency || PAYPAL_CURRENCY) : '';
+
+  const startServerCheckout = async () => {
+    setCheckoutLoading(true);
+    setMessage('');
+    try {
+      const data = await createPayPalSubscriptionCheckout({
+        tier: checkoutTier,
+        billingCycle: cycle,
+        planId: checkoutPlanId
+      });
+      window.location.assign(data.approveUrl);
+    } catch (error) {
+      const text = error.message || 'PayPal Sandbox chưa tạo được subscription.';
+      setMessage(`${text} Gói đang dùng plan ${checkoutPlanId}, currency ${checkoutPrice?.currency || PAYPAL_CURRENCY}.`);
+      notify(text, 'error');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!checkoutPlanId) {
@@ -287,7 +335,16 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           <div className="membership-payment-card">
             <span>Hoàn tất đăng ký</span>
             <h2>{checkoutPlan.title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
-            <p>Nút PayPal bên dưới sẽ tạo subscription trực tiếp với PayPal bằng plan id của gói này. Nếu lỗi, kiểm tra plan đang ACTIVE và thuộc cùng sandbox app với client id.</p>
+            <p>Nút chính sẽ tạo subscription từ backend bằng server credential rồi chuyển sang trang approve của PayPal. Nếu lỗi, backend sẽ trả đúng lý do PayPal từ chối.</p>
+            <button
+              className="membership-paypal-primary"
+              onClick={startServerCheckout}
+              disabled={checkoutLoading || !checkoutPlanId || planHealth?.plan?.status === 'INACTIVE'}
+            >
+              <CreditCard size={18} />
+              {checkoutLoading ? 'Đang mở PayPal...' : 'Sang trang thanh toán PayPal'}
+            </button>
+            <small className="membership-paypal-fallback-title">Hoặc dùng PayPal button trực tiếp</small>
             <PayPalSubscribeButton
               tier={checkoutTier}
               cycle={cycle}

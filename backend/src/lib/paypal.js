@@ -48,6 +48,38 @@ export async function fetchPayPalSubscription(subscriptionId) {
   return response.json();
 }
 
+export async function createPayPalSubscription({ planId, customId, returnUrl, cancelUrl }) {
+  const token = await paypalAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation'
+    },
+    body: JSON.stringify({
+      plan_id: planId,
+      custom_id: customId,
+      application_context: {
+        brand_name: 'ChessArena',
+        locale: 'en-US',
+        shipping_preference: 'NO_SHIPPING',
+        user_action: 'SUBSCRIBE_NOW',
+        return_url: returnUrl,
+        cancel_url: cancelUrl
+      }
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = data.details?.[0]?.issue || data.message || 'PayPal subscription create failed.';
+    throw new Error(detail);
+  }
+  return data;
+}
+
 export async function verifyPayPalWebhook(headers, body) {
   const webhookId = process.env.PAYPAL_WEBHOOK_ID;
   if (!webhookId) throw new Error('Missing PAYPAL_WEBHOOK_ID.');

@@ -1,6 +1,10 @@
 import { cookies, headers } from 'next/headers';
-import { verifyFirebaseSession } from './firebaseAdmin';
+import crypto from 'node:crypto';
 import { getSupabaseAdmin } from './supabaseAdmin';
+import { authCookieOptions } from './cookies';
+
+const ADMIN_SESSION_COOKIE = 'admin_session_token';
+const ADMIN_SESSION_MAX_AGE = 60 * 60;
 
 function adminEmails() {
   return String(process.env.ADMIN_ROOT_EMAILS || '')
@@ -19,54 +23,106 @@ function activeBanFilter(query) {
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
 }
 
-async function currentSessionUser(supabase) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('firebase_id_token')?.value;
-  if (!token) return { error: Response.json({ ok: false, error: 'Sign in is required.' }, { status: 401 }) };
-
-  let decoded;
-  try {
-    decoded = await verifyFirebaseSession(token);
-  } catch {
-    return { error: Response.json({ ok: false, error: 'Invalid or expired session.' }, { status: 401 }) };
-  }
-
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('id, username, display_name, email, firebase_uid, photo_url')
-    .eq('firebase_uid', decoded.uid)
-    .maybeSingle();
-
-  if (error) return { error: Response.json({ ok: false, error: error.message }, { status: 500 }) };
-  if (!user) return { error: Response.json({ ok: false, error: 'User profile was not found.' }, { status: 401 }) };
-  return { decoded, user };
+function adminIdentityFromEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  const roots = adminEmails();
+  if (!email || !roots.includes(email)) return null;
+  return {
+    id: null,
+    email,
+    username: email.split('@')[0],
+    displayName: 'Admin',
+    photoURL: null
+  };
 }
 
-export async function requireAdminUser() {
+function adminSessionSecret() {
+  return process.env.ADMIN_SESSION_SECRET
+    || process.env.OTP_SECRET
+    || process.env.SUPABASE_SERVICE_ROLE_KEY
+    || '';
+}
+
+function signAdminSession(payload) {
+  const secret = adminSessionSecret();
+  if (!secret) throw new Error('ADMIN_SESSION_SECRET or OTP_SECRET is required.');
+  return crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('base64url');
+}
+
+function encodeAdminSession(admin, expiresAt) {
+  const payload = Buffer.from(JSON.stringify({
+    email: admin.email,
+    exp: expiresAt
+  })).toString('base64url');
+  return `${payload}.${signAdminSession(payload)}`;
+}
+
+function decodeAdminSession(token) {
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature) return null;
+
+  const expected = signAdminSession(payload);
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
+
+  try {
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!session?.email || Number(session.exp) <= Date.now()) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export async function requireRootAdminIdentity(email) {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
     return { error: Response.json({ ok: false, error: 'Supabase service role is required.' }, { status: 503 }) };
   }
 
-  const session = await currentSessionUser(supabase);
-  if (session.error) return { error: session.error };
-
-  const email = String(session.decoded.email || session.user.email || '').toLowerCase();
-  const roots = adminEmails();
-  if (!roots.includes(email)) {
+  const admin = adminIdentityFromEmail(email);
+  if (!admin) {
     return { error: Response.json({ ok: false, error: 'Admin access denied.' }, { status: 403 }) };
   }
 
+  return { supabase, admin };
+}
+
+export async function requireAdminUser() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
+  const adminSession = decodeAdminSession(sessionToken);
+  if (!adminSession) {
+    return { error: Response.json({ ok: false, error: 'Admin login required.' }, { status: 401 }) };
+  }
+
+  const context = await requireRootAdminIdentity(adminSession.email);
+  if (context.error) return context;
+  if (
+    String(adminSession.email).toLowerCase() !== context.admin.email
+  ) {
+    return { error: Response.json({ ok: false, error: 'Admin login required.' }, { status: 401 }) };
+  }
+
+  return context;
+}
+
+export async function setAdminSessionCookie(admin) {
+  const cookieStore = await cookies();
+  const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE * 1000;
+  cookieStore.set(ADMIN_SESSION_COOKIE, encodeAdminSession(admin, expiresAt), authCookieOptions(ADMIN_SESSION_MAX_AGE));
   return {
-    supabase,
-    admin: {
-      id: session.user.id,
-      email,
-      username: session.user.username,
-      displayName: session.user.display_name,
-      photoURL: session.user.photo_url
-    }
+    expiresAt: new Date(expiresAt).toISOString()
   };
+}
+
+export async function clearAdminSessionCookie() {
+  const cookieStore = await cookies();
+  cookieStore.set(ADMIN_SESSION_COOKIE, '', authCookieOptions(0));
 }
 
 export async function writeAdminAudit(supabase, admin, action, metadata = {}) {

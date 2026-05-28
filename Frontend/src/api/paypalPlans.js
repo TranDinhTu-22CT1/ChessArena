@@ -15,3 +15,17 @@ export async function fetchPayPalPlan(planId) {
   });
   return response.json().catch(() => ({}));
 }
+
+export async function createPayPalSubscriptionCheckout(payload) {
+  const response = await fetch(apiUrl('/api/paypal/subscriptions'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || 'PayPal subscription checkout failed.');
+  }
+  return data;
+}

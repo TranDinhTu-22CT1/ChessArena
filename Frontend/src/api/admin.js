@@ -13,6 +13,24 @@ export async function fetchAdminMe() {
   return readJson(response);
 }
 
+export async function unlockAdmin(email, password) {
+  const response = await fetch(apiUrl('/api/admin/session'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  return readJson(response);
+}
+
+export async function lockAdmin() {
+  const response = await fetch(apiUrl('/api/admin/session'), {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+  return readJson(response);
+}
+
 export async function fetchAdminSummary() {
   const response = await fetch(apiUrl('/api/admin/summary'), { credentials: 'include' });
   return readJson(response);
