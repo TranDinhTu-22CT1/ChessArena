@@ -6,6 +6,7 @@ export const ROUTES = {
   local: '/play/local',
   profile: '/profile',
   history: '/history',
+  onlineReview: '/history/review',
   leaderboard: '/leaderboard',
   membership: '/membership',
   admin: '/admin',
@@ -34,6 +35,7 @@ export function routeFromPath(pathname) {
   if (pathname === '/404') return 'notFound';
   if (pathname === '/profile') return 'profile';
   if (pathname === '/history') return 'history';
+  if (pathname.startsWith('/history/review/')) return 'onlineReview';
   if (pathname === '/leaderboard') return 'leaderboard';
   if (pathname === '/membership' || pathname === '/premium') return 'membership';
   if (pathname === '/admin' || pathname === '/amdin') return 'admin';

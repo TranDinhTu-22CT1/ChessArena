@@ -977,7 +977,7 @@ export default function App() {
         onLogout={logout}
       />
 
-      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute ? 'game-route-shell' : ''} ${isActiveOnlineRoute ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
+      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute ? 'game-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
         {authMode && !authUser && (
           <AuthPage
             authMode={authMode}
@@ -1053,7 +1053,7 @@ export default function App() {
             authUser={authUser}
             onLogin={() => setAuthMode('login')}
             onOpenReview={(onlineGameId) => {
-              window.history.pushState(null, '', `/play/online?review=${encodeURIComponent(onlineGameId)}`);
+              window.history.pushState(null, '', `/history/review/${encodeURIComponent(onlineGameId)}`);
               window.dispatchEvent(new window.PopStateEvent('popstate'));
             }}
           />
@@ -1077,6 +1077,36 @@ export default function App() {
 
         {route === 'notFound' && (
           <NotFoundPage onNavigate={navigate} />
+        )}
+
+        {route === 'onlineReview' && (
+          <>
+            <TopHeader
+              activeRoute="history"
+              apiOnline={apiOnline}
+              settingsOpen={settingsOpen}
+              theme={theme}
+              appearance={appearance}
+              pieceSet={pieceSet}
+              authUser={authUser}
+              onToggleSettings={() => setSettingsOpen((value) => !value)}
+              onResetTheme={resetTheme}
+              onUpdateTheme={updateTheme}
+              onSetAppearance={setAppearance}
+              onApplyBoardPreset={applyBoardPreset}
+              onSetPieceSet={setPieceSet}
+            />
+            <OnlinePage
+              authUser={authUser}
+              userName={userName}
+              pieceSet={pieceSet}
+              membership={membership}
+              onLogin={() => setAuthMode('login')}
+              onNavigate={navigate}
+              historyOnly
+              historyReviewGameId={decodeURIComponent(window.location.pathname.split('/').filter(Boolean).at(-1) || '')}
+            />
+          </>
         )}
 
         {isActiveOnlineRoute && (
@@ -1121,7 +1151,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}

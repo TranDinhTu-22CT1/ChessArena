@@ -1,6 +1,6 @@
 import React from 'react';
 import { Chess } from 'chess.js';
-import { BarChart3, Brain, Copy, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { BarChart3, Brain, Copy, Download, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
 import {
   cancelOnlineQueue,
   createFriendGame,
@@ -178,19 +178,23 @@ function isTerminalGame(game) {
 }
 
 function replayOnlineGameAt(moves = [], ply = 0) {
-  const chess = new Chess();
-  for (const move of moves.slice(0, ply)) {
-    chess.move({ from: move.from, to: move.to, promotion: move.promotion || undefined });
-  }
-  return chess;
+  const positions = buildReplayCache(moves);
+  const index = Math.min(Math.max(0, ply), positions.length - 1);
+  return positions[index] || new Chess();
 }
 
 function buildReplayCache(moves = []) {
   const positions = [new Chess()];
-  const chess = new Chess();
+  let chess = new Chess();
   for (const move of moves) {
     try {
-      chess.move({ from: move.from, to: move.to, promotion: move.promotion || undefined });
+      if (move.fenAfter) {
+        chess = new Chess(move.fenAfter);
+        positions.push(new Chess(chess.fen()));
+        continue;
+      }
+      const played = chess.move({ from: move.from, to: move.to, promotion: move.promotion || undefined });
+      if (!played) break;
       positions.push(new Chess(chess.fen()));
     } catch {
       break;
@@ -203,40 +207,35 @@ function moveToLan(move) {
   return `${move.from}${move.to}${move.promotion ?? ''}`;
 }
 
-function buildOnlineReviewPositions(moves = [], stockfishReview = [], pendingAnalysis = []) {
+function buildOnlineReviewPositions(moves = [], stockfishReview = [], pendingAnalysis = [], replayBoards = []) {
   const existing = new Set([
     ...pendingAnalysis.map((item) => item.ply),
     ...stockfishReview.map((item, index) => (item ? index + 1 : null)).filter(Boolean)
   ]);
 
   const positions = [];
-  const chess = new Chess();
   const priorMoves = [];
-  let replayValid = true;
 
   moves.forEach((move, index) => {
-    if (!replayValid) return;
-    const fen = chess.fen();
+    const priorBoard = replayBoards[index];
+    if (!priorBoard) return;
+    const fen = priorBoard.fen();
     const moveLan = moveToLan(move);
-    try {
-      chess.move({ from: move.from, to: move.to, promotion: move.promotion || undefined });
-      if (!existing.has(index + 1)) {
-        positions.push({
-          ply: index + 1,
-          fen,
-          move: moveLan,
-          san: move.san,
-          piece: move.piece,
-          captured: move.captured,
-          variant: 'standard',
-          priorMoves: [...priorMoves]
-        });
-      }
+    if (existing.has(index + 1)) {
       priorMoves.push(moveLan);
-    } catch {
-      // Stop analysis on corrupt legacy move data; the board replay remains usable up to this point.
-      replayValid = false;
+      return;
     }
+    positions.push({
+      ply: index + 1,
+      fen,
+      move: moveLan,
+      san: move.san,
+      piece: move.piece,
+      captured: move.captured,
+      variant: 'standard',
+      priorMoves: [...priorMoves]
+    });
+    priorMoves.push(moveLan);
   });
 
   return positions;
@@ -288,7 +287,7 @@ function playMoveSound(audioRef) {
   oscillator.stop(context.currentTime + 0.1);
 }
 
-export default function OnlinePage({ authUser, userName, pieceSet, membership, onLogin, onNavigate }) {
+export default function OnlinePage({ authUser, userName, pieceSet, membership, onLogin, onNavigate, historyOnly = false, historyReviewGameId = '' }) {
   const [summary, setSummary] = React.useState({ onlineCount: 0, queueCount: 0 });
   const [timeControl, setTimeControl] = React.useState('600+0');
   const [queueing, setQueueing] = React.useState(false);
@@ -334,10 +333,11 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const openingRefreshRef = React.useRef(null);
   const plan = membershipPlan(membership);
   const premiumReview = hasPremium(membership, 'pro');
-  const historyReviewId = typeof window !== 'undefined'
+  const queryReviewId = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('review')
     : null;
-  const openedFromHistory = Boolean(historyReviewId);
+  const historyReviewId = historyReviewGameId || queryReviewId;
+  const openedFromHistory = historyOnly || Boolean(historyReviewId);
 
   const applyGameSnapshot = React.useCallback((incomingGame) => {
     if (!incomingGame) return;
@@ -443,7 +443,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   }, [applyGameSnapshot, authUser, gameId, openedFromHistory, queueing, realtimeConnected]);
 
   React.useEffect(() => {
-    if (!authUser || inviteHandledRef.current) return;
+    if (!authUser || openedFromHistory || inviteHandledRef.current) return;
     const code = new URLSearchParams(window.location.search).get('invite');
     if (!code) return;
 
@@ -461,7 +461,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       })
       .catch((error) => setMessage(error.message))
       .finally(() => setBusy(false));
-  }, [applyGameSnapshot, authUser]);
+  }, [applyGameSnapshot, authUser, openedFromHistory]);
 
   React.useEffect(() => {
     if (!authUser) return;
@@ -625,9 +625,9 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
 
   React.useEffect(() => {
     if ((!reviewMode && !terminalGame) || moves.length === 0) return;
-    const missing = buildOnlineReviewPositions(moves, stockfishReview, pendingAnalysis);
+    const missing = buildOnlineReviewPositions(moves, stockfishReview, pendingAnalysis, reviewBoards);
     if (missing.length) setPendingAnalysis((current) => [...current, ...missing]);
-  }, [reviewMode, terminalGame, moves, stockfishReview, pendingAnalysis]);
+  }, [reviewMode, terminalGame, moves, stockfishReview, pendingAnalysis, reviewBoards]);
 
   React.useEffect(() => {
     if (pendingAnalysis.length === 0) return undefined;
@@ -789,6 +789,25 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     setPgnCopied(true);
     window.setTimeout(() => setPgnCopied(false), 1800);
     setMessage('PGN copied.');
+  };
+
+  const downloadGamePgn = () => {
+    const pgn = game?.pgn || (game?.moves || []).map((move) => move.san).join(' ');
+    if (!pgn) {
+      setMessage('No PGN to download yet.');
+      return;
+    }
+    const safeId = String(game?.id || 'online-game').replace(/[^a-z0-9_-]/gi, '-');
+    const blob = new Blob([pgn], { type: 'application/x-chess-pgn;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chessarena-${safeId}.pgn`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    setMessage('PGN downloaded.');
   };
 
   const leaveGameView = async () => {
@@ -1092,10 +1111,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     <section className="online-workspace">
       <header className="online-header">
         <div>
-          <span><Radio size={16} /> Live players</span>
-          <h1>Online Chess</h1>
+          <span><Radio size={16} /> {openedFromHistory ? 'Saved game' : 'Live players'}</span>
+          <h1>{openedFromHistory ? 'Online Game Review' : 'Online Chess'}</h1>
         </div>
-        {!playingView && (
+        {!playingView && !openedFromHistory && (
           <div className="online-metrics">
             <b><Users size={17} />{summary.onlineCount} online</b>
             <b><Search size={17} />{summary.queueCount} searching</b>
@@ -1306,6 +1325,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
                 <button onClick={() => reviewStep(-1)} disabled={reviewPly === 0}>&lt;</button>
                 <button onClick={() => reviewStep(1)} disabled={reviewPly >= moves.length}>&gt;</button>
                 <button onClick={() => setReviewPly(moves.length)} disabled={reviewPly >= moves.length}>&gt;|</button>
+              </div>
+              <div className="online-review-export">
+                <button disabled={!game || moves.length === 0} onClick={copyGamePgn}><Copy size={18} /> {pgnCopied ? 'PGN copied' : 'Copy PGN'}</button>
+                <button disabled={!game || moves.length === 0} onClick={downloadGamePgn}><Download size={18} /> Download PGN</button>
               </div>
               <button onClick={() => {
                 if (openedFromHistory) {

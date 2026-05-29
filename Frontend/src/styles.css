@@ -9071,12 +9071,17 @@ h2 {
 
 .online-rematch-request div,
 .online-review-controls,
+.online-review-export,
 .online-review-accuracy {
   display: grid;
   gap: 8px;
 }
 
 .online-rematch-request div {
+  grid-template-columns: 1fr 1fr;
+}
+
+.online-review-export {
   grid-template-columns: 1fr 1fr;
 }
 
