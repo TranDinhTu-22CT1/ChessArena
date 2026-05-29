@@ -8,6 +8,19 @@ export function paypalBaseUrl() {
   return PAYPAL_API_BASE;
 }
 
+export function paypalCredentialFingerprint() {
+  const clientId = String(process.env.PAYPAL_CLIENT_ID || '');
+  return clientId ? `${clientId.slice(0, 8)}...${clientId.slice(-4)}` : 'missing';
+}
+
+export function paypalPlanCredentialError(planId) {
+  return [
+    `PayPal plan ${planId} was not found for PAYPAL_CLIENT_ID ${paypalCredentialFingerprint()} in ${process.env.PAYPAL_ENV === 'live' ? 'live' : 'sandbox'}.`,
+    'This is not a frontend bug: the plan id must be created under the same PayPal REST app as PAYPAL_CLIENT_ID/PAYPAL_SECRET.',
+    'Use the secret from the app that owns this plan, or recreate the plan under the configured app and update all PAYPAL_*_PLAN_ID / VITE_PAYPAL_*_PLAN_ID values.'
+  ].join(' ');
+}
+
 export async function paypalAccessToken() {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 30_000) return tokenCache.token;
 
@@ -80,9 +93,24 @@ export async function createPayPalSubscription({ planId, customId, returnUrl, ca
     const issue = data.details?.map((detail) => [detail.issue, detail.description].filter(Boolean).join(': ')).filter(Boolean).join('; ');
     const detail = issue || data.message || data.name || 'PayPal subscription create failed.';
     const suffix = debugId ? ` PayPal-Debug-Id: ${debugId}.` : '';
+    if (/INVALID_RESOURCE_ID|RESOURCE_NOT_FOUND|not found/i.test(detail)) {
+      throw new Error(`${paypalPlanCredentialError(planId)}${suffix}`);
+    }
     throw new Error(`${detail}${suffix}`);
   }
   return data;
+}
+
+export async function assertPayPalPlanVisible(planId) {
+  try {
+    const plan = await fetchPayPalPlan(planId);
+    return plan;
+  } catch (error) {
+    if (/RESOURCE|not found|INVALID_RESOURCE_ID|404/i.test(error.message)) {
+      throw new Error(paypalPlanCredentialError(planId));
+    }
+    throw error;
+  }
 }
 
 export async function fetchPayPalPlan(planId) {

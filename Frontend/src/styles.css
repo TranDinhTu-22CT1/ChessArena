@@ -2756,6 +2756,52 @@ input {
   font-size: 0.78rem;
 }
 
+.admin-ban-note.mute {
+  color: #273512;
+  background: rgba(178, 214, 96, 0.45);
+}
+
+.moderation-banner {
+  position: fixed;
+  left: 50%;
+  top: 14px;
+  z-index: 2300;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(760px, calc(100vw - 28px));
+  padding: 12px 16px;
+  color: #132515;
+  background: rgba(255, 249, 219, 0.96);
+  border: 1px solid rgba(121, 91, 18, 0.2);
+  border-radius: 999px;
+  box-shadow: 0 18px 44px rgba(31, 55, 34, 0.2);
+  transform: translateX(-50%);
+  animation: adminSurfaceIn 260ms ease both;
+}
+
+.moderation-banner.danger {
+  color: #fff5f4;
+  background: rgba(129, 45, 38, 0.96);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.moderation-banner strong,
+.moderation-banner span,
+.moderation-banner small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moderation-banner strong {
+  flex: 0 0 auto;
+}
+
+.moderation-banner span {
+  min-width: 0;
+}
+
 .admin-user-actions,
 .admin-report-card > div:last-child {
   display: flex;
@@ -3067,15 +3113,101 @@ input {
   padding: 22px;
   color: #132515;
   background:
-    radial-gradient(circle at 20% 18%, rgba(178, 214, 112, 0.5), transparent 28%),
-    linear-gradient(135deg, rgba(248, 252, 239, 0.94), rgba(218, 235, 211, 0.94));
-  backdrop-filter: blur(12px);
+    radial-gradient(circle at 18% 18%, rgba(178, 214, 112, 0.44), transparent 28%),
+    radial-gradient(circle at 78% 20%, rgba(255, 255, 255, 0.76), transparent 30%),
+    linear-gradient(135deg, rgba(248, 252, 239, 0.96), rgba(211, 232, 204, 0.96));
+  backdrop-filter: blur(16px) saturate(1.2);
 }
 
 .chess-loading {
-  grid-template-columns: auto minmax(0, 360px);
-  gap: 24px;
-  text-align: left;
+  text-align: center;
+}
+
+.route-loading-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: min(520px, calc(100vw - 36px));
+  padding: clamp(28px, 5vw, 44px);
+  overflow: hidden;
+  color: #132515;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(242, 249, 230, 0.88)),
+    #fff;
+  border: 1px solid rgba(57, 89, 54, 0.16);
+  border-radius: 34px;
+  box-shadow: 0 34px 95px rgba(31, 55, 34, 0.24);
+  animation: adminSurfaceIn 360ms ease both;
+}
+
+.route-loading-card::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background:
+    repeating-linear-gradient(45deg, rgba(87, 122, 56, 0.055) 0 12px, transparent 12px 24px);
+  animation: loadingSheen 4200ms linear infinite;
+}
+
+.loading-orbit,
+.loading-board,
+.loading-copy,
+.loading-progress {
+  position: relative;
+  z-index: 1;
+}
+
+.loading-orbit {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, #b2d660 0 34%, rgba(178, 214, 96, 0.18) 35% 58%, transparent 59%),
+    conic-gradient(from 0deg, #5e7f1f, #d5ef90, #5e7f1f);
+  box-shadow: 0 20px 42px rgba(95, 126, 41, 0.24);
+}
+
+.loading-piece {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  color: #132515;
+  background: #fffdf0;
+  border-radius: 20px;
+  font-size: 2.15rem;
+  font-weight: 950;
+  box-shadow: inset 0 -4px 0 rgba(19, 37, 21, 0.08);
+  animation: loadingKnight 1100ms ease-in-out infinite alternate;
+}
+
+.loading-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #132515;
+  border-radius: 999px;
+  opacity: 0.56;
+  animation: loadingOrbit 1600ms linear infinite;
+}
+
+.loading-dot.one {
+  transform-origin: 0 42px;
+}
+
+.loading-dot.two {
+  background: #5e7f1f;
+  animation-delay: -530ms;
+  transform-origin: 0 42px;
+}
+
+.loading-dot.three {
+  background: #eef7d7;
+  animation-delay: -1060ms;
+  transform-origin: 0 42px;
 }
 
 .loading-board,
@@ -3108,12 +3240,42 @@ input {
   line-height: 1.05;
 }
 
+.loading-copy {
+  display: grid;
+  gap: 7px;
+}
+
+.loading-copy small {
+  color: #5e7f1f;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .route-loading p,
 .offline-card p,
 .not-found-card p {
   margin-top: 8px;
   color: #496046;
   font-weight: 800;
+}
+
+.loading-progress {
+  width: min(300px, 100%);
+  height: 9px;
+  overflow: hidden;
+  background: rgba(19, 37, 21, 0.09);
+  border-radius: 999px;
+}
+
+.loading-progress i {
+  display: block;
+  width: 42%;
+  height: 100%;
+  background: linear-gradient(90deg, #5e7f1f, #b2d660, #f5ffd7);
+  border-radius: inherit;
+  animation: loadingProgress 1300ms ease-in-out infinite;
 }
 
 .offline-overlay {
@@ -3271,6 +3433,50 @@ input {
 
   to {
     transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes loadingKnight {
+  from {
+    transform: translateY(3px) rotate(-4deg);
+  }
+
+  to {
+    transform: translateY(-6px) rotate(4deg);
+  }
+}
+
+@keyframes loadingOrbit {
+  from {
+    transform: rotate(0deg) translateX(42px) rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg) translateX(42px) rotate(-360deg);
+  }
+}
+
+@keyframes loadingProgress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  55% {
+    transform: translateX(76%);
+  }
+
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@keyframes loadingSheen {
+  from {
+    transform: translate3d(-8%, -8%, 0);
+  }
+
+  to {
+    transform: translate3d(8%, 8%, 0);
   }
 }
 

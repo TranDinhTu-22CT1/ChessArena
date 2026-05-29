@@ -60,6 +60,10 @@ function activeBan(user) {
   return user.bans?.find((ban) => ban.status === 'active') || null;
 }
 
+function activeMute(user) {
+  return user.mutes?.find((mute) => mute.status === 'active') || null;
+}
+
 function time(value) {
   return value ? new Date(value).toLocaleString() : '--';
 }
@@ -188,6 +192,30 @@ export default function AdminPage() {
     try {
       await adminUserAction({ action: 'unban', userId: user.id });
       notify('Ban lifted.', 'success');
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
+  const muteUser = async (user) => {
+    const reason = window.prompt('Mute reason', 'Chat/report abuse');
+    if (!reason) return;
+    try {
+      await adminUserAction({ action: 'mute', userId: user.id, reason });
+      notify('User muted.', 'success');
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
+  const unmuteUser = async (user) => {
+    try {
+      await adminUserAction({ action: 'unmute', userId: user.id });
+      notify('Mute lifted.', 'success');
       await load();
     } catch (error) {
       setMessage(error.message);
@@ -332,6 +360,7 @@ export default function AdminPage() {
       <div className="admin-user-list">
         {users.map((user) => {
           const ban = activeBan(user);
+          const mute = activeMute(user);
           const device = user.devices?.[0];
           const topRating = [...(user.ratings || [])].sort((a, b) => b.rating - a.rating)[0];
           const risk = user.reports?.[0]?.risk_score ?? 0;
@@ -344,10 +373,16 @@ export default function AdminPage() {
                 <small>UID: {user.id} · Elo: {topRating?.rating ?? 400} · Games: {topRating?.games_played ?? 0} · Cheat score: {risk}</small>
                 {device && <em>Device: {device.device_fingerprint.slice(0, 22)}... · {time(device.last_seen_at)}</em>}
                 {ban && <b className="admin-ban-note">Banned: {ban.reason}</b>}
+                {mute && <b className="admin-ban-note mute">Muted: {mute.reason}</b>}
               </div>
               <div className="admin-user-actions">
                 <button onClick={() => openDetail(user)}><UserCog size={16} /> Detail</button>
                 <button onClick={() => scanUser(user)}><ShieldAlert size={16} /> Scan</button>
+                {mute ? (
+                  <button onClick={() => unmuteUser(user)}><CheckCircle2 size={16} /> Unmute</button>
+                ) : (
+                  <button onClick={() => muteUser(user)}><Shield size={16} /> Mute</button>
+                )}
                 {ban ? (
                   <button onClick={() => unbanUser(user)}><CheckCircle2 size={16} /> Unban</button>
                 ) : (

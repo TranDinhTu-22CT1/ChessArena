@@ -200,3 +200,15 @@ export async function activeBanForUser(supabase, userId, deviceFingerprint = '')
   const results = await Promise.all(checks);
   return results.flatMap((result) => result.data || [])[0] || null;
 }
+
+export async function activeMuteForUser(supabase, userId) {
+  if (!userId) return null;
+  const { data = [] } = await activeBanFilter(
+    supabase
+      .from('user_mutes')
+      .select('*')
+      .eq('user_id', userId)
+      .limit(1)
+  );
+  return data[0] || null;
+}

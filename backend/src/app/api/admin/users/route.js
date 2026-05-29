@@ -40,9 +40,10 @@ export async function GET(request) {
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   const ids = users.map((user) => user.id);
-  const [ratings, bans, devices, trustScores, reports] = ids.length ? await Promise.all([
+  const [ratings, bans, mutes, devices, trustScores, reports] = ids.length ? await Promise.all([
     context.supabase.from('user_ratings').select('*').in('user_id', ids),
     context.supabase.from('user_bans').select('*').in('user_id', ids).order('created_at', { ascending: false }),
+    context.supabase.from('user_mutes').select('*').in('user_id', ids).order('created_at', { ascending: false }),
     context.supabase.from('user_devices').select('user_id, device_fingerprint, user_agent, last_seen_at').in('user_id', ids).order('last_seen_at', { ascending: false }),
     context.supabase.from('user_trust_scores').select('*').in('user_id', ids),
     context.supabase.from('anti_cheat_reports').select('user_id, status, risk_score, created_at').in('user_id', ids).order('created_at', { ascending: false })
@@ -54,6 +55,7 @@ export async function GET(request) {
       ...user,
       ratings: (ratings?.data || []).filter((row) => row.user_id === user.id),
       bans: (bans?.data || []).filter((row) => row.user_id === user.id),
+      mutes: (mutes?.data || []).filter((row) => row.user_id === user.id),
       devices: (devices?.data || []).filter((row) => row.user_id === user.id).slice(0, 5),
       trust: (trustScores?.data || []).find((row) => row.user_id === user.id) || null,
       reports: (reports?.data || []).filter((row) => row.user_id === user.id).slice(0, 5)
@@ -113,6 +115,40 @@ export async function PATCH(request) {
 
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
     await writeAdminAudit(context.supabase, context.admin, 'user.unban', { targetUserId: userId });
+    return Response.json({ ok: true });
+  }
+
+  if (action === 'mute') {
+    const { data, error } = await context.supabase
+      .from('user_mutes')
+      .insert({
+        user_id: userId,
+        reason: cleanReason(payload?.reason || 'Chat/report abuse'),
+        scopes: Array.isArray(payload?.scopes) && payload.scopes.length ? payload.scopes : ['chat', 'reports'],
+        created_by: context.admin.id
+      })
+      .select('*')
+      .single();
+
+    if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+    await writeAdminAudit(context.supabase, context.admin, 'user.mute', {
+      targetUserId: userId,
+      reason: data.reason,
+      scopes: data.scopes
+    });
+    return Response.json({ ok: true, mute: data });
+  }
+
+  if (action === 'unmute') {
+    const now = new Date().toISOString();
+    const { error } = await context.supabase
+      .from('user_mutes')
+      .update({ status: 'lifted', lifted_by: context.admin.id, lifted_at: now })
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+    if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+    await writeAdminAudit(context.supabase, context.admin, 'user.unmute', { targetUserId: userId });
     return Response.json({ ok: true });
   }
 

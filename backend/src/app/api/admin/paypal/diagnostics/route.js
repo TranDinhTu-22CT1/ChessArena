@@ -1,4 +1,4 @@
-import { createPayPalSubscription, fetchPayPalPlan } from '../../../../../lib/paypal';
+import { assertPayPalPlanVisible, createPayPalSubscription, fetchPayPalPlan, paypalCredentialFingerprint } from '../../../../../lib/paypal';
 import { rateLimit } from '../../../../../lib/rateLimit';
 import { requireAdminUser, writeAdminAudit } from '../../../../../lib/admin';
 
@@ -67,6 +67,7 @@ export async function GET(request) {
   return Response.json({
     ok: true,
     environment: process.env.PAYPAL_ENV === 'live' ? 'live' : 'sandbox',
+    credential: paypalCredentialFingerprint(),
     webhookConfigured: Boolean(process.env.PAYPAL_WEBHOOK_ID),
     diagnostics
   });
@@ -87,6 +88,7 @@ export async function POST(request) {
 
   try {
     const baseUrl = frontendUrl();
+    await assertPayPalPlanVisible(planId);
     const subscription = await createPayPalSubscription({
       planId,
       customId: `admin-diagnostic:${tier}:${cycle}:${Date.now()}`,

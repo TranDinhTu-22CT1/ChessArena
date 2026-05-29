@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { fetchPayPalPlan, paypalAccessToken, paypalBaseUrl } from '../../../../lib/paypal';
+import { fetchPayPalPlan, paypalAccessToken, paypalBaseUrl, paypalPlanCredentialError } from '../../../../lib/paypal';
 
 export const runtime = 'nodejs';
 
@@ -74,7 +74,7 @@ export async function GET(request) {
         return Response.json({
           ok: Boolean(plan),
           plan,
-          error: plan ? null : 'PayPal plan was not found for these server credentials.'
+          error: plan ? null : paypalPlanCredentialError(singlePlanId)
         }, { status: 200 });
       } catch (error) {
         return Response.json({ ok: false, plan: null, error: error.message }, { status: 200 });

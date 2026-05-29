@@ -13,10 +13,11 @@ export async function GET(request, { params }) {
 
   const { userId } = await params;
   const { supabase } = context;
-  const [{ data: user, error: userError }, { data: devices = [] }, { data: bans = [] }, { data: reports = [] }] = await Promise.all([
+  const [{ data: user, error: userError }, { data: devices = [] }, { data: bans = [] }, { data: mutes = [] }, { data: reports = [] }] = await Promise.all([
     supabase.from('users').select('*').eq('id', userId).maybeSingle(),
     supabase.from('user_devices').select('*').eq('user_id', userId).order('last_seen_at', { ascending: false }),
     supabase.from('user_bans').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabase.from('user_mutes').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from('anti_cheat_reports').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20)
   ]);
 
@@ -46,6 +47,7 @@ export async function GET(request, { params }) {
     user,
     devices,
     bans,
+    mutes,
     reports,
     games: decoratedGames
   });

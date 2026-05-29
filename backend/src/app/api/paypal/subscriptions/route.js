@@ -1,6 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
-import { createPayPalSubscription } from '../../../../lib/paypal';
+import { assertPayPalPlanVisible, createPayPalSubscription } from '../../../../lib/paypal';
 
 export const runtime = 'nodejs';
 
@@ -47,6 +47,13 @@ export async function POST(request) {
 
   const baseUrl = frontendUrl();
   try {
+    const plan = await assertPayPalPlanVisible(planId);
+    if (plan.status && plan.status !== 'ACTIVE') {
+      return Response.json({
+        ok: false,
+        error: `PayPal plan ${planId} is ${plan.status}. Activate it in PayPal before checkout.`
+      }, { status: 400 });
+    }
     const subscription = await createPayPalSubscription({
       planId,
       customId: `${context.user.id}:${tier}:${billingCycle}`,

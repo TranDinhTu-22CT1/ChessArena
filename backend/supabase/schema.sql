@@ -411,6 +411,19 @@ create table if not exists public.user_bans (
   expires_at timestamptz
 );
 
+create table if not exists public.user_mutes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  reason text not null default 'Chat policy violation',
+  scopes jsonb not null default '["chat", "reports"]'::jsonb,
+  status text not null default 'active' check (status in ('active', 'lifted')),
+  created_by uuid references public.users(id) on delete set null,
+  lifted_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  lifted_at timestamptz,
+  expires_at timestamptz
+);
+
 create table if not exists public.admin_audit_logs (
   id bigserial primary key,
   admin_user_id uuid references public.users(id) on delete set null,
@@ -1440,6 +1453,9 @@ on public.user_bans(user_id, status, created_at desc);
 create index if not exists idx_user_bans_active_device
 on public.user_bans(device_fingerprint, status, created_at desc);
 
+create index if not exists idx_user_mutes_active_user
+on public.user_mutes(user_id, status, created_at desc);
+
 create index if not exists idx_admin_audit_logs_created
 on public.admin_audit_logs(created_at desc);
 
@@ -1496,6 +1512,7 @@ alter table public.user_ratings enable row level security;
 alter table public.user_trust_scores enable row level security;
 alter table public.user_devices enable row level security;
 alter table public.user_bans enable row level security;
+alter table public.user_mutes enable row level security;
 alter table public.admin_audit_logs enable row level security;
 alter table public.anti_cheat_reports enable row level security;
 alter table public.player_reports enable row level security;
@@ -1523,6 +1540,7 @@ drop policy if exists "service role manages user ratings" on public.user_ratings
 drop policy if exists "service role manages user trust scores" on public.user_trust_scores;
 drop policy if exists "service role manages user devices" on public.user_devices;
 drop policy if exists "service role manages user bans" on public.user_bans;
+drop policy if exists "service role manages user mutes" on public.user_mutes;
 drop policy if exists "service role manages admin audit logs" on public.admin_audit_logs;
 drop policy if exists "service role manages anti cheat reports" on public.anti_cheat_reports;
 drop policy if exists "service role manages player reports" on public.player_reports;
@@ -1611,6 +1629,12 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages user bans"
 on public.user_bans
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user mutes"
+on public.user_mutes
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

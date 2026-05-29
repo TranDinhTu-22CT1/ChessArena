@@ -86,7 +86,9 @@ function mergePlanPrices(current, remote) {
 function planHealthMessage(planId, planHealth, fallbackCurrency) {
   if (!planId) return 'Thiếu PayPal plan id cho gói này.';
   if (!planHealth) return 'Đang kiểm tra plan PayPal...';
-  if (planHealth.ok === false) return planHealth.error || 'Backend không lấy được PayPal plan bằng credential hiện tại.';
+  if (planHealth.ok === false) {
+    return planHealth.error || 'Backend PayPal credential hiện tại không nhìn thấy plan này. Hãy dùng đúng PAYPAL_CLIENT_ID/PAYPAL_SECRET của app đã tạo plan, hoặc tạo lại plan dưới app đang cấu hình.';
+  }
   if (planHealth.plan?.status && planHealth.plan.status !== 'ACTIVE') return `Plan đang ở trạng thái ${planHealth.plan.status}, cần ACTIVE.`;
   const planCurrency = planHealth.plan?.currency;
   if (planCurrency && planCurrency !== fallbackCurrency) {

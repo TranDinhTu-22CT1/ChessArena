@@ -2,6 +2,7 @@ import React from 'react';
 import './styles.css';
 import { apiUrl } from './api/config';
 import { fetchMembership } from './api/membership';
+import { fetchModerationStatus } from './api/moderation';
 import { requestStockfishMove } from './api/stockfish';
 import { PIECE_IMAGES } from './game/pieces';
 import {
@@ -99,12 +100,22 @@ function storedFinishedOutcome() {
 function RouteLoading({ label = 'Đang tải bàn cờ...' }) {
   return (
     <div className="route-loading chess-loading">
-      <div className="loading-board" aria-hidden="true">
-        {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
-      </div>
-      <div>
-        <strong>{label}</strong>
-        <p>Đang chuẩn bị thế cờ mới cho bạn.</p>
+      <div className="route-loading-card">
+        <div className="loading-orbit" aria-hidden="true">
+          <span className="loading-piece">♞</span>
+          <span className="loading-dot one" />
+          <span className="loading-dot two" />
+          <span className="loading-dot three" />
+        </div>
+        <div className="loading-board" aria-hidden="true">
+          {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
+        </div>
+        <div className="loading-copy">
+          <small>ChessArena</small>
+          <strong>{label}</strong>
+          <p>Đang chuẩn bị bàn cờ, dữ liệu ván và giao diện cho bạn.</p>
+        </div>
+        <div className="loading-progress" aria-hidden="true"><i /></div>
       </div>
     </div>
   );
@@ -121,6 +132,18 @@ function OfflineOverlay({ visible }) {
         <p>Kiểm tra mạng của bạn. ChessArena sẽ tự tiếp tục khi kết nối trở lại.</p>
         <div className="offline-loader"><i /><i /><i /><i /></div>
       </div>
+    </div>
+  );
+}
+
+function ModerationBanner({ status }) {
+  if (!status?.muted && !status?.banned) return null;
+  const item = status.banned ? status.ban : status.mute;
+  return (
+    <div className={`moderation-banner ${status.banned ? 'danger' : 'warning'}`} role="status">
+      <strong>{status.banned ? 'Tài khoản đang bị hạn chế' : 'Bạn đang bị mute'}</strong>
+      <span>{item?.reason || 'Moderation action active.'}</span>
+      {item?.expiresAt && <small>Hết hạn: {new Date(item.expiresAt).toLocaleString()}</small>}
     </div>
   );
 }
@@ -146,6 +169,7 @@ export default function App() {
   const [botGameStarted, setBotGameStarted] = React.useState(false);
   const [manualResult, setManualResult] = React.useState(() => storedFinishedOutcome());
   const [membership, setMembership] = React.useState(null);
+  const [moderationStatus, setModerationStatus] = React.useState(null);
   const [hintMove, setHintMove] = React.useState(null);
   const [premoveQueue, setPremoveQueue] = React.useState([]);
   const [suggestionMove, setSuggestionMove] = React.useState(null);
@@ -232,15 +256,15 @@ export default function App() {
   React.useEffect(() => {
     if (!authUser) {
       setMembership(null);
+      setModerationStatus(null);
       return undefined;
     }
     let cancelled = false;
-    fetchMembership()
-      .then((nextMembership) => {
-        if (!cancelled) setMembership(nextMembership);
-      })
-      .catch(() => {
-        if (!cancelled) setMembership(null);
+    Promise.allSettled([fetchMembership(), fetchModerationStatus()])
+      .then(([membershipResult, moderationResult]) => {
+        if (cancelled) return;
+        setMembership(membershipResult.status === 'fulfilled' ? membershipResult.value : null);
+        setModerationStatus(moderationResult.status === 'fulfilled' ? moderationResult.value : null);
       });
     return () => {
       cancelled = true;
@@ -910,6 +934,7 @@ export default function App() {
     <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
       <ToastHost />
       <OfflineOverlay visible={isOffline} />
+      <ModerationBanner status={moderationStatus} />
       {appSettling && <RouteLoading label={authBusy ? 'Đang xác thực tài khoản...' : 'Đang chuyển trang...'} />}
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
       <Sidebar

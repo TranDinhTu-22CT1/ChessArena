@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../../../lib/online';
+import { activeMuteForUser } from '../../../../../../lib/admin';
 
 export const runtime = 'nodejs';
 
@@ -36,6 +37,10 @@ export async function POST(request, context) {
 
   const auth = await requireOnlineUser();
   if (auth.error) return auth.error;
+  const activeMute = await activeMuteForUser(auth.supabase, auth.user.id);
+  if (activeMute && (activeMute.scopes || []).includes('reports')) {
+    return Response.json({ ok: false, error: activeMute.reason || 'You are muted from submitting reports.' }, { status: 403 });
+  }
 
   const gameId = String((await context.params)?.gameId || '').trim();
   const payload = await request.json().catch(() => null);
