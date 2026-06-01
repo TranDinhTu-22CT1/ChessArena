@@ -1,6 +1,6 @@
 import React from 'react';
-import { CalendarDays, CheckCircle2, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
-import { fetchProfile, saveProfile } from '../api/profile';
+import { CalendarDays, CheckCircle2, Copy, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
+import { fetchProfile, fetchPublicProfile, saveProfile } from '../api/profile';
 
 const MODE_LABELS = {
   bullet: 'Bullet',
@@ -17,6 +17,22 @@ function formattedDate(value) {
 function winRate(summary) {
   if (!summary?.gamesPlayed) return '0%';
   return `${Math.round((summary.wins / summary.gamesPlayed) * 100)}%`;
+}
+
+function formatMatchDate(value) {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value));
+}
+
+function matchLabel(game) {
+  if (game.outcome === 'draw') return 'Hòa';
+  return game.outcome === 'win' ? 'Thắng' : 'Thua';
 }
 
 const MAX_AVATAR_UPLOAD_SIZE = 5 * 1024 * 1024;
@@ -51,21 +67,23 @@ function resizedAvatarData(file) {
   });
 }
 
-export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUpdated }) {
+export default function ProfilePage({ authUser, profileUserId = '', onLogin, onNavigate, onProfileUpdated }) {
   const [profile, setProfile] = React.useState(null);
   const [form, setForm] = React.useState({ displayName: '', photoURL: '' });
-  const [loading, setLoading] = React.useState(Boolean(authUser));
+  const [loading, setLoading] = React.useState(Boolean(authUser || profileUserId));
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const isPublicProfile = Boolean(profileUserId);
 
   React.useEffect(() => {
-    if (!authUser) {
+    if (!authUser && !profileUserId) {
       setLoading(false);
       return undefined;
     }
     let cancelled = false;
     setLoading(true);
-    fetchProfile()
+    setMessage('');
+    (profileUserId ? fetchPublicProfile(profileUserId) : fetchProfile())
       .then((nextProfile) => {
         if (cancelled) return;
         setProfile(nextProfile);
@@ -80,7 +98,19 @@ export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUp
     return () => {
       cancelled = true;
     };
-  }, [authUser]);
+  }, [authUser, profileUserId]);
+
+  const copyProfileLink = async () => {
+    if (!profile?.id && !profile?.username) return;
+    const shareId = profile.id || profile.username;
+    const url = `${window.location.origin}/profile/${encodeURIComponent(shareId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setMessage('Đã copy link hồ sơ.');
+    } catch {
+      setMessage(url);
+    }
+  };
 
   const submitProfile = async (event) => {
     event.preventDefault();
@@ -119,7 +149,7 @@ export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUp
     }
   };
 
-  if (!authUser) {
+  if (!authUser && !profileUserId) {
     return (
       <section className="profile-auth-required">
         <UserRound size={48} />
@@ -131,45 +161,73 @@ export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUp
   }
 
   if (loading) return <div className="profile-loading">Đang tải hồ sơ...</div>;
+  if (!profile) {
+    return (
+      <section className="profile-auth-required">
+        <UserRound size={48} />
+        <h1>Không tìm thấy hồ sơ</h1>
+        <p>{message || 'Link hồ sơ này không tồn tại hoặc người chơi chưa có dữ liệu.'}</p>
+        <button onClick={() => onNavigate?.('home')}>Về trang chủ</button>
+      </section>
+    );
+  }
 
   const summary = profile?.summary || { gamesPlayed: 0, wins: 0, losses: 0, draws: 0 };
+  const avatarURL = isPublicProfile ? profile?.photoURL : form.photoURL;
+  const shareId = profile?.id || profile?.username || '';
 
   return (
     <section className="profile-page">
       <header className="profile-hero">
         <div className="profile-avatar">
-          {form.photoURL ? <img src={form.photoURL} alt="Avatar người chơi" /> : <UserRound size={56} />}
+          {avatarURL ? <img src={avatarURL} alt="Avatar người chơi" /> : <UserRound size={56} />}
         </div>
         <div>
-          <span>Player Profile</span>
-          <h1>{profile?.displayName || authUser.displayName || 'Player'}</h1>
+          <span>{isPublicProfile ? 'Public Player Profile' : 'Player Profile'}</span>
+          <h1>{profile?.displayName || authUser?.displayName || 'Player'}</h1>
           <p>@{profile?.username || 'player'}</p>
+          {shareId && <small className="profile-id">ID: {shareId}</small>}
         </div>
         <div className="profile-verified">
           <ShieldCheck size={20} />
-          {profile?.emailVerified ? 'Tài khoản đã xác thực' : 'Chưa xác thực email'}
+          {isPublicProfile ? 'Hồ sơ công khai' : profile?.emailVerified ? 'Tài khoản đã xác thực' : 'Chưa xác thực email'}
         </div>
       </header>
 
       <div className="profile-grid">
-        <form className="profile-editor" onSubmit={submitProfile}>
-          <h2>Thông tin cá nhân</h2>
-          <label>
-            <span>Tên hiển thị</span>
-            <input value={form.displayName} maxLength={80} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
-          </label>
-          <label>
-            <span><ImagePlus size={16} /> Ảnh đại diện</span>
-            <input className="profile-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
-            <small>Chọn ảnh từ máy của bạn (PNG, JPG hoặc WebP, tối đa 5 MB). Ảnh sẽ được tối ưu làm avatar.</small>
-          </label>
-          <div className="profile-detail-line"><Mail size={17} /><span>{profile?.email || 'Không có email'}</span></div>
-          <div className="profile-detail-line"><CalendarDays size={17} /><span>Tham gia: {formattedDate(profile?.createdAt)}</span></div>
-          <button className="profile-save" disabled={saving} type="submit">
-            <Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu hồ sơ'}
-          </button>
-          {message && <p className="profile-message">{message}</p>}
-        </form>
+        {!isPublicProfile ? (
+          <form className="profile-editor" onSubmit={submitProfile}>
+            <h2>Thông tin cá nhân</h2>
+            <label>
+              <span>Tên hiển thị</span>
+              <input value={form.displayName} maxLength={80} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
+            </label>
+            <label>
+              <span><ImagePlus size={16} /> Ảnh đại diện</span>
+              <input className="profile-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
+              <small>Chọn ảnh từ máy của bạn (PNG, JPG hoặc WebP, tối đa 5 MB). Ảnh sẽ được tối ưu làm avatar.</small>
+            </label>
+            <div className="profile-detail-line"><Mail size={17} /><span>{profile?.email || 'Không có email'}</span></div>
+            <div className="profile-detail-line"><CalendarDays size={17} /><span>Tham gia: {formattedDate(profile?.createdAt)}</span></div>
+            <button className="profile-save" disabled={saving} type="submit">
+              <Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu hồ sơ'}
+            </button>
+            <button className="profile-share-button" type="button" onClick={copyProfileLink}>
+              <Copy size={17} /> Copy link hồ sơ
+            </button>
+            {message && <p className="profile-message">{message}</p>}
+          </form>
+        ) : (
+          <aside className="profile-editor profile-public-card">
+            <h2>Thông tin người chơi</h2>
+            <div className="profile-detail-line"><UserRound size={17} /><span>@{profile?.username || 'player'}</span></div>
+            <div className="profile-detail-line"><CalendarDays size={17} /><span>Tham gia: {formattedDate(profile?.createdAt)}</span></div>
+            <button className="profile-share-button" type="button" onClick={copyProfileLink}>
+              <Copy size={17} /> Copy link hồ sơ
+            </button>
+            {message && <p className="profile-message">{message}</p>}
+          </aside>
+        )}
 
         <div className="profile-stats">
           <h2>Thành tích online</h2>
@@ -202,11 +260,31 @@ export default function ProfilePage({ authUser, onLogin, onNavigate, onProfileUp
       <section className="profile-recent">
         <div className="profile-recent-heading">
           <h2>Lịch sử trận đấu</h2>
-          <button onClick={() => onNavigate?.('history')}><History size={17} /> Xem lịch sử và review</button>
+          {!isPublicProfile && <button onClick={() => onNavigate?.('history')}><History size={17} /> Xem lịch sử và review</button>}
         </div>
-        <p className="profile-empty">
-          Bạn đã chơi {summary.gamesPlayed} trận online được tính kết quả. Mở danh sách lịch sử để chọn đúng ván cần xem lại.
-        </p>
+        {(profile?.recentGames || []).length > 0 ? (
+          <div className="profile-game-list">
+            {profile.recentGames.map((game) => (
+              <div className={`profile-game ${game.outcome}`} key={game.id}>
+                <b>{matchLabel(game)}</b>
+                <span>
+                  vs {game.opponent?.name || 'Player'}
+                  {Number.isFinite(game.ratingDelta) && (
+                    <small className={game.ratingDelta > 0 ? 'rating-up' : game.ratingDelta < 0 ? 'rating-down' : ''}>
+                      {game.ratingDelta > 0 ? '+' : ''}{game.ratingDelta} rating
+                    </small>
+                  )}
+                </span>
+                <small>{game.mode || 'rapid'} - {game.timeControl || '--'} - {game.color === 'w' ? 'Trắng' : 'Đen'}</small>
+                <time>{formatMatchDate(game.finishedAt)}</time>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="profile-empty">
+            {isPublicProfile ? 'Người chơi này chưa có trận online hoàn thành.' : `Bạn đã chơi ${summary.gamesPlayed} trận online được tính kết quả. Mở danh sách lịch sử để chọn đúng ván cần xem lại.`}
+          </p>
+        )}
       </section>
     </section>
   );

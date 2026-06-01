@@ -25,6 +25,28 @@ function cleanDeviceFingerprint(value) {
   return String(value || '').trim().slice(0, 160);
 }
 
+function sha256(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+function requestNetworkSignals(headerStore) {
+  const userAgent = String(headerStore.get('user-agent') || '').slice(0, 400);
+  const rawIp = String(headerStore.get('x-forwarded-for') || headerStore.get('x-real-ip') || '')
+    .split(',')[0]
+    .trim();
+  const ip = /^(\d{1,3}\.){3}\d{1,3}$/.test(rawIp) || rawIp.includes(':') ? rawIp : '';
+  const ipPrefix = ip.includes(':')
+    ? ip.split(':').slice(0, 4).join(':')
+    : ip.split('.').slice(0, 3).join('.');
+
+  return {
+    userAgent,
+    userAgentHash: userAgent ? sha256(userAgent).slice(0, 64) : '',
+    ip,
+    ipPrefix: ip ? ipPrefix : ''
+  };
+}
+
 function activeBanFilter(query) {
   return query
     .eq('status', 'active')
@@ -150,22 +172,20 @@ export async function recordUserDevice(supabase, userId, deviceFingerprint) {
   if (!userId || !cleanFingerprint) return null;
 
   const headerStore = await headers();
-  const userAgent = String(headerStore.get('user-agent') || '').slice(0, 400);
-  const rawIp = String(headerStore.get('x-forwarded-for') || headerStore.get('x-real-ip') || '')
-    .split(',')[0]
-    .trim();
-  const ip = /^(\d{1,3}\.){3}\d{1,3}$/.test(rawIp) || rawIp.includes(':') ? rawIp : '';
+  const signals = requestNetworkSignals(headerStore);
 
   const { data } = await supabase
     .from('user_devices')
     .upsert({
       user_id: userId,
       device_fingerprint: cleanFingerprint,
-      user_agent: userAgent || null,
-      ip_address: ip || null,
+      user_agent: signals.userAgent || null,
+      user_agent_hash: signals.userAgentHash || null,
+      ip_address: signals.ip || null,
+      ip_prefix: signals.ipPrefix || null,
       last_seen_at: new Date().toISOString()
     }, { onConflict: 'user_id,device_fingerprint' })
-    .select('id, device_fingerprint')
+    .select('id, device_fingerprint, ip_prefix, user_agent_hash')
     .maybeSingle();
 
   return data;
@@ -173,6 +193,8 @@ export async function recordUserDevice(supabase, userId, deviceFingerprint) {
 
 export async function activeBanForUser(supabase, userId, deviceFingerprint = '') {
   const cleanFingerprint = cleanDeviceFingerprint(deviceFingerprint);
+  const headerStore = await headers();
+  const signals = requestNetworkSignals(headerStore);
   const checks = [];
 
   if (userId) {
@@ -181,7 +203,7 @@ export async function activeBanForUser(supabase, userId, deviceFingerprint = '')
         .from('user_bans')
         .select('*')
         .eq('user_id', userId)
-        .in('ban_type', ['account', 'account_device'])
+        .in('ban_type', ['account', 'account_device', 'risk'])
         .limit(1)
     ));
   }
@@ -192,13 +214,35 @@ export async function activeBanForUser(supabase, userId, deviceFingerprint = '')
         .from('user_bans')
         .select('*')
         .eq('device_fingerprint', cleanFingerprint)
-        .in('ban_type', ['device', 'account_device'])
+        .in('ban_type', ['device', 'account_device', 'risk'])
+        .limit(1)
+    ));
+  }
+
+  if (signals.ipPrefix && signals.userAgentHash) {
+    checks.push(activeBanFilter(
+      supabase
+        .from('user_bans')
+        .select('*')
+        .eq('ip_prefix', signals.ipPrefix)
+        .eq('user_agent_hash', signals.userAgentHash)
+        .eq('ban_type', 'risk')
         .limit(1)
     ));
   }
 
   const results = await Promise.all(checks);
   return results.flatMap((result) => result.data || [])[0] || null;
+}
+
+export function riskSignalsFromDevice(device) {
+  return {
+    deviceFingerprint: cleanDeviceFingerprint(device?.device_fingerprint),
+    ipPrefix: String(device?.ip_prefix || '').trim().slice(0, 80),
+    userAgentHash: String(device?.user_agent_hash || '').trim().slice(0, 80),
+    userAgent: String(device?.user_agent || '').slice(0, 400),
+    lastSeenAt: device?.last_seen_at || null
+  };
 }
 
 export async function activeMuteForUser(supabase, userId) {

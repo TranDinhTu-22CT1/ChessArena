@@ -29,6 +29,51 @@ export const BOT_PERSONAS = [
   { elo: 3190, avatar: animalAvatar('\u265A', '#bfe7ff'), name: 'Stockfish Max', mood: 'Không giới hạn sức mạnh engine', chat: 'Stockfish đang chạy ở sức mạnh tối đa.' }
 ];
 
+export const SEASONAL_BOT_PERSONAS = [
+  {
+    elo: 1450,
+    avatar: animalAvatar('\u2726', '#f8d37a'),
+    name: 'Tet Lantern',
+    mood: 'Holiday bot, tactical but forgiving',
+    chat: 'Holiday challenge is live. Win cleanly and collect event points.',
+    eventTag: 'seasonal',
+    active: true
+  },
+  {
+    elo: 1850,
+    avatar: animalAvatar('\u2605', '#9fd7ff'),
+    name: 'Spring Knight',
+    mood: 'Fast development and sharp knight jumps',
+    chat: 'I like quick development. Can you slow my initiative?',
+    eventTag: 'seasonal',
+    active: true
+  }
+];
+
+export function normalizeBotPersona(bot) {
+  return {
+    elo: Number(bot?.elo) || 1320,
+    avatar: bot?.avatar_url || bot?.avatar || animalAvatar('\u265f', '#d8ddff'),
+    name: String(bot?.name || 'Event Bot').slice(0, 40),
+    mood: String(bot?.mood || 'Custom admin bot').slice(0, 100),
+    chat: String(bot?.chat || 'Ready for a themed game.').slice(0, 180),
+    eventTag: bot?.event_tag || bot?.eventTag || '',
+    active: bot?.active !== false
+  };
+}
+
+export function mergeBotPersonas(customBots = []) {
+  const seen = new Set();
+  return [...customBots.map(normalizeBotPersona), ...SEASONAL_BOT_PERSONAS, ...BOT_PERSONAS]
+    .filter((bot) => bot.active)
+    .filter((bot) => {
+      const key = `${bot.name}:${bot.elo}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export const BOT_CHAT_LINES = {
   opening: [
     'Mở màn gọn gàng nhé, mình đang nhìn trung tâm rất kỹ.',

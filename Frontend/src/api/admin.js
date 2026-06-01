@@ -120,7 +120,7 @@ export async function scanUserAntiCheat(userId) {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, limit: 3 })
+    body: JSON.stringify({ userId, limit: 6 })
   });
   return readJson(response);
 }
@@ -131,6 +131,56 @@ export async function updateAntiCheatReport(reportId, status) {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reportId, status })
+  });
+  return readJson(response);
+}
+
+export async function fetchAdminBots() {
+  const response = await fetch(apiUrl('/api/admin/bots'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function createAdminBot(payload) {
+  const response = await fetch(apiUrl('/api/admin/bots'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return readJson(response);
+}
+
+export async function updateAdminBot(botId, payload) {
+  const response = await fetch(apiUrl('/api/admin/bots'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ botId, ...payload })
+  });
+  return readJson(response);
+}
+
+export async function fetchAdminEvents() {
+  const response = await fetch(apiUrl('/api/admin/events'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function createAdminEvent(payload) {
+  const response = await fetch(apiUrl('/api/admin/events'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return readJson(response);
+}
+
+export async function updateAdminEvent(eventId, payload) {
+  const response = await fetch(apiUrl('/api/admin/events'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventId, ...payload })
   });
   return readJson(response);
 }

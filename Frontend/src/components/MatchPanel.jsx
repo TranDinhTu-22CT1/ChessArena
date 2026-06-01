@@ -14,6 +14,7 @@ export default function MatchPanel({
   aiElo,
   aiLevel,
   activeBotPersona,
+  botPersonas = BOT_PERSONAS,
   botOptions,
   botChatText,
   coachMode,
@@ -69,6 +70,7 @@ export default function MatchPanel({
           aiElo={aiElo}
           aiLevel={aiLevel}
           activeBotPersona={activeBotPersona}
+          botPersonas={botPersonas}
           botOptions={botOptions}
           botChatText={botChatText}
           coachMode={coachMode}
@@ -91,6 +93,7 @@ export default function MatchPanel({
           coachAudioEnabled={coachAudioEnabled}
           coachInsight={coachInsight}
           activeBotPersona={activeBotPersona}
+          botPersonas={botPersonas}
           botOptions={botOptions}
           botChatText={botChatText}
           coachLesson={coachLesson}
@@ -160,6 +163,7 @@ export default function MatchPanel({
       <ModeLobby
         gameMode={gameMode}
         activeBotPersona={activeBotPersona}
+        botPersonas={botPersonas}
         aiElo={aiElo}
         aiLevel={aiLevel}
         coachInsight={coachInsight}
@@ -238,6 +242,7 @@ function BotSetup(props) {
     aiElo,
     aiLevel,
     activeBotPersona,
+    botPersonas,
     botOptions,
     botChatText,
     coachMode,
@@ -307,7 +312,7 @@ function BotSetup(props) {
               <strong>{activeBotPersona.name} <span>{aiLevel.elo}</span></strong>
             </div>
           </div>
-          <BotFamily aiElo={aiElo} onChangeAiElo={onChangeAiElo} />
+          <BotFamily aiElo={aiElo} botPersonas={botPersonas} onChangeAiElo={onChangeAiElo} />
         </>
       )}
       {isCoachGame ? (
@@ -464,7 +469,7 @@ function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight
   );
 }
 
-function ModeLobby({ gameMode, activeBotPersona, aiElo, aiLevel, coachInsight, coachMode, coachSpeechText, onChangeAiElo, onSetCoachMode }) {
+function ModeLobby({ gameMode, activeBotPersona, botPersonas = BOT_PERSONAS, aiElo, aiLevel, coachInsight, coachMode, coachSpeechText, onChangeAiElo, onSetCoachMode }) {
   if (gameMode === 'bot') {
     return (
       <section className="bot-lobby" aria-label="Play Bots">
@@ -479,7 +484,7 @@ function ModeLobby({ gameMode, activeBotPersona, aiElo, aiLevel, coachInsight, c
             <strong>{activeBotPersona.name} <span>{aiLevel.elo}</span></strong>
           </div>
         </div>
-        <BotFamily aiElo={aiElo} onChangeAiElo={onChangeAiElo} />
+        <BotFamily aiElo={aiElo} botPersonas={botPersonas} onChangeAiElo={onChangeAiElo} />
         {[
           ['Beginner', 15],
           ['Intermediate', 15],
@@ -488,7 +493,7 @@ function ModeLobby({ gameMode, activeBotPersona, aiElo, aiLevel, coachInsight, c
           ['Adaptive', 5]
         ].map(([label, count], index) => (
           <button className="bot-category-row" key={label} type="button">
-            <img src={BOT_PERSONAS[index % BOT_PERSONAS.length].avatar} alt="" />
+            <img src={botPersonas[index % botPersonas.length]?.avatar || BOT_PERSONAS[index % BOT_PERSONAS.length].avatar} alt="" />
             <strong>{label}</strong>
             <span>{count} bots</span>
           </button>
@@ -565,22 +570,23 @@ function PanelOptions({ timeControlId, gameVariant, onChangeTimeControl, onChang
   );
 }
 
-function BotFamily({ aiElo, onChangeAiElo }) {
+function BotFamily({ aiElo, botPersonas = BOT_PERSONAS, onChangeAiElo }) {
   return (
     <div className="bot-family-card">
       <div>
-        <strong>Pirates</strong>
-        <span>{BOT_PERSONAS.length} bots</span>
+        <strong>Bot roster</strong>
+        <span>{botPersonas.length} bots</span>
       </div>
       <div className="bot-avatar-row">
-        {BOT_PERSONAS.map((bot) => (
+        {botPersonas.map((bot) => (
           <button
             className={Number(aiElo) === bot.elo ? 'active' : ''}
-            key={bot.elo}
+            key={`${bot.name}-${bot.elo}`}
             onClick={() => onChangeAiElo(bot.elo)}
             title={`${bot.name} - ELO ${bot.elo}`}
           >
             <img src={bot.avatar} alt={bot.name} />
+            {bot.eventTag && <span>{bot.eventTag}</span>}
           </button>
         ))}
       </div>

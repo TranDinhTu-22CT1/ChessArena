@@ -13,6 +13,11 @@ export async function fetchProfile() {
   return readProfileResponse(response);
 }
 
+export async function fetchPublicProfile(userId) {
+  const response = await fetch(apiUrl(`/api/user/profile/${encodeURIComponent(userId)}`), { credentials: 'include' });
+  return readProfileResponse(response);
+}
+
 export async function saveProfile(profile) {
   const response = await fetch(apiUrl('/api/user/profile'), {
     method: 'POST',

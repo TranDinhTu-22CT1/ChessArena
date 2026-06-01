@@ -34,6 +34,7 @@ export function routeFromPath(pathname) {
   const knownStaticPaths = new Set(Object.values(ROUTES));
   if (pathname === '/404') return 'notFound';
   if (pathname === '/profile') return 'profile';
+  if (pathname.startsWith('/profile/')) return 'profile';
   if (pathname === '/history') return 'history';
   if (pathname.startsWith('/history/review/')) return 'onlineReview';
   if (pathname === '/leaderboard') return 'leaderboard';

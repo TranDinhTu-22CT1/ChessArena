@@ -18,6 +18,13 @@ function riskFromSignals({ engineMatchRate, suspiciousMoveCount, totalMoves, low
   return Math.max(0, Math.min(100, matchScore + suspiciousScore + timingScore));
 }
 
+function longestMatchStreak(rows) {
+  return rows.reduce((state, row) => {
+    const next = row.matched ? state.current + 1 : 0;
+    return { current: next, best: Math.max(state.best, next) };
+  }, { current: 0, best: 0 }).best;
+}
+
 export async function analyzeOnlineGameForUser(game, moves, userId, options = {}) {
   const userColor = game.white_user_id === userId ? 'w' : game.black_user_id === userId ? 'b' : null;
   if (!userColor) throw new Error('User is not a player in this game.');
@@ -82,6 +89,10 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
 
   const matches = checked.filter((item) => item.matched);
   const fastMatches = matches.filter((item) => Number.isFinite(item.elapsedMs) && item.elapsedMs <= 2500);
+  const timedRows = checked.filter((item) => Number.isFinite(item.elapsedMs));
+  const averageMoveMs = timedRows.length
+    ? Math.round(timedRows.reduce((sum, item) => sum + item.elapsedMs, 0) / timedRows.length)
+    : null;
   const engineMatchRate = checked.length ? matches.length / checked.length : 0;
   const lowTimeConsistency = matches.length ? fastMatches.length / matches.length : 0;
   const suspiciousMoveCount = fastMatches.length;
@@ -101,7 +112,10 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
     details: {
       policy: 'engine_match_plus_timing_v1',
       movetime,
-      checked
+      checked,
+      longestMatchStreak: longestMatchStreak(checked),
+      averageMoveMs,
+      fastBestMoveThresholdMs: 2500
     }
   };
 }

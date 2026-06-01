@@ -1,6 +1,7 @@
 import React from 'react';
 import './styles.css';
 import { apiUrl } from './api/config';
+import { fetchPublicBots } from './api/bots';
 import { fetchMembership } from './api/membership';
 import { fetchModerationStatus } from './api/moderation';
 import { requestStockfishMove } from './api/stockfish';
@@ -38,7 +39,7 @@ import {
   coachBehaviorFromMode,
   coachLessonFromMode
 } from './coach/coach';
-import { BOT_PERSONAS } from './data/bots';
+import { BOT_PERSONAS, mergeBotPersonas } from './data/bots';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useApiGameLog } from './hooks/useApiGameLog';
 import { useAppRoute } from './hooks/useAppRoute';
@@ -185,6 +186,7 @@ export default function App() {
   const [isAiThinking, setIsAiThinking] = React.useState(false);
   const [engineError, setEngineError] = React.useState('');
   const [coachAudioEnabled, setCoachAudioEnabled] = React.useState(true);
+  const [customBots, setCustomBots] = React.useState([]);
   const [showHints, setShowHints] = React.useState(true);
   const [dragEnabled, setDragEnabled] = React.useState(true);
   const [promotionRequest, setPromotionRequest] = React.useState(null);
@@ -234,7 +236,21 @@ export default function App() {
   } = useAppRoute({ gameMode, setGameMode });
   const aiTimerRef = React.useRef(null);
   const premoveRef = React.useRef([]);
-  const { ensureAudioContext, playMoveSound, speakCoachText, stopSpeech } = useGameAudio();
+  const { ensureAudioContext, playMoveSound, playUiSound, speakCoachText, stopSpeech } = useGameAudio();
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchPublicBots()
+      .then((data) => {
+        if (!cancelled) setCustomBots(data.bots || []);
+      })
+      .catch(() => {
+        if (!cancelled) setCustomBots([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     const onOnline = () => setIsOffline(false);
@@ -274,6 +290,7 @@ export default function App() {
   const isActiveGameRoute = isGameRoute(route);
   const isActiveOnlineRoute = route === 'online';
   const isActivePuzzleRoute = isPuzzleRoute(route);
+  const isPublicProfileRoute = route === 'profile' && window.location.pathname.startsWith('/profile/');
   const game = gameState.chess;
   const history = gameState.moves;
   const gameFen = game.fen();
@@ -359,9 +376,10 @@ export default function App() {
       to: squareCenter(move.to, flipped)
     }))
     .filter((arrow) => arrow.from && arrow.to);
-  const activeBotPersona = BOT_PERSONAS.reduce((closest, persona) => (
+  const botPersonas = React.useMemo(() => mergeBotPersonas(customBots), [customBots]);
+  const activeBotPersona = botPersonas.reduce((closest, persona) => (
     Math.abs(persona.elo - Number(aiElo)) < Math.abs(closest.elo - Number(aiElo)) ? persona : closest
-  ), BOT_PERSONAS[0]);
+  ), botPersonas[0] || BOT_PERSONAS[0]);
   const aiDisplayName = `${activeBotPersona.name} (${aiLevel.elo})`;
   const latestPlayerMoveIndex = history.reduce((foundIndex, move, index) => (
     move.color === playerColor ? index : foundIndex
@@ -530,7 +548,7 @@ export default function App() {
   }, []);
 
   const commitPlayedMove = (move) => {
-    playMoveSound();
+    playMoveSound(move);
     setHintMove(null);
     setSuggestionMove(null);
     setThreatMove(null);
@@ -599,7 +617,7 @@ export default function App() {
     setGameId(newLocalGameId());
     resetSavedGameLog();
     stopSpeech();
-    resetBotAssistance((BOT_PERSONAS.find((persona) => persona.elo === Number(nextAiElo)) ?? activeBotPersona).chat);
+    resetBotAssistance((botPersonas.find((persona) => persona.elo === Number(nextAiElo)) ?? activeBotPersona).chat);
 
     try {
       const response = await fetch(apiUrl('/api/game/new'), {
@@ -616,6 +634,7 @@ export default function App() {
 
   const startBotMatch = () => {
     ensureAudioContext();
+    playUiSound('start');
     setGameMode('bot');
     if (route !== 'bot') navigate('bot');
     setBotGameStarted(true);
@@ -716,6 +735,7 @@ export default function App() {
       resetCoachMatch({ nextAiElo: Number(elo), nextLesson: coachLesson });
       return;
     }
+    playUiSound('tap');
     startNewGame({ nextSideChoice: sideChoice, nextAiElo: Number(elo) });
   };
 
@@ -978,7 +998,7 @@ export default function App() {
       />
 
       <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute ? 'game-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
-        {authMode && !authUser && (
+        {authMode && !authUser && !isPublicProfileRoute && (
           <AuthPage
             authMode={authMode}
             authForm={authForm}
@@ -1000,7 +1020,7 @@ export default function App() {
           />
         )}
 
-        {(!authMode || authUser) && (
+        {(!authMode || authUser || isPublicProfileRoute) && (
         <React.Suspense fallback={<RouteLoading />}>
         {route === 'home' && (
           <HomePage
@@ -1042,6 +1062,9 @@ export default function App() {
         {route === 'profile' && (
           <ProfilePage
             authUser={authUser}
+            profileUserId={window.location.pathname.startsWith('/profile/')
+              ? decodeURIComponent(window.location.pathname.split('/').filter(Boolean).at(-1) || '')
+              : ''}
             onLogin={() => setAuthMode('login')}
             onNavigate={navigate}
             onProfileUpdated={updateSessionProfile}
@@ -1229,6 +1252,7 @@ export default function App() {
             aiElo={aiElo}
             aiLevel={aiLevel}
             activeBotPersona={activeBotPersona}
+            botPersonas={botPersonas}
             botOptions={botOptions}
             botChatText={botChatText}
             coachMode={coachMode}

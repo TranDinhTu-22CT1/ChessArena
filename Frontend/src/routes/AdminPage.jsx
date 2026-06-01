@@ -2,9 +2,12 @@ import React from 'react';
 import {
   Activity,
   Ban,
+  Bot,
   CheckCircle2,
+  CalendarDays,
   CreditCard,
   Database,
+  ExternalLink,
   FileText,
   LayoutDashboard,
   LockKeyhole,
@@ -21,7 +24,11 @@ import {
 import {
   adminUserAction,
   fetchAdminAuditLogs,
+  createAdminBot,
+  createAdminEvent,
   fetchAdminConfig,
+  fetchAdminBots,
+  fetchAdminEvents,
   fetchAdminMatches,
   fetchAdminMe,
   fetchModerationReports,
@@ -34,6 +41,8 @@ import {
   lockAdmin,
   scanUserAntiCheat,
   testPayPalSubscription,
+  updateAdminBot,
+  updateAdminEvent,
   unlockAdmin,
   updateAntiCheatReport,
   updateModerationReport
@@ -47,9 +56,9 @@ const NAV_ITEMS = [
   { id: 'fairplay', label: 'Anti-cheat', icon: ShieldAlert },
   { id: 'moderation', label: 'Moderation', icon: Shield },
   { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'bots', label: 'Bots & events', icon: Bot },
   { id: 'audit', label: 'Audit logs', icon: FileText },
-  { id: 'config', label: 'System config', icon: Settings },
-  { id: 'detail', label: 'User detail', icon: UserCog }
+  { id: 'config', label: 'System config', icon: Settings }
 ];
 
 function pct(value) {
@@ -57,7 +66,7 @@ function pct(value) {
 }
 
 function activeBan(user) {
-  return user.bans?.find((ban) => ban.status === 'active') || null;
+  return user.bans?.find((ban) => ban.status === 'active' && (!ban.expires_at || new Date(ban.expires_at) > new Date())) || null;
 }
 
 function activeMute(user) {
@@ -86,12 +95,18 @@ export default function AdminPage() {
   const [moderationReports, setModerationReports] = React.useState([]);
   const [matches, setMatches] = React.useState([]);
   const [payments, setPayments] = React.useState([]);
+  const [bots, setBots] = React.useState([]);
+  const [events, setEvents] = React.useState([]);
   const [auditLogs, setAuditLogs] = React.useState([]);
   const [config, setConfig] = React.useState(null);
   const [paypalDiagnostics, setPaypalDiagnostics] = React.useState(null);
   const [search, setSearch] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [selectedDetail, setSelectedDetail] = React.useState(null);
+  const [banTarget, setBanTarget] = React.useState(null);
+  const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Fair play / policy violation', expiresAt: '' });
+  const [botForm, setBotForm] = React.useState({ name: 'Holiday Bot', elo: 1500, mood: 'Seasonal challenge bot', chat: 'Can you beat me during this event?', eventTag: 'seasonal', avatarUrl: '/chessarena-mark.svg', active: true });
+  const [eventForm, setEventForm] = React.useState({ title: 'Holiday Bot Challenge', eventType: 'bot_challenge', description: 'Beat the featured bot and climb a limited-time event board.', rewardLabel: 'Seasonal badge', active: true });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState('overview');
   const [unlockEmail, setUnlockEmail] = React.useState('');
@@ -110,6 +125,8 @@ export default function AdminPage() {
         moderationData,
         matchesData,
         paymentsData,
+        botsData,
+        eventsData,
         auditData,
         configData
       ] = await Promise.all([
@@ -120,6 +137,8 @@ export default function AdminPage() {
         fetchModerationReports().catch(() => ({ reports: [] })),
         fetchAdminMatches(),
         fetchAdminPayments(),
+        fetchAdminBots().catch(() => ({ bots: [] })),
+        fetchAdminEvents().catch(() => ({ events: [] })),
         fetchAdminAuditLogs(),
         fetchAdminConfig()
       ]);
@@ -130,6 +149,8 @@ export default function AdminPage() {
       setModerationReports(moderationData.reports || []);
       setMatches(matchesData.matches || []);
       setPayments(paymentsData.payments || []);
+      setBots(botsData.bots || []);
+      setEvents(eventsData.events || []);
       setAuditLogs(auditData.logs || []);
       setConfig(configData.config || null);
       setLoginRequired(false);
@@ -174,13 +195,21 @@ export default function AdminPage() {
     notify('Admin session locked.', 'info');
   };
 
-  const banUser = async (user, banType = 'account') => {
-    const deviceFingerprint = user.devices?.[0]?.device_fingerprint || '';
-    const reason = window.prompt('Ban reason', 'Fair play / policy violation');
-    if (!reason) return;
+  const submitBan = async (event) => {
+    event.preventDefault();
+    if (!banTarget) return;
+    const deviceFingerprint = banTarget.devices?.[0]?.device_fingerprint || '';
     try {
-      await adminUserAction({ action: 'ban', userId: user.id, banType, deviceFingerprint, reason });
-      notify('User banned.', 'success');
+      await adminUserAction({
+        action: 'ban',
+        userId: banTarget.id,
+        banType: banForm.banType,
+        deviceFingerprint,
+        reason: banForm.reason,
+        expiresAt: banForm.expiresAt || null
+      });
+      notify(banForm.banType === 'risk' ? 'Risk ban applied.' : 'User banned.', 'success');
+      setBanTarget(null);
       await load();
     } catch (error) {
       setMessage(error.message);
@@ -242,10 +271,39 @@ export default function AdminPage() {
     try {
       const detail = await fetchAdminUserDetail(user.id);
       setSelectedDetail(detail);
-      setSection('detail');
       setMessage('');
     } catch (error) {
       setMessage(error.message);
+    }
+  };
+
+  const openPublicProfile = (user) => {
+    const profileId = user.id || user.username;
+    if (!profileId) return;
+    window.open(`/profile/${encodeURIComponent(profileId)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const submitBot = async (event) => {
+    event.preventDefault();
+    try {
+      await createAdminBot(botForm);
+      notify('Bot added to Play Bots.', 'success');
+      setBotForm((form) => ({ ...form, name: '', chat: '' }));
+      await load();
+    } catch (error) {
+      notify(error.message, 'error');
+    }
+  };
+
+  const submitEvent = async (event) => {
+    event.preventDefault();
+    try {
+      await createAdminEvent(eventForm);
+      notify('Event created.', 'success');
+      setEventForm((form) => ({ ...form, title: '' }));
+      await load();
+    } catch (error) {
+      notify(error.message, 'error');
     }
   };
 
@@ -370,13 +428,14 @@ export default function AdminPage() {
               <div>
                 <strong>{user.display_name || user.username || user.email}</strong>
                 <span>{user.email || user.username}</span>
-                <small>UID: {user.id} · Elo: {topRating?.rating ?? 400} · Games: {topRating?.games_played ?? 0} · Cheat score: {risk}</small>
-                {device && <em>Device: {device.device_fingerprint.slice(0, 22)}... · {time(device.last_seen_at)}</em>}
+                <small>UID: {user.id} | Elo: {topRating?.rating ?? 400} | Games: {topRating?.games_played ?? 0} | Cheat score: {risk}</small>
+                {device && <em>Risk signals: {device.device_fingerprint.slice(0, 16)}... | IP {device.ip_prefix || '--'} | UA {device.user_agent_hash?.slice(0, 10) || '--'} | {time(device.last_seen_at)}</em>}
                 {ban && <b className="admin-ban-note">Banned: {ban.reason}</b>}
                 {mute && <b className="admin-ban-note mute">Muted: {mute.reason}</b>}
               </div>
               <div className="admin-user-actions">
                 <button onClick={() => openDetail(user)}><UserCog size={16} /> Detail</button>
+                <button onClick={() => openPublicProfile(user)}><ExternalLink size={16} /> Profile</button>
                 <button onClick={() => scanUser(user)}><ShieldAlert size={16} /> Scan</button>
                 {mute ? (
                   <button onClick={() => unmuteUser(user)}><CheckCircle2 size={16} /> Unmute</button>
@@ -387,8 +446,14 @@ export default function AdminPage() {
                   <button onClick={() => unbanUser(user)}><CheckCircle2 size={16} /> Unban</button>
                 ) : (
                   <>
-                    <button onClick={() => banUser(user, 'account')}><Ban size={16} /> Ban account</button>
-                    <button disabled={!device} onClick={() => banUser(user, 'account_device')}><Ban size={16} /> Ban HWID</button>
+                    <button onClick={() => {
+                      setBanTarget(user);
+                      setBanForm({ banType: 'account', reason: 'Fair play / policy violation', expiresAt: '' });
+                    }}><Ban size={16} /> Ban</button>
+                    <button disabled={!device} onClick={() => {
+                      setBanTarget(user);
+                      setBanForm({ banType: 'risk', reason: 'Risk-linked fair play violation', expiresAt: '' });
+                    }}><Ban size={16} /> Risk ban</button>
                   </>
                 )}
               </div>
@@ -412,8 +477,8 @@ export default function AdminPage() {
           <article className="admin-report-card" key={match.id}>
             <div>
               <strong>{match.white_name || 'White'} vs {match.black_name || 'Black'}</strong>
-              <span>{match.status} · {match.result || '*'} · {match.mode || 'rapid'} · {match.time_control} · {match.moveCount} moves</span>
-              <small>ID: {match.id} · Created: {time(match.created_at)} · Updated: {time(match.updated_at)}</small>
+              <span>{match.status} | {match.result || '*'} | {match.mode || 'rapid'} | {match.time_control} | {match.moveCount} moves</span>
+              <small>ID: {match.id} | Created: {time(match.created_at)} | Updated: {time(match.updated_at)}</small>
               <em>{(match.lastMoves || []).map((move) => move.san).join(' ')}</em>
             </div>
           </article>
@@ -436,8 +501,8 @@ export default function AdminPage() {
           <article className="admin-report-card" key={report.id}>
             <div>
               <strong>{report.users?.display_name || report.users?.email || report.user_id}</strong>
-              <span>Risk {report.risk_score}/100 · Engine match {pct(report.engine_match_rate)} · Fast best moves {report.suspicious_move_count}</span>
-              <small>{time(report.created_at)} · {report.status}</small>
+              <span>Risk {report.risk_score}/100 | Engine match {pct(report.engine_match_rate)} | Fast best moves {report.suspicious_move_count}</span>
+              <small>{time(report.created_at)} | {report.status}</small>
             </div>
             <div>
               <button onClick={() => updateAntiCheatReport(report.id, 'reviewed').then(() => load())}>Under Review</button>
@@ -474,14 +539,14 @@ export default function AdminPage() {
           <article className="admin-report-card admin-moderation-card" key={report.id}>
             <div>
               <strong>{report.reported?.display_name || report.reported?.email || report.reported_user_id || 'Unknown player'}</strong>
-              <span>{report.category} · {report.severity} · {report.status}</span>
+              <span>{report.category} | {report.severity} | {report.status}</span>
               <small>
                 Reporter: {report.reporter?.display_name || report.reporter?.email || report.reporter_user_id}
-                {' '}· Game: {report.game?.white_name || 'White'} vs {report.game?.black_name || 'Black'}
-                {' '}· {time(report.created_at)}
+                {' '}| Game: {report.game?.white_name || 'White'} vs {report.game?.black_name || 'Black'}
+                {' '}| {time(report.created_at)}
               </small>
               <em>{report.description}</em>
-              <small>Evidence: {report.evidence?.moveCount ?? 0} moves · Result {report.evidence?.result || report.game?.result || '*'}</small>
+              <small>Evidence: {report.evidence?.moveCount ?? 0} moves | Result {report.evidence?.result || report.game?.result || '*'}</small>
             </div>
             <div>
               <button onClick={() => changeModerationStatus(report, 'in_review')}>Under Review</button>
@@ -513,7 +578,7 @@ export default function AdminPage() {
             <div className={`admin-diagnostic-card ${item.ok ? 'ok' : 'danger'}`} key={`${item.tier}-${item.cycle}`}>
               <strong>{item.tier} {item.cycle}</strong>
               <span>{item.plan?.id || item.planId}</span>
-              <small>{item.ok ? `${item.plan?.status} · ${item.plan?.value || '--'} ${item.plan?.currency || ''}` : item.error}</small>
+              <small>{item.ok ? `${item.plan?.status} | ${item.plan?.value || '--'} ${item.plan?.currency || ''}` : item.error}</small>
             </div>
           ))}
         </div>
@@ -523,8 +588,8 @@ export default function AdminPage() {
           <article className="admin-report-card" key={payment.user_id}>
             <div>
               <strong>{payment.users?.display_name || payment.users?.email || payment.user_id}</strong>
-              <span>{payment.tier} · {payment.status} · {payment.billing_cycle} · {payment.provider_subscription_id || 'no subscription id'}</span>
-              <small>Plan: {payment.provider_plan_id || '--'} · Renewal: {time(payment.current_period_end)} · Updated: {time(payment.updated_at)}</small>
+              <span>{payment.tier} | {payment.status} | {payment.billing_cycle} | {payment.provider_subscription_id || 'no subscription id'}</span>
+              <small>Plan: {payment.provider_plan_id || '--'} | Renewal: {time(payment.current_period_end)} | Updated: {time(payment.updated_at)}</small>
             </div>
           </article>
         ))}
@@ -546,7 +611,7 @@ export default function AdminPage() {
             <div>
               <strong>{log.action}</strong>
               <span>Target: {log.target_user_id || log.target_device_fingerprint || '--'}</span>
-              <small>{time(log.created_at)} · log #{log.id}</small>
+              <small>{time(log.created_at)} | log #{log.id}</small>
             </div>
           </article>
         ))}
@@ -588,17 +653,30 @@ export default function AdminPage() {
           </div>
           <div className="admin-detail-grid">
             <div>
+              <strong>Security/Risk snapshot</strong>
+              <p>
+                Latest device: {selectedDetail.devices[0]?.device_fingerprint?.slice(0, 24) || '--'}
+                <br />
+                <small>IP prefix: {selectedDetail.devices[0]?.ip_prefix || '--'} | UA signature: {selectedDetail.devices[0]?.user_agent_hash?.slice(0, 18) || '--'}</small>
+              </p>
+              <p>
+                Reports: {selectedDetail.reports.length}
+                <br />
+                <small>Highest risk: {Math.max(0, ...selectedDetail.reports.map((report) => Number(report.risk_score || 0)))}/100</small>
+              </p>
+            </div>
+            <div>
               <strong>Device/IP history</strong>
               {selectedDetail.devices.length === 0 && <p>No fingerprint.</p>}
               {selectedDetail.devices.map((device) => (
-                <p key={device.id}>{device.device_fingerprint}<br /><small>{device.user_agent || 'unknown'} · {time(device.last_seen_at)}</small></p>
+                <p key={device.id}>{device.device_fingerprint}<br /><small>IP {device.ip_prefix || '--'} | UA {device.user_agent_hash?.slice(0, 18) || '--'} | {time(device.last_seen_at)}</small><br /><small>{device.user_agent || 'unknown'}</small></p>
               ))}
             </div>
             <div>
               <strong>Ban history</strong>
               {selectedDetail.bans.length === 0 && <p>No bans.</p>}
               {selectedDetail.bans.map((ban) => (
-                <p key={ban.id}>{ban.status} · {ban.ban_type}<br /><small>{ban.reason}</small></p>
+                <p key={ban.id}>{ban.status} | {ban.ban_type}<br /><small>{ban.reason}</small>{ban.ip_prefix && <><br /><small>Risk: IP {ban.ip_prefix} | UA {ban.user_agent_hash?.slice(0, 18) || '--'}</small></>}</p>
               ))}
             </div>
           </div>
@@ -606,7 +684,7 @@ export default function AdminPage() {
             <strong>Recent replays</strong>
             {selectedDetail.games.map((game) => (
               <details key={game.id} className="admin-replay-card">
-                <summary>{game.white.name} vs {game.black.name} · {game.result || '*'} · {(game.moves || []).length} moves</summary>
+                <summary>{game.white.name} vs {game.black.name} | {game.result || '*'} | {(game.moves || []).length} moves</summary>
                 <div className="admin-replay-moves">
                   {(game.moves || []).map((move) => <span key={move.ply}>{move.ply}. {move.san}</span>)}
                 </div>
@@ -616,6 +694,105 @@ export default function AdminPage() {
         </>
       )}
     </section>
+  );
+
+  const renderBots = () => (
+    <section className="admin-panel">
+      <div className="admin-panel-head">
+        <div>
+          <span><Bot size={16} /> Play Bot content</span>
+          <h2>Seasonal bots and events</h2>
+        </div>
+      </div>
+      <div className="admin-content-grid">
+        <form className="admin-editor-card" onSubmit={submitBot}>
+          <strong>Add bot</strong>
+          <input value={botForm.name} onChange={(event) => setBotForm((form) => ({ ...form, name: event.target.value }))} placeholder="Bot name" />
+          <input type="number" value={botForm.elo} onChange={(event) => setBotForm((form) => ({ ...form, elo: event.target.value }))} placeholder="Elo" />
+          <input value={botForm.eventTag} onChange={(event) => setBotForm((form) => ({ ...form, eventTag: event.target.value }))} placeholder="Event tag" />
+          <input value={botForm.avatarUrl} onChange={(event) => setBotForm((form) => ({ ...form, avatarUrl: event.target.value }))} placeholder="Avatar URL" />
+          <textarea value={botForm.mood} onChange={(event) => setBotForm((form) => ({ ...form, mood: event.target.value }))} placeholder="Bot style" />
+          <textarea value={botForm.chat} onChange={(event) => setBotForm((form) => ({ ...form, chat: event.target.value }))} placeholder="Lobby chat" />
+          <label className="admin-check"><input type="checkbox" checked={botForm.active} onChange={() => setBotForm((form) => ({ ...form, active: !form.active }))} /> Active</label>
+          <button><Bot size={16} /> Add bot</button>
+        </form>
+        <form className="admin-editor-card" onSubmit={submitEvent}>
+          <strong>Create event</strong>
+          <input value={eventForm.title} onChange={(event) => setEventForm((form) => ({ ...form, title: event.target.value }))} placeholder="Event title" />
+          <input value={eventForm.eventType} onChange={(event) => setEventForm((form) => ({ ...form, eventType: event.target.value }))} placeholder="event_type" />
+          <input value={eventForm.rewardLabel} onChange={(event) => setEventForm((form) => ({ ...form, rewardLabel: event.target.value }))} placeholder="Reward" />
+          <textarea value={eventForm.description} onChange={(event) => setEventForm((form) => ({ ...form, description: event.target.value }))} placeholder="Event idea" />
+          <label className="admin-check"><input type="checkbox" checked={eventForm.active} onChange={() => setEventForm((form) => ({ ...form, active: !form.active }))} /> Active</label>
+          <button><CalendarDays size={16} /> Create event</button>
+        </form>
+      </div>
+      <div className="admin-table-list">
+        {bots.map((bot) => (
+          <article className="admin-report-card" key={bot.id}>
+            <div>
+              <strong>{bot.name} ({bot.elo})</strong>
+              <span>{bot.event_tag} | {bot.active ? 'active' : 'hidden'} | {bot.mood}</span>
+              <small>{bot.chat}</small>
+            </div>
+            <div>
+              <button onClick={() => updateAdminBot(bot.id, { ...bot, active: !bot.active }).then(() => load())}>{bot.active ? 'Hide' : 'Show'}</button>
+            </div>
+          </article>
+        ))}
+        {events.map((item) => (
+          <article className="admin-report-card" key={item.id}>
+            <div>
+              <strong>{item.title}</strong>
+              <span>{item.event_type} | {item.active ? 'active' : 'paused'} | Reward: {item.reward_label}</span>
+              <small>{item.description}</small>
+            </div>
+            <div>
+              <button onClick={() => updateAdminEvent(item.id, { ...item, active: !item.active }).then(() => load())}>{item.active ? 'Pause' : 'Resume'}</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+
+  const renderDetailModal = () => selectedDetail && (
+    <div className="admin-modal-layer" role="dialog" aria-modal="true">
+      <div className="admin-modal">{renderDetail()}</div>
+    </div>
+  );
+
+  const renderBanModal = () => banTarget && (
+    <div className="admin-modal-layer" role="dialog" aria-modal="true">
+      <form className="admin-modal admin-ban-form" onSubmit={submitBan}>
+        <div className="admin-panel-head">
+          <div>
+            <span>{banForm.banType === 'risk' ? 'Risk ban' : 'Ban account'}</span>
+            <h2>{banTarget.display_name || banTarget.email}</h2>
+          </div>
+          <button type="button" onClick={() => setBanTarget(null)}>Close</button>
+        </div>
+        <label>Ban type
+          <select value={banForm.banType} onChange={(event) => setBanForm((form) => ({ ...form, banType: event.target.value }))}>
+            <option value="account">Account only</option>
+            <option value="account_device">Account + device</option>
+            <option value="device">Device only</option>
+            <option value="risk">Risk ban: account + device + IP prefix + browser signature</option>
+          </select>
+        </label>
+        {banForm.banType === 'risk' && (
+          <p className="admin-ban-note">
+            Risk ban for web blocks the account, current browser fingerprint, IP prefix and user-agent signature together.
+          </p>
+        )}
+        <label>Reason
+          <textarea value={banForm.reason} onChange={(event) => setBanForm((form) => ({ ...form, reason: event.target.value }))} />
+        </label>
+        <label>Expires at (optional)
+          <input type="datetime-local" value={banForm.expiresAt} onChange={(event) => setBanForm((form) => ({ ...form, expiresAt: event.target.value }))} />
+        </label>
+        <button><Ban size={16} /> Confirm ban</button>
+      </form>
+    </div>
   );
 
   return (
@@ -646,7 +823,7 @@ export default function AdminPage() {
           <div>
             <span><Shield size={18} /> Production Admin Console</span>
             <h1>Operations, payments and fair play</h1>
-            <p>Admin: {admin?.email || 'verifying'} · Role: {admin?.role || 'owner'} · Separate admin session.</p>
+            <p>Admin: {admin?.email || 'verifying'} | Role: {admin?.role || 'owner'} | Separate admin session.</p>
           </div>
           <button onClick={() => load()} disabled={loading}><RefreshCw size={18} /> Refresh</button>
         </header>
@@ -658,10 +835,12 @@ export default function AdminPage() {
         {section === 'fairplay' && renderFairPlay()}
         {section === 'moderation' && renderModeration()}
         {section === 'payments' && renderPayments()}
+        {section === 'bots' && renderBots()}
         {section === 'audit' && renderAudit()}
         {section === 'config' && renderConfig()}
-        {section === 'detail' && renderDetail()}
       </section>
+      {renderDetailModal()}
+      {renderBanModal()}
     </main>
   );
 }

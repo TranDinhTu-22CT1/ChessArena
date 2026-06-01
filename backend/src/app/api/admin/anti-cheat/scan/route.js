@@ -27,7 +27,7 @@ export async function POST(request) {
 
   const payload = await request.json().catch(() => null);
   const userId = String(payload?.userId || '').trim();
-  const limit = Math.max(1, Math.min(5, Number(payload?.limit) || 3));
+  const limit = Math.max(1, Math.min(10, Number(payload?.limit) || 6));
   if (!userId) return Response.json({ ok: false, error: 'Missing user id.' }, { status: 400 });
 
   try {

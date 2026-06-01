@@ -22,8 +22,15 @@ function cleanAvatarImage(value) {
   }
 }
 
-async function profilePayload(supabase, userId) {
-  const [{ data: profile }, { data: ratings = [] }, { data: games = [] }] = await Promise.all([
+function gameOutcomeForUser(game, userId) {
+  if (game.result === '1/2-1/2') return 'draw';
+  const color = game.white_user_id === userId ? 'w' : 'b';
+  const won = (game.result === '1-0' && color === 'w') || (game.result === '0-1' && color === 'b');
+  return won ? 'win' : 'loss';
+}
+
+export async function profilePayload(supabase, userId, { includePrivate = false } = {}) {
+  const [{ data: profile }, { data: ratings = [] }, { data: games = [] }, { data: recentGames = [] }] = await Promise.all([
     supabase
       .from('users')
       .select('id, username, display_name, email, photo_url, email_verified, created_at')
@@ -39,7 +46,14 @@ async function profilePayload(supabase, userId) {
       .from('online_games')
       .select('result, white_user_id, black_user_id')
       .or(`white_user_id.eq.${userId},black_user_id.eq.${userId}`)
+      .in('status', ['checkmate', 'draw', 'resigned']),
+    supabase
+      .from('online_games')
+      .select('id, result, status, mode, rated, time_control, white_user_id, black_user_id, white_name, black_name, white_rating_before, black_rating_before, white_rating_after, black_rating_after, finished_at, created_at')
+      .or(`white_user_id.eq.${userId},black_user_id.eq.${userId}`)
       .in('status', ['checkmate', 'draw', 'resigned'])
+      .order('finished_at', { ascending: false, nullsFirst: false })
+      .limit(12)
   ]);
 
   const record = profile || {};
@@ -59,12 +73,33 @@ async function profilePayload(supabase, userId) {
     id: record.id,
     username: record.username,
     displayName: record.display_name,
-    email: record.email,
-    emailVerified: Boolean(record.email_verified),
+    email: includePrivate ? record.email : null,
+    emailVerified: includePrivate ? Boolean(record.email_verified) : null,
     photoURL: record.photo_url,
     createdAt: record.created_at,
     ratings,
-    summary
+    summary,
+    recentGames: recentGames.map((game) => {
+      const isWhite = game.white_user_id === userId;
+      const ratingBefore = Number(isWhite ? game.white_rating_before : game.black_rating_before);
+      const ratingAfter = Number(isWhite ? game.white_rating_after : game.black_rating_after);
+      return {
+        id: game.id,
+        result: game.result,
+        outcome: gameOutcomeForUser(game, userId),
+        status: game.status,
+        mode: game.mode,
+        rated: game.rated !== false,
+        timeControl: game.time_control,
+        color: isWhite ? 'w' : 'b',
+        opponent: {
+          id: isWhite ? game.black_user_id : game.white_user_id,
+          name: isWhite ? game.black_name : game.white_name
+        },
+        ratingDelta: Number.isFinite(ratingAfter) && Number.isFinite(ratingBefore) ? ratingAfter - ratingBefore : null,
+        finishedAt: game.finished_at || game.created_at
+      };
+    })
   };
 }
 
@@ -73,7 +108,7 @@ export async function GET(request) {
   if (blocked) return blocked;
   const context = await requireOnlineUser();
   if (context.error) return context.error;
-  return Response.json({ ok: true, profile: await profilePayload(context.supabase, context.user.id) });
+  return Response.json({ ok: true, profile: await profilePayload(context.supabase, context.user.id, { includePrivate: true }) });
 }
 
 export async function POST(request) {
@@ -104,7 +139,7 @@ export async function POST(request) {
     .update({ display_name: displayName, updated_at: now })
     .eq('user_id', context.user.id);
 
-  return Response.json({ ok: true, profile: await profilePayload(context.supabase, context.user.id) });
+  return Response.json({ ok: true, profile: await profilePayload(context.supabase, context.user.id, { includePrivate: true }) });
 }
 
 export function OPTIONS() {

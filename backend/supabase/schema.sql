@@ -391,17 +391,28 @@ create table if not exists public.user_devices (
   user_id uuid references public.users(id) on delete cascade,
   device_fingerprint text not null,
   user_agent text,
+  user_agent_hash text,
   ip_address inet,
+  ip_prefix text,
   first_seen_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
   unique (user_id, device_fingerprint)
 );
 
+alter table public.user_devices
+add column if not exists user_agent_hash text;
+
+alter table public.user_devices
+add column if not exists ip_prefix text;
+
 create table if not exists public.user_bans (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users(id) on delete cascade,
   device_fingerprint text,
-  ban_type text not null default 'account' check (ban_type in ('account', 'device', 'account_device')),
+  ip_prefix text,
+  user_agent_hash text,
+  risk_signals jsonb not null default '{}'::jsonb,
+  ban_type text not null default 'account' check (ban_type in ('account', 'device', 'account_device', 'risk')),
   reason text not null default 'Policy violation',
   status text not null default 'active' check (status in ('active', 'lifted')),
   created_by uuid references public.users(id) on delete set null,
@@ -410,6 +421,22 @@ create table if not exists public.user_bans (
   lifted_at timestamptz,
   expires_at timestamptz
 );
+
+alter table public.user_bans
+add column if not exists ip_prefix text;
+
+alter table public.user_bans
+add column if not exists user_agent_hash text;
+
+alter table public.user_bans
+add column if not exists risk_signals jsonb not null default '{}'::jsonb;
+
+alter table public.user_bans
+drop constraint if exists user_bans_ban_type_check;
+
+alter table public.user_bans
+add constraint user_bans_ban_type_check
+check (ban_type in ('account', 'device', 'account_device', 'risk'));
 
 create table if not exists public.user_mutes (
   id uuid primary key default gen_random_uuid(),
@@ -467,6 +494,36 @@ create table if not exists public.player_reports (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (game_id, reporter_user_id, category)
+);
+
+create table if not exists public.bot_personas (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  elo integer not null default 1200 check (elo between 250 and 3200),
+  mood text not null default 'Custom admin bot',
+  chat text not null default 'Ready for a themed game.',
+  avatar_url text not null default '/chessarena-mark.svg',
+  event_tag text not null default 'seasonal',
+  active boolean not null default true,
+  sort_order integer not null default 50,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.site_events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  event_type text not null default 'bot_challenge',
+  description text not null default 'Beat the featured bot during the event window.',
+  reward_label text not null default 'Profile badge',
+  active boolean not null default true,
+  starts_at timestamptz not null default now(),
+  ends_at timestamptz,
+  config jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.user_matchmaking_stats (
@@ -1447,11 +1504,17 @@ on public.user_memberships(status, tier, updated_at desc);
 create index if not exists idx_user_devices_fingerprint
 on public.user_devices(device_fingerprint, last_seen_at desc);
 
+create index if not exists idx_user_devices_risk_signals
+on public.user_devices(ip_prefix, user_agent_hash, last_seen_at desc);
+
 create index if not exists idx_user_bans_active_user
 on public.user_bans(user_id, status, created_at desc);
 
 create index if not exists idx_user_bans_active_device
 on public.user_bans(device_fingerprint, status, created_at desc);
+
+create index if not exists idx_user_bans_active_risk
+on public.user_bans(ip_prefix, user_agent_hash, status, created_at desc);
 
 create index if not exists idx_user_mutes_active_user
 on public.user_mutes(user_id, status, created_at desc);
@@ -1461,6 +1524,12 @@ on public.admin_audit_logs(created_at desc);
 
 create index if not exists idx_anti_cheat_reports_user_risk
 on public.anti_cheat_reports(user_id, risk_score desc, created_at desc);
+
+create index if not exists idx_bot_personas_active_window
+on public.bot_personas(active, starts_at, ends_at, sort_order);
+
+create index if not exists idx_site_events_active_window
+on public.site_events(active, starts_at desc, ends_at);
 
 create index if not exists idx_player_reports_status_created
 on public.player_reports(status, created_at desc);

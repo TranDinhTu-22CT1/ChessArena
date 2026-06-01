@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +12,13 @@ function cleanReason(value) {
 }
 
 function cleanBanType(value) {
-  return ['account', 'device', 'account_device'].includes(value) ? value : 'account';
+  return ['account', 'device', 'account_device', 'risk'].includes(value) ? value : 'account';
+}
+
+function cleanExpiresAt(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date > new Date() ? date.toISOString() : null;
 }
 
 export async function GET(request) {
@@ -44,7 +50,7 @@ export async function GET(request) {
     context.supabase.from('user_ratings').select('*').in('user_id', ids),
     context.supabase.from('user_bans').select('*').in('user_id', ids).order('created_at', { ascending: false }),
     context.supabase.from('user_mutes').select('*').in('user_id', ids).order('created_at', { ascending: false }),
-    context.supabase.from('user_devices').select('user_id, device_fingerprint, user_agent, last_seen_at').in('user_id', ids).order('last_seen_at', { ascending: false }),
+    context.supabase.from('user_devices').select('user_id, device_fingerprint, user_agent, user_agent_hash, ip_prefix, last_seen_at').in('user_id', ids).order('last_seen_at', { ascending: false }),
     context.supabase.from('user_trust_scores').select('*').in('user_id', ids),
     context.supabase.from('anti_cheat_reports').select('user_id, status, risk_score, created_at').in('user_id', ids).order('created_at', { ascending: false })
   ]) : [];
@@ -82,14 +88,32 @@ export async function PATCH(request) {
     if ((banType === 'device' || banType === 'account_device') && !deviceFingerprint) {
       return Response.json({ ok: false, error: 'Device fingerprint is required for this ban type.' }, { status: 400 });
     }
+    const { data: latestDevice } = await context.supabase
+      .from('user_devices')
+      .select('*')
+      .eq('user_id', userId)
+      .order('last_seen_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const signals = riskSignalsFromDevice({
+      ...latestDevice,
+      device_fingerprint: deviceFingerprint || latestDevice?.device_fingerprint
+    });
+    if (banType === 'risk' && (!signals.deviceFingerprint || !signals.ipPrefix || !signals.userAgentHash)) {
+      return Response.json({ ok: false, error: 'Risk ban requires a recent device fingerprint, IP prefix and user-agent signature.' }, { status: 400 });
+    }
 
     const { data, error } = await context.supabase
       .from('user_bans')
       .insert({
         user_id: banType === 'device' ? null : userId,
-        device_fingerprint: banType === 'account' ? null : deviceFingerprint,
+        device_fingerprint: banType === 'account' ? null : signals.deviceFingerprint,
+        ip_prefix: banType === 'risk' ? signals.ipPrefix : null,
+        user_agent_hash: banType === 'risk' ? signals.userAgentHash : null,
+        risk_signals: banType === 'risk' ? signals : {},
         ban_type: banType,
         reason: cleanReason(payload?.reason),
+        expires_at: cleanExpiresAt(payload?.expiresAt),
         created_by: context.admin.id
       })
       .select('*')
@@ -98,8 +122,9 @@ export async function PATCH(request) {
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
     await writeAdminAudit(context.supabase, context.admin, 'user.ban', {
       targetUserId: userId,
-      deviceFingerprint,
+      deviceFingerprint: signals.deviceFingerprint,
       banType,
+      riskSignals: banType === 'risk' ? signals : undefined,
       reason: data.reason
     });
     return Response.json({ ok: true, ban: data });
