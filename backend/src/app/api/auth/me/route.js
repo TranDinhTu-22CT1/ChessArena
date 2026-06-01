@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { verifyFirebaseSession } from '../../../../lib/firebaseAdmin';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { ensureAdminAppUser, requireAdminUser } from '../../../../lib/admin';
 
 export const runtime = 'nodejs';
 
@@ -23,9 +24,29 @@ function displayNameFromIdentity(decoded, profile = null) {
   return cleanProfileText(emailName || decoded?.uid || 'Player');
 }
 
-export async function GET() {
+export async function GET(request) {
   const cookieStore = await cookies();
   const token = cookieStore.get('firebase_id_token')?.value;
+  const adminView = new URL(request.url).searchParams.get('adminView') === '1';
+  const supabase = getSupabaseAdmin();
+
+  const adminContext = await requireAdminUser();
+  if (!adminContext.error) {
+    const adminUser = supabase ? await ensureAdminAppUser(supabase, adminContext.admin) : null;
+    return Response.json({
+      ok: true,
+      adminView,
+      user: {
+        uid: adminUser?.firebaseUid || `admin:${adminContext.admin.email}`,
+        email: adminContext.admin.email,
+        displayName: 'ADMIN',
+        username: adminUser?.username || 'admin',
+        isAdmin: true,
+        emailVerified: true,
+        photoURL: adminUser?.photoURL || null
+      }
+    });
+  }
 
   if (!token) {
     return Response.json({ ok: true, authenticated: false, user: null });
@@ -37,7 +58,6 @@ export async function GET() {
   } catch {
     return Response.json({ ok: true, authenticated: false, user: null });
   }
-  const supabase = getSupabaseAdmin();
   let profile = null;
 
   if (supabase) {

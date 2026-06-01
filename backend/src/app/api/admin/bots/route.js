@@ -47,6 +47,28 @@ export async function POST(request) {
   const context = await requireAdminUser();
   if (context.error) return context.error;
   const payload = await request.json().catch(() => null);
+  const rawBots = Array.isArray(payload?.bots) ? payload.bots.slice(0, 5) : null;
+
+  if (rawBots) {
+    if (rawBots.length !== 5) {
+      return Response.json({ ok: false, error: 'Bot batch must contain exactly 5 bots.' }, { status: 400 });
+    }
+    const rows = rawBots.map((bot, index) => cleanBotPayload({
+      ...bot,
+      sortOrder: bot?.sortOrder ?? bot?.sort_order ?? 50 + index
+    }));
+    const { data, error } = await context.supabase
+      .from('bot_personas')
+      .insert(rows)
+      .select('*');
+
+    if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+    await writeAdminAudit(context.supabase, context.admin, 'bot.batch_create', {
+      count: data.length,
+      names: data.map((bot) => bot.name)
+    });
+    return Response.json({ ok: true, bots: data });
+  }
 
   const { data, error } = await context.supabase
     .from('bot_personas')

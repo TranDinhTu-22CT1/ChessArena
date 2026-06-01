@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { Chess } from 'chess.js';
 import { verifyFirebaseSession } from './firebaseAdmin';
 import { getSupabaseAdmin } from './supabaseAdmin';
-import { activeBanForUser } from './admin';
+import { activeBanForUser, ensureAdminAppUser, requireAdminUser } from './admin';
 
 const ONLINE_WINDOW_MS = 45_000;
 const QUEUE_STALE_MS = 30_000;
@@ -71,6 +71,18 @@ export async function requireOnlineUser() {
   if (error) return { error };
 
   const cookieStore = await cookies();
+  const adminContext = await requireAdminUser();
+  if (!adminContext.error) {
+    try {
+      return {
+        supabase,
+        user: await ensureAdminAppUser(supabase, adminContext.admin)
+      };
+    } catch (error) {
+      return { error: Response.json({ ok: false, error: error.message || 'Could not create admin user context.' }, { status: 500 }) };
+    }
+  }
+
   const token = cookieStore.get('firebase_id_token')?.value;
   if (!token) {
     return { error: Response.json({ ok: false, error: 'Sign in is required for online play.' }, { status: 401 }) };

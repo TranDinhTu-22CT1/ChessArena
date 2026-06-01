@@ -1525,6 +1525,10 @@ on public.admin_audit_logs(created_at desc);
 create index if not exists idx_anti_cheat_reports_user_risk
 on public.anti_cheat_reports(user_id, risk_score desc, created_at desc);
 
+create index if not exists idx_anti_cheat_reports_user_game
+on public.anti_cheat_reports(user_id, game_id, created_at desc)
+where game_id is not null;
+
 create index if not exists idx_bot_personas_active_window
 on public.bot_personas(active, starts_at, ends_at, sort_order);
 

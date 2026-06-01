@@ -167,6 +167,34 @@ export async function writeAdminAudit(supabase, admin, action, metadata = {}) {
   });
 }
 
+export async function ensureAdminAppUser(supabase, admin) {
+  const emailKey = String(admin?.email || 'admin').toLowerCase();
+  const username = `admin-${emailKey.replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 52)}`;
+  const firebaseUid = `admin:${emailKey}`;
+  const { data, error } = await supabase
+    .from('users')
+    .upsert({
+      username,
+      display_name: 'ADMIN',
+      firebase_uid: firebaseUid,
+      email: null,
+      email_verified: true,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'firebase_uid' })
+    .select('id, username, display_name, firebase_uid, photo_url, email')
+    .single();
+  if (error) throw error;
+  return {
+    id: data.id,
+    username: data.username,
+    displayName: 'ADMIN',
+    firebaseUid: data.firebase_uid,
+    email: admin?.email ?? data.email,
+    photoURL: data.photo_url,
+    isAdmin: true
+  };
+}
+
 export async function recordUserDevice(supabase, userId, deviceFingerprint) {
   const cleanFingerprint = cleanDeviceFingerprint(deviceFingerprint);
   if (!userId || !cleanFingerprint) return null;

@@ -2936,6 +2936,20 @@ input {
   border-radius: 16px;
 }
 
+.admin-bot-batch-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(198, 232, 178, 0.1);
+  border-radius: 12px;
+}
+
+.admin-bot-batch-row > span {
+  color: var(--accent);
+  font-weight: 950;
+}
+
 .admin-check {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -7358,6 +7372,32 @@ h2 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.online-player-profile-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 950;
+}
+
+.online-player-profile-button:disabled {
+  cursor: default;
+}
+
+.online-player-profile-button strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .online-player-bar.top {

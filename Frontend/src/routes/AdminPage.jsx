@@ -87,6 +87,18 @@ function StatCard({ icon: Icon, label, value, tone = '' }) {
   );
 }
 
+function defaultBotForm(index = 0) {
+  return {
+    name: `Custom Bot ${index + 1}`,
+    elo: 1200 + index * 200,
+    mood: 'Custom challenge bot',
+    chat: 'Ready for a themed game.',
+    eventTag: 'seasonal',
+    avatarUrl: '/chessarena-mark.svg',
+    active: true
+  };
+}
+
 export default function AdminPage() {
   const [admin, setAdmin] = React.useState(null);
   const [summary, setSummary] = React.useState(null);
@@ -105,7 +117,7 @@ export default function AdminPage() {
   const [selectedDetail, setSelectedDetail] = React.useState(null);
   const [banTarget, setBanTarget] = React.useState(null);
   const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Fair play / policy violation', expiresAt: '' });
-  const [botForm, setBotForm] = React.useState({ name: 'Holiday Bot', elo: 1500, mood: 'Seasonal challenge bot', chat: 'Can you beat me during this event?', eventTag: 'seasonal', avatarUrl: '/chessarena-mark.svg', active: true });
+  const [botForms, setBotForms] = React.useState(() => Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
   const [eventForm, setEventForm] = React.useState({ title: 'Holiday Bot Challenge', eventType: 'bot_challenge', description: 'Beat the featured bot and climb a limited-time event board.', rewardLabel: 'Seasonal badge', active: true });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState('overview');
@@ -256,7 +268,10 @@ export default function AdminPage() {
     setMessage(`Scanning ${user.display_name || user.email}...`);
     try {
       const data = await scanUserAntiCheat(user.id);
-      setMessage(`Scanned ${data.reports?.length || 0} recent games.`);
+      const scan = data.summary || {};
+      setMessage(
+        `Scanned ${scan.gamesScanned ?? data.reports?.length ?? 0} games. Max risk ${scan.maxRisk ?? 0}/100, ${scan.recommendation || 'no_action'}.`
+      );
       notify('Anti-cheat scan completed.', 'success');
       await load();
       setSection('fairplay');
@@ -280,19 +295,25 @@ export default function AdminPage() {
   const openPublicProfile = (user) => {
     const profileId = user.id || user.username;
     if (!profileId) return;
-    window.open(`/profile/${encodeURIComponent(profileId)}`, '_blank', 'noopener,noreferrer');
+    window.open(`/profile/${encodeURIComponent(profileId)}?adminView=1`, '_blank', 'noopener,noreferrer');
   };
 
   const submitBot = async (event) => {
     event.preventDefault();
     try {
-      await createAdminBot(botForm);
-      notify('Bot added to Play Bots.', 'success');
-      setBotForm((form) => ({ ...form, name: '', chat: '' }));
+      await createAdminBot({ bots: botForms });
+      notify('5 bots added to Play Bots.', 'success');
+      setBotForms(Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
       await load();
     } catch (error) {
       notify(error.message, 'error');
     }
+  };
+
+  const updateBotForm = (index, patch) => {
+    setBotForms((forms) => forms.map((form, currentIndex) => (
+      currentIndex === index ? { ...form, ...patch } : form
+    )));
   };
 
   const submitEvent = async (event) => {
@@ -497,20 +518,30 @@ export default function AdminPage() {
       </div>
       <div className="admin-report-list">
         {reports.length === 0 && <p>No anti-cheat reports.</p>}
-        {reports.map((report) => (
-          <article className="admin-report-card" key={report.id}>
-            <div>
-              <strong>{report.users?.display_name || report.users?.email || report.user_id}</strong>
-              <span>Risk {report.risk_score}/100 | Engine match {pct(report.engine_match_rate)} | Fast best moves {report.suspicious_move_count}</span>
-              <small>{time(report.created_at)} | {report.status}</small>
-            </div>
-            <div>
-              <button onClick={() => updateAntiCheatReport(report.id, 'reviewed').then(() => load())}>Under Review</button>
-              <button onClick={() => updateAntiCheatReport(report.id, 'dismissed').then(() => load())}>False positive</button>
-              <button onClick={() => updateAntiCheatReport(report.id, 'actioned').then(() => load())}>Punished</button>
-            </div>
-          </article>
-        ))}
+        {reports.map((report) => {
+          const details = report.details || {};
+          return (
+            <article className="admin-report-card" key={report.id}>
+              <div>
+                <strong>{report.users?.display_name || report.users?.email || report.user_id}</strong>
+                <span>
+                  Risk {report.risk_score}/100
+                  {' | '}{details.band || 'single-game review'}
+                  {' | '}Engine {pct(report.engine_match_rate)}
+                  {' | '}Critical {pct(details.criticalMatchRate)}
+                  {' | '}Complex {pct(details.complexMatchRate)}
+                  {' | '}Avg CPL {Math.round(details.averageCpLoss ?? 0)}
+                </span>
+                <small>{time(report.created_at)} | {report.status} | {details.guidance || 'Review context before action.'}</small>
+              </div>
+              <div>
+                <button onClick={() => updateAntiCheatReport(report.id, 'reviewed').then(() => load())}>Under Review</button>
+                <button onClick={() => updateAntiCheatReport(report.id, 'dismissed').then(() => load())}>False positive</button>
+                <button onClick={() => updateAntiCheatReport(report.id, 'actioned').then(() => load())}>Punished</button>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -609,9 +640,9 @@ export default function AdminPage() {
         {auditLogs.map((log) => (
           <article className="admin-report-card" key={log.id}>
             <div>
-              <strong>{log.action}</strong>
-              <span>Target: {log.target_user_id || log.target_device_fingerprint || '--'}</span>
-              <small>{time(log.created_at)} | log #{log.id}</small>
+              <strong>{log.readableAction || log.action}</strong>
+              <span>{log.readableDetail || `Đối tượng: ${log.targetLabel || log.target_user_id || log.target_device_fingerprint || '--'}`}</span>
+              <small>{time(log.created_at)} | #{log.id}</small>
             </div>
           </article>
         ))}
@@ -706,15 +737,20 @@ export default function AdminPage() {
       </div>
       <div className="admin-content-grid">
         <form className="admin-editor-card" onSubmit={submitBot}>
-          <strong>Add bot</strong>
-          <input value={botForm.name} onChange={(event) => setBotForm((form) => ({ ...form, name: event.target.value }))} placeholder="Bot name" />
-          <input type="number" value={botForm.elo} onChange={(event) => setBotForm((form) => ({ ...form, elo: event.target.value }))} placeholder="Elo" />
-          <input value={botForm.eventTag} onChange={(event) => setBotForm((form) => ({ ...form, eventTag: event.target.value }))} placeholder="Event tag" />
-          <input value={botForm.avatarUrl} onChange={(event) => setBotForm((form) => ({ ...form, avatarUrl: event.target.value }))} placeholder="Avatar URL" />
-          <textarea value={botForm.mood} onChange={(event) => setBotForm((form) => ({ ...form, mood: event.target.value }))} placeholder="Bot style" />
-          <textarea value={botForm.chat} onChange={(event) => setBotForm((form) => ({ ...form, chat: event.target.value }))} placeholder="Lobby chat" />
-          <label className="admin-check"><input type="checkbox" checked={botForm.active} onChange={() => setBotForm((form) => ({ ...form, active: !form.active }))} /> Active</label>
-          <button><Bot size={16} /> Add bot</button>
+          <strong>Add 5 bots</strong>
+          {botForms.map((botForm, index) => (
+            <div className="admin-bot-batch-row" key={index}>
+              <span>Bot {index + 1}</span>
+              <input value={botForm.name} onChange={(event) => updateBotForm(index, { name: event.target.value })} placeholder="Bot name" />
+              <input type="number" value={botForm.elo} onChange={(event) => updateBotForm(index, { elo: event.target.value })} placeholder="Elo" />
+              <input value={botForm.eventTag} onChange={(event) => updateBotForm(index, { eventTag: event.target.value })} placeholder="Event tag" />
+              <input value={botForm.avatarUrl} onChange={(event) => updateBotForm(index, { avatarUrl: event.target.value })} placeholder="Avatar URL" />
+              <textarea value={botForm.mood} onChange={(event) => updateBotForm(index, { mood: event.target.value })} placeholder="Bot style" />
+              <textarea value={botForm.chat} onChange={(event) => updateBotForm(index, { chat: event.target.value })} placeholder="Lobby chat" />
+              <label className="admin-check"><input type="checkbox" checked={botForm.active} onChange={() => updateBotForm(index, { active: !botForm.active })} /> Active</label>
+            </div>
+          ))}
+          <button><Bot size={16} /> Add 5 bots</button>
         </form>
         <form className="admin-editor-card" onSubmit={submitEvent}>
           <strong>Create event</strong>

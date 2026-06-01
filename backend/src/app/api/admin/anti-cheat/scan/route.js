@@ -18,6 +18,48 @@ async function loadRecentCompletedGames(supabase, userId, limit) {
   return games;
 }
 
+function scanSummary(reports) {
+  const scores = reports.map((report) => Number(report.risk_score || 0));
+  const maxRisk = Math.max(0, ...scores);
+  const averageRisk = scores.length
+    ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+    : 0;
+  const highRiskGames = reports.filter((report) => Number(report.risk_score || 0) >= 70).length;
+  const mediumRiskGames = reports.filter((report) => Number(report.risk_score || 0) >= 55 && Number(report.risk_score || 0) < 70).length;
+  return {
+    gamesScanned: reports.length,
+    maxRisk,
+    averageRisk,
+    highRiskGames,
+    mediumRiskGames,
+    recommendation: maxRisk >= 85 || highRiskGames >= 2
+      ? 'manual_review_required'
+      : maxRisk >= 70 || mediumRiskGames >= 2
+        ? 'watchlist'
+        : 'no_action'
+  };
+}
+
+async function updateTrustScore(supabase, userId, summary) {
+  const trustScore = Math.max(0, Math.min(100, 100 - Math.max(summary.maxRisk, summary.averageRisk + summary.highRiskGames * 8)));
+  const pool = summary.recommendation === 'manual_review_required'
+    ? 'restricted'
+    : summary.recommendation === 'watchlist'
+      ? 'low_trust'
+      : trustScore < 80 ? 'provisional' : 'standard';
+  await supabase
+    .from('user_trust_scores')
+    .upsert({
+      user_id: userId,
+      trust_score: trustScore,
+      pool,
+      cheat_suspicion_score: Math.min(1, summary.maxRisk / 100),
+      suspicious_pattern_score: Math.min(1, summary.averageRisk / 100),
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+}
+
 export async function POST(request) {
   const blocked = rateLimit(request, { scope: 'admin-anti-cheat-scan', limit: 8, windowMs: 60_000 });
   if (blocked) return blocked;
@@ -43,30 +85,48 @@ export async function POST(request) {
       if (movesError) throw movesError;
 
       const analysis = await analyzeOnlineGameForUser(game, moves, userId);
-      const { data: report, error } = await context.supabase
+      const reportPayload = {
+        user_id: userId,
+        game_id: game.id,
+        risk_score: analysis.riskScore,
+        engine_match_rate: analysis.engineMatchRate,
+        low_time_consistency: analysis.lowTimeConsistency,
+        suspicious_move_count: analysis.suspiciousMoveCount,
+        total_moves: analysis.totalMoves,
+        details: analysis.details
+      };
+      const { data: existing } = await context.supabase
         .from('anti_cheat_reports')
-        .insert({
-          user_id: userId,
-          game_id: game.id,
-          risk_score: analysis.riskScore,
-          engine_match_rate: analysis.engineMatchRate,
-          low_time_consistency: analysis.lowTimeConsistency,
-          suspicious_move_count: analysis.suspiciousMoveCount,
-          total_moves: analysis.totalMoves,
-          details: analysis.details
-        })
+        .select('id')
+        .eq('user_id', userId)
+        .eq('game_id', game.id)
+        .maybeSingle();
+      const query = existing
+        ? context.supabase
+          .from('anti_cheat_reports')
+          .update({ ...reportPayload, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+        : context.supabase
+          .from('anti_cheat_reports')
+          .insert(reportPayload);
+      const { data: report, error } = await query
         .select('*')
         .single();
       if (error) throw error;
       reports.push(report);
     }
 
+    const summary = scanSummary(reports);
+    await updateTrustScore(context.supabase, userId, summary);
+
     await writeAdminAudit(context.supabase, context.admin, 'anti_cheat.scan', {
       targetUserId: userId,
-      gamesScanned: reports.length
+      gamesScanned: reports.length,
+      riskScore: summary.maxRisk,
+      recommendation: summary.recommendation
     });
 
-    return Response.json({ ok: true, reports });
+    return Response.json({ ok: true, reports, summary });
   } catch (error) {
     return Response.json({ ok: false, error: error.message || 'Anti-cheat scan failed.' }, { status: 500 });
   }

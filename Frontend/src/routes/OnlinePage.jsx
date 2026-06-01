@@ -394,6 +394,12 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     }
   }, [applyGameSnapshot, game?.status, gameId, inviteCode]);
 
+  const openPlayerProfile = (player) => {
+    if (!player?.id) return;
+    window.history.pushState(null, '', `/profile/${encodeURIComponent(player.id)}`);
+    window.dispatchEvent(new window.PopStateEvent('popstate'));
+  };
+
   React.useEffect(() => {
     if (!authUser || openedFromHistory) return undefined;
 
@@ -1018,23 +1024,26 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   };
 
   const selfName = displayName(userName || authUser?.displayName, 'Player');
+  const isSpectatorView = Boolean(game && !game.white?.you && !game.black?.you);
   const opponentPlayer = game?.white?.you ? game.black : game?.black?.you ? game.white : null;
-  const topName = displayName(opponentPlayer?.name, 'Player');
-  const topPhotoURL = opponentPlayer?.photoURL;
-  const topRating = opponentPlayer?.rating || 400;
-  const topLabel = game?.status === 'active' ? 'Opponent' : game?.status === 'waiting' ? 'Waiting' : 'Waiting';
-  const bottomName = selfName;
-  const selfPlayer = game?.white?.you ? game.white : game?.black?.you ? game.black : null;
-  const bottomPhotoURL = selfPlayer?.photoURL || authUser?.photoURL;
-  const bottomRating = selfPlayer?.rating || myRating;
+  const topPlayer = isSpectatorView ? game?.black : opponentPlayer;
+  const bottomPlayer = isSpectatorView ? game?.white : (game?.white?.you ? game.white : game?.black?.you ? game.black : null);
+  const topName = displayName(topPlayer?.name, 'Player');
+  const topPhotoURL = topPlayer?.photoURL;
+  const topRating = topPlayer?.rating || 400;
+  const topLabel = isSpectatorView ? 'Black' : game?.status === 'active' ? 'Opponent' : game?.status === 'waiting' ? 'Waiting' : 'Opponent';
+  const bottomName = isSpectatorView ? displayName(bottomPlayer?.name, 'Player') : selfName;
+  const selfPlayer = bottomPlayer;
+  const bottomPhotoURL = isSpectatorView ? bottomPlayer?.photoURL : selfPlayer?.photoURL || authUser?.photoURL;
+  const bottomRating = bottomPlayer?.rating || myRating;
   const activeQueueWindow = queueing ? Math.max(queueRatingWindow, clientRatingWindow(queueSeconds)) : queueRatingWindow;
   const queueMinRating = Math.max(100, myRating - activeQueueWindow);
   const queueMaxRating = Math.min(4000, myRating + activeQueueWindow);
   const activeMode = modeFromTimeControl(timeControl);
   const playerColorLabel = game?.playerColor === 'w' ? 'White' : game?.playerColor === 'b' ? 'Black' : 'Choose match';
   const pairs = movePairs(moves);
-  const topColor = game?.playerColor === 'w' ? 'b' : 'w';
-  const bottomColor = game?.playerColor || 'w';
+  const topColor = isSpectatorView ? 'b' : game?.playerColor === 'w' ? 'b' : 'w';
+  const bottomColor = isSpectatorView ? 'w' : game?.playerColor || 'w';
   const { baseSeconds } = parseTimeControl(game?.timeControl || timeControl);
   const clocks = computeOnlineClocks(game, clockNow);
   const topClock = formatClock(clocks?.[topColor] ?? baseSeconds * 1000);
@@ -1125,8 +1134,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       <main className="online-layout">
         <section className="online-board-section">
           <div className={`online-player-bar top ${game?.turn === topColor && game?.status === 'active' ? 'active-clock' : ''}`}>
-            <PlayerAvatar name={topName} photoURL={topPhotoURL} />
-            <strong title={topName}>{topName}</strong>
+            <button className="online-player-profile-button" disabled={!topPlayer?.id} onClick={() => openPlayerProfile(topPlayer)} type="button">
+              <PlayerAvatar name={topName} photoURL={topPhotoURL} />
+              <strong title={topName}>{topName}</strong>
+            </button>
             <span className="online-player-meta">{topLabel} - {topRating}</span>
             <b className={`online-clock ${topClockLow ? 'low' : ''}`}>{topClock}</b>
           </div>
@@ -1167,9 +1178,11 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
             />
           </div>
           <div className={`online-player-bar ${game?.turn === bottomColor && game?.status === 'active' ? 'active-clock' : ''}`}>
-            <PlayerAvatar name={bottomName} photoURL={bottomPhotoURL} />
-            <strong title={bottomName}>{bottomName}</strong>
-            <span className="online-player-meta">You - {bottomRating}</span>
+            <button className="online-player-profile-button" disabled={!bottomPlayer?.id} onClick={() => openPlayerProfile(bottomPlayer)} type="button">
+              <PlayerAvatar name={bottomName} photoURL={bottomPhotoURL} />
+              <strong title={bottomName}>{bottomName}</strong>
+            </button>
+            <span className="online-player-meta">{isSpectatorView ? 'White' : 'You'} - {bottomRating}</span>
             <b className={`online-clock ${bottomClockLow ? 'low' : ''}`}>{bottomClock}</b>
           </div>
         </section>

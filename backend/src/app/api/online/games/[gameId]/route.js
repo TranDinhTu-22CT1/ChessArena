@@ -21,7 +21,9 @@ export async function GET(request, { params }) {
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   if (!game) return Response.json({ ok: false, error: 'Game not found.' }, { status: 404 });
-  if (![game.white_user_id, game.black_user_id].includes(user.id)) {
+  const isParticipant = [game.white_user_id, game.black_user_id].includes(user.id);
+  const isFinished = ['checkmate', 'draw', 'resigned', 'abandoned'].includes(game.status);
+  if (!isParticipant && !user.isAdmin && !isFinished) {
     return Response.json({ ok: false, error: 'Forbidden.' }, { status: 403 });
   }
 
@@ -30,6 +32,10 @@ export async function GET(request, { params }) {
     .select('*')
     .eq('game_id', game.id)
     .order('ply', { ascending: true });
+
+  if (!isParticipant && !user.isAdmin) {
+    return Response.json({ ok: true, game: publicGame(await decorateGameRatings(supabase, game), moves, user.id) });
+  }
 
   const abandoned = await abortOnlineGameIfOpeningIdle(supabase, game, moves);
   if (abandoned.aborted) publishOnlineGame(abandoned.game.id, { game: abandoned.game, moves });

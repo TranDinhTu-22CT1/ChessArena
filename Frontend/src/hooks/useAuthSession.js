@@ -80,7 +80,8 @@ export function useAuthSession() {
   }, []);
 
   React.useEffect(() => {
-    fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
+    const adminView = new URLSearchParams(window.location.search).get('adminView') === '1';
+    fetch(apiUrl(`/api/auth/me${adminView ? '?adminView=1' : ''}`), { credentials: 'include' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!data?.user) return;
