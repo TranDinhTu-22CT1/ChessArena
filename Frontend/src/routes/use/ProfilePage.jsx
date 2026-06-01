@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { CalendarDays, CheckCircle2, Copy, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
+import { Award, CalendarDays, CheckCircle2, Copy, Dumbbell, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
 import { fetchProfile, fetchPublicProfile, saveProfile } from '../../api/profile';
 
 const MODE_LABELS = {
@@ -314,6 +314,42 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
           ))}
         </div>
       </section>
+
+      <section className="profile-skill-lab profile-achievements">
+        <div>
+          <span><Award size={16} /> Achievements</span>
+          <h2>Huy hiệu tiến bộ</h2>
+          <p>Huy hiệu được mở từ lịch sử online, rating và thói quen review của bạn.</p>
+        </div>
+        <div className="profile-skill-grid">
+          {(profile?.achievements || []).map((achievement) => (
+            <article className={achievement.unlocked ? 'unlocked' : 'locked'} key={achievement.id}>
+              <strong>{achievement.label}</strong>
+              <b>{achievement.unlocked ? 'Mở khóa' : `${achievement.progress ?? 0}/${achievement.target ?? 1}`}</b>
+              <div><span style={{ width: `${achievement.unlocked ? 100 : Math.round(((achievement.progress ?? 0) / (achievement.target ?? 1)) * 100)}%` }} /></div>
+              <small>{achievement.description}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {!isPublicProfile && (
+        <section className="profile-skill-lab profile-training-card">
+          <div>
+            <span><Dumbbell size={16} /> Personal Training</span>
+            <h2>Luyện từ ván thật</h2>
+            <p>{profile?.training?.nextAction || 'Review ván online đã kết thúc để tạo bài tập cá nhân.'}</p>
+          </div>
+          <div className="profile-summary">
+            <div><b>{profile?.training?.newPersonalPuzzles || 0}</b><span>Bài tập mới</span></div>
+            <div><b>{profile?.training?.personalPuzzles || 0}</b><span>Tổng bài tập</span></div>
+            <div><b>{profile?.training?.reviewedGames || 0}</b><span>Ván đã review</span></div>
+          </div>
+          <button className="profile-leaderboard-link" onClick={() => onNavigate?.('personal-puzzles')}>
+            <Dumbbell size={17} /> Mở Puzzle cá nhân
+          </button>
+        </section>
+      )}
 
       <section className="profile-recent">
         <div className="profile-recent-heading">

@@ -1,5 +1,14 @@
 import { rateLimit } from '../../../../../lib/rateLimit';
-import { abortOnlineGameIfOpeningIdle, decorateGameRatings, expireOnlineGameOnClock, publicGame, requireOnlineUser, touchPresence } from '../../../../../lib/online';
+import {
+  abortOnlineGameIfOpeningIdle,
+  decorateGameRatings,
+  expireOnlineGameOnClock,
+  gameParticipantUserId,
+  publicGame,
+  relatedOnlineUserIds,
+  requireOnlineUser,
+  touchPresence
+} from '../../../../../lib/online';
 import { publishOnlineGame } from '../../../../../lib/onlineEvents';
 
 export const runtime = 'nodejs';
@@ -21,7 +30,9 @@ export async function GET(request, { params }) {
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   if (!game) return Response.json({ ok: false, error: 'Game not found.' }, { status: 404 });
-  const isParticipant = [game.white_user_id, game.black_user_id].includes(user.id);
+  const userIds = await relatedOnlineUserIds(supabase, user);
+  const participantUserId = gameParticipantUserId(game, userIds, user.id);
+  const isParticipant = [game.white_user_id, game.black_user_id].includes(participantUserId);
   const isFinished = ['checkmate', 'draw', 'resigned', 'abandoned'].includes(game.status);
   if (!isParticipant && !user.isAdmin && !isFinished) {
     return Response.json({ ok: false, error: 'Forbidden.' }, { status: 403 });
@@ -47,7 +58,7 @@ export async function GET(request, { params }) {
     currentGameId: expired.game.status === 'active' ? expired.game.id : null
   });
 
-  return Response.json({ ok: true, game: publicGame(await decorateGameRatings(supabase, expired.game), moves, user.id) });
+  return Response.json({ ok: true, game: publicGame(await decorateGameRatings(supabase, expired.game), moves, participantUserId) });
 }
 
 export function OPTIONS() {

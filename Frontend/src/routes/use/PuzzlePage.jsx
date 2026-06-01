@@ -480,7 +480,7 @@ function PuzzleBoard({ position, flipped, pieceSet, selected, targets, onSelectS
               onClick={() => onSelectSquare(square)}
               aria-label={square}
             >
-              {piece && <img className={`piece ${piece.color}`} src={PIECE_IMAGES[`${piece.color}${piece.type}`]} alt="" draggable="false" />}
+              {piece && <img className={`piece ${piece.color} piece-set-${pieceSet}`} src={PIECE_IMAGES[`${piece.color}${piece.type}`]} alt="" draggable="false" />}
               {(row === 7 || col === 0) && <span className="coord">{row === 7 ? square[0] : square[1]}</span>}
             </button>
           );

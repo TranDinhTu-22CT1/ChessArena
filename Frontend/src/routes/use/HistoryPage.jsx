@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { ArrowRight, History, LogIn, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Filter, History, LogIn, RefreshCw, ShieldCheck } from 'lucide-react';
 import { fetchOnlineHistory } from '../../api/online';
 
 function formatDate(value) {
@@ -30,11 +30,21 @@ function reviewPriority(game) {
   return 'Review nhanh: giữ thói quen tốt';
 }
 
+function matchesFilter(game, filters) {
+  const result = gameResult(game).tone;
+  const mode = game.mode || 'rapid';
+  const reviewed = Boolean(game.review);
+  return (filters.result === 'all' || filters.result === result)
+    && (filters.mode === 'all' || filters.mode === mode)
+    && (filters.review === 'all' || (filters.review === 'reviewed' ? reviewed : !reviewed));
+}
+
 export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
   const [games, setGames] = React.useState([]);
   const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(Boolean(authUser));
   const [message, setMessage] = React.useState('');
+  const [filters, setFilters] = React.useState({ result: 'all', mode: 'all', review: 'all' });
 
   const loadHistory = React.useCallback(async () => {
     if (!authUser) return;
@@ -55,6 +65,8 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
     loadHistory();
   }, [loadHistory]);
 
+  const visibleGames = React.useMemo(() => games.filter((game) => matchesFilter(game, filters)), [filters, games]);
+
   if (!authUser) {
     return (
       <section className="history-auth-required">
@@ -72,16 +84,39 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
         <div>
           <span><History size={17} /> Lịch sử online</span>
           <h1>Các trận đã chơi</h1>
-          <p>Tổng cộng <strong>{total}</strong> trận có kết quả.</p>
+          <p>Tổng cộng <strong>{total}</strong> trận có kết quả. Đang hiển thị <strong>{visibleGames.length}</strong> trận.</p>
         </div>
         <button onClick={loadHistory} disabled={loading}><RefreshCw size={17} /> {loading ? 'Đang tải' : 'Tải lại'}</button>
       </header>
 
+      <div className="history-filters" aria-label="Lọc lịch sử online">
+        <span><Filter size={16} /> Bộ lọc</span>
+        <select value={filters.result} onChange={(event) => setFilters((current) => ({ ...current, result: event.target.value }))}>
+          <option value="all">Mọi kết quả</option>
+          <option value="win">Thắng</option>
+          <option value="loss">Thua</option>
+          <option value="draw">Hòa</option>
+        </select>
+        <select value={filters.mode} onChange={(event) => setFilters((current) => ({ ...current, mode: event.target.value }))}>
+          <option value="all">Mọi chế độ</option>
+          <option value="bullet">Bullet</option>
+          <option value="blitz">Blitz</option>
+          <option value="rapid">Rapid</option>
+          <option value="classical">Classical</option>
+        </select>
+        <select value={filters.review} onChange={(event) => setFilters((current) => ({ ...current, review: event.target.value }))}>
+          <option value="all">Tất cả review</option>
+          <option value="reviewed">Đã review</option>
+          <option value="unreviewed">Chưa review</option>
+        </select>
+      </div>
+
       {message && <p className="history-message">{message}</p>}
       {!loading && games.length === 0 && <p className="history-empty">Bạn chưa có trận online hoàn thành.</p>}
+      {!loading && games.length > 0 && visibleGames.length === 0 && <p className="history-empty">Không có trận nào khớp bộ lọc hiện tại.</p>}
 
       <div className="history-list">
-        {games.map((game) => {
+        {visibleGames.map((game) => {
           const white = game.white || {};
           const black = game.black || {};
           const opponent = white.you ? black : white;
@@ -98,7 +133,7 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
                 <strong>vs {opponent?.name || 'Player'}</strong>
                 {ratingDeltaText && <small className={ratingDelta > 0 ? 'rating-up' : ratingDelta < 0 ? 'rating-down' : ''}>{ratingDeltaText}</small>}
                 <small>{game.mode || 'rapid'} - {game.timeControl} - {(game.moves || []).length} nước</small>
-                {game.review && <small>Da luu review: accuracy {game.review.accuracy}% - {game.review.blunders} blunder - {game.review.mistakes} mistake</small>}
+                {game.review && <small>Đã lưu review: accuracy {game.review.accuracy}% - {game.review.blunders} blunder - {game.review.mistakes} mistake</small>}
                 <small>{reviewPriority(game)}</small>
               </span>
               <time>{formatDate(game.finishedAt)}</time>

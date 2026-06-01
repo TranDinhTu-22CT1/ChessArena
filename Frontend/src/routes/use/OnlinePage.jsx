@@ -17,6 +17,7 @@ import {
 import { apiUrl } from '../../api/config';
 import { REVIEW_LEGEND, reviewIcon } from '../../data/review';
 import { PIECE_IMAGES } from '../../game/pieces';
+import { normalizePieceSet } from '../../game/constants';
 import { squareName } from '../../game/chessLogic';
 import { hasPremium, membershipPlan } from '../../membership/plans';
 
@@ -1044,6 +1045,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const pairs = movePairs(moves);
   const topColor = isSpectatorView ? 'b' : game?.playerColor === 'w' ? 'b' : 'w';
   const bottomColor = isSpectatorView ? 'w' : game?.playerColor || 'w';
+  const onlinePieceSets = {
+    w: normalizePieceSet(game?.white?.pieceSet || pieceSet),
+    b: normalizePieceSet(game?.black?.pieceSet || pieceSet)
+  };
   const { baseSeconds } = parseTimeControl(game?.timeControl || timeControl);
   const clocks = computeOnlineClocks(game, clockNow);
   const topClock = formatClock(clocks?.[topColor] ?? baseSeconds * 1000);
@@ -1168,6 +1173,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
               board={board}
               flipped={flipped}
               pieceSet={pieceSet}
+              pieceSets={onlinePieceSets}
               selected={selected}
               targets={targets}
               lastMove={lastMove}
@@ -1426,7 +1432,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   );
 }
 
-function OnlineBoard({ board, flipped, pieceSet, selected, targets, lastMove, checkedSquare, reviewBadge, disabled, onSelectSquare }) {
+function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, lastMove, checkedSquare, reviewBadge, disabled, onSelectSquare }) {
   return (
     <section className={`online-board piece-set-${pieceSet} ${disabled ? 'disabled' : ''}`} aria-label="Online chess board">
       {Array.from({ length: 8 }).map((_, row) => (
@@ -1445,7 +1451,14 @@ function OnlineBoard({ board, flipped, pieceSet, selected, targets, lastMove, ch
               }}
               aria-label={square}
             >
-              {piece && <img className={`piece ${piece.color}`} src={PIECE_IMAGES[`${piece.color}${piece.type}`]} alt="" draggable="false" />}
+              {piece && (
+                <img
+                  className={`piece ${piece.color} piece-set-${normalizePieceSet(pieceSets?.[piece.color] || pieceSet)}`}
+                  src={PIECE_IMAGES[`${piece.color}${piece.type}`]}
+                  alt=""
+                  draggable="false"
+                />
+              )}
               {reviewBadge && isLastTo && (
                 <span className={`move-badge ${reviewBadge.tone}`} title={reviewBadge.label}>
                   {reviewIcon(reviewBadge.tone)}

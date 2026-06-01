@@ -39,14 +39,31 @@ export const BOARD_PRESETS = [
   { id: 'classic', label: 'Classic green', lightSquare: '#f0ead2', darkSquare: '#86a666' },
   { id: 'wood', label: 'Walnut wood', lightSquare: '#d7b98c', darkSquare: '#8a5a37' },
   { id: 'blue', label: 'Tournament blue', lightSquare: '#dce8ef', darkSquare: '#668da8' },
-  { id: 'slate', label: 'Slate focus', lightSquare: '#d8ded4', darkSquare: '#6e7b73' }
+  { id: 'slate', label: 'Slate focus', lightSquare: '#d8ded4', darkSquare: '#6e7b73' },
+  { id: 'emerald', label: 'Emerald arena', lightSquare: '#e7f2df', darkSquare: '#3f8f6b' },
+  { id: 'ocean', label: 'Ocean glass', lightSquare: '#d9eef2', darkSquare: '#27708a' },
+  { id: 'arctic', label: 'Arctic frost', lightSquare: '#eef6f7', darkSquare: '#8fb1bd' },
+  { id: 'graphite', label: 'Graphite', lightSquare: '#d6d9d4', darkSquare: '#4e5b55' },
+  { id: 'rose', label: 'Rose court', lightSquare: '#f5e3e6', darkSquare: '#a85f70' },
+  { id: 'mint', label: 'Mint focus', lightSquare: '#edf6ea', darkSquare: '#76a98a' }
 ];
 
 export const PIECE_SETS = [
   { id: 'classic', label: 'Classic' },
   { id: 'glass', label: 'Glass' },
-  { id: 'bold', label: 'Bold' }
+  { id: 'bold', label: 'Bold' },
+  { id: 'neo', label: 'Neo' },
+  { id: 'marble', label: 'Marble' },
+  { id: 'shadow', label: 'Shadow' },
+  { id: 'royal', label: 'Royal' },
+  { id: 'minimal', label: 'Minimal' }
 ];
+
+export const DEFAULT_PIECE_SET = 'classic';
+
+export function normalizePieceSet(value) {
+  return PIECE_SETS.some((set) => set.id === value) ? value : DEFAULT_PIECE_SET;
+}
 
 export const DARK_THEME = {
   accent: '#a7c957',

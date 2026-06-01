@@ -20,6 +20,23 @@ function DetailContent({ selectedDetail, onClose }) {
         <button onClick={onClose}>Đóng</button>
       </div>
       <div className="admin-detail-grid">
+        <div className={selectedDetail.diagnostics?.splitAccount ? 'admin-diagnostic-card danger' : 'admin-diagnostic-card ok'}>
+          <strong>Account diagnostics</strong>
+          <p>
+            Linked IDs: {selectedDetail.diagnostics?.relatedUserIds?.length || 1}
+            <br />
+            <small>Completed games: {selectedDetail.diagnostics?.completedGamesFound ?? selectedDetail.games.length} | Active: {selectedDetail.diagnostics?.activeGamesFound ?? 0}</small>
+          </p>
+          {(selectedDetail.diagnostics?.relatedUsers || []).map((user) => (
+            <p key={user.id}>
+              {user.display_name || user.username}
+              <br />
+              <small>{user.id}</small>
+              <br />
+              <small>{user.email || '--'} | {user.firebase_uid || '--'}</small>
+            </p>
+          ))}
+        </div>
         <div>
           <strong>Bảo mật / rủi ro</strong>
           <p>

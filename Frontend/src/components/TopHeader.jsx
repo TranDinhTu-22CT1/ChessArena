@@ -153,6 +153,7 @@ export default function TopHeader({
               ))}
             </select>
           </label>
+          <small className="theme-note">Board colors are private. Piece style appears on your own pieces in online games.</small>
           <p className="theme-note">
             {authUser ? 'Màu sẽ được lưu theo tài khoản của bạn.' : 'Đăng nhập để đồng bộ màu trên tài khoản.'}
           </p>

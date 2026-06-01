@@ -1,4 +1,5 @@
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const PIECE_SET_IDS = new Set(['classic', 'glass', 'bold', 'neo', 'marble', 'shadow', 'royal', 'minimal']);
 
 export function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -62,6 +63,7 @@ export function sanitizeTheme(value) {
     darkSquare: value.darkSquare,
     surface: value.surface,
     page: value.page,
+    pieceSet: sanitizePieceSet(value.pieceSet),
     appearance: ['system', 'dark', 'light', 'custom'].includes(value.appearance) ? value.appearance : 'custom'
   };
 
@@ -69,4 +71,8 @@ export function sanitizeTheme(value) {
     .every((color) => typeof color === 'string' && HEX_COLOR.test(color))
     ? theme
     : null;
+}
+
+export function sanitizePieceSet(value) {
+  return PIECE_SET_IDS.has(value) ? value : 'classic';
 }

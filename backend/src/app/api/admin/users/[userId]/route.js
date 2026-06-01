@@ -1,4 +1,4 @@
-import { decorateGameRatings, publicGame } from '../../../../../lib/online';
+import { decorateGameRatings, gameParticipantUserId, publicGame, relatedOnlineUserIds } from '../../../../../lib/online';
 import { requireAdminUser } from '../../../../../lib/admin';
 import { rateLimit } from '../../../../../lib/rateLimit';
 
@@ -24,10 +24,16 @@ export async function GET(request, { params }) {
   if (userError) return Response.json({ ok: false, error: userError.message }, { status: 500 });
   if (!user) return Response.json({ ok: false, error: 'User not found.' }, { status: 404 });
 
+  const relatedUserIds = await relatedOnlineUserIds(supabase, { ...user, firebaseUid: user.firebase_uid });
+  const { data: relatedUsers = [] } = await supabase
+    .from('users')
+    .select('id, username, display_name, email, firebase_uid, created_at')
+    .in('id', relatedUserIds);
+
   const { data: games = [], error: gamesError } = await supabase
     .from('online_games')
     .select('*')
-    .or(`white_user_id.eq.${userId},black_user_id.eq.${userId}`)
+    .or(`white_user_id.in.(${relatedUserIds.join(',')}),black_user_id.in.(${relatedUserIds.join(',')})`)
     .order('updated_at', { ascending: false })
     .limit(20);
 
@@ -39,7 +45,7 @@ export async function GET(request, { params }) {
       .select('*')
       .eq('game_id', game.id)
       .order('ply', { ascending: true });
-    return publicGame(await decorateGameRatings(supabase, game), moves, userId);
+    return publicGame(await decorateGameRatings(supabase, game), moves, gameParticipantUserId(game, relatedUserIds, userId));
   }));
 
   return Response.json({
@@ -49,6 +55,13 @@ export async function GET(request, { params }) {
     bans,
     mutes,
     reports,
+    diagnostics: {
+      relatedUserIds,
+      relatedUsers,
+      splitAccount: relatedUserIds.length > 1,
+      completedGamesFound: games.filter((game) => ['checkmate', 'draw', 'resigned'].includes(game.status)).length,
+      activeGamesFound: games.filter((game) => game.status === 'active').length
+    },
     games: decoratedGames
   });
 }

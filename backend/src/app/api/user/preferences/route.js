@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { verifyFirebaseSession } from '../../../../lib/firebaseAdmin';
 import { rateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { readJsonPayload, sanitizeTheme } from '../../../../lib/validation';
+import { readJsonPayload, sanitizePieceSet, sanitizeTheme } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -73,7 +73,7 @@ export async function GET(request) {
   if (!supabase) return Response.json({ ok: true, enabled: false, preferences: null });
 
   const decoded = await currentUser();
-  if (!decoded) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  if (!decoded) return Response.json({ ok: true, enabled: false, preferences: null });
 
   const userId = await userDatabaseId(supabase, decoded);
   const { data, error } = await supabase
@@ -95,14 +95,17 @@ export async function POST(request) {
   if (!supabase) return Response.json({ ok: true, enabled: false });
 
   const decoded = await currentUser();
-  if (!decoded) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  if (!decoded) return Response.json({ ok: true, enabled: false });
 
   const payload = await readJsonPayload(request);
   if (!payload) {
     return Response.json({ ok: false, error: 'Invalid JSON payload' }, { status: 400 });
   }
 
-  const theme = sanitizeTheme(payload?.theme);
+  const theme = sanitizeTheme({
+    ...(payload?.theme || {}),
+    pieceSet: payload?.pieceSet ?? payload?.theme?.pieceSet
+  });
 
   if (!theme) {
     return Response.json({ ok: false, error: 'Invalid theme colors' }, { status: 400 });
@@ -122,7 +125,7 @@ export async function POST(request) {
 
   if (error) throw error;
 
-  return Response.json({ ok: true, enabled: true, theme });
+  return Response.json({ ok: true, enabled: true, theme: { ...theme, pieceSet: sanitizePieceSet(theme.pieceSet) } });
 }
 
 export function OPTIONS() {

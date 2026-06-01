@@ -121,7 +121,7 @@ export default function GameBoard({
                 >
                   {piece && (
                     <img
-                      className={`piece ${piece.color} ${lastMove?.to === square ? 'piece-just-moved' : ''} ${isAiThinking && piece.color !== playerColor ? 'piece-thinking' : ''}`}
+                      className={`piece ${piece.color} piece-set-${pieceSet} ${lastMove?.to === square ? 'piece-just-moved' : ''} ${isAiThinking && piece.color !== playerColor ? 'piece-thinking' : ''}`}
                       src={PIECE_IMAGES[`${piece.color}${piece.type}`]}
                       alt={`${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`}
                       draggable="false"
@@ -167,6 +167,7 @@ export default function GameBoard({
                   aria-label={`Promote to ${PIECE_NAMES[pieceType]}`}
                 >
                   <img
+                    className={`piece-set-${pieceSet}`}
                     src={PIECE_IMAGES[`${promotionRequest.color}${pieceType}`]}
                     alt={PIECE_NAMES[pieceType]}
                     draggable="false"

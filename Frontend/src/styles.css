@@ -4871,11 +4871,13 @@ h2 {
   background: #e04f4f;
 }
 
-.piece-set-glass .piece {
+.piece-set-glass .piece,
+.piece.piece-set-glass {
   filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.3)) saturate(1.12) contrast(1.08);
 }
 
-.piece-set-bold .piece {
+.piece-set-bold .piece,
+.piece.piece-set-bold {
   filter: drop-shadow(0 5px 3px rgba(0, 0, 0, 0.34)) contrast(1.22);
   transform: translateY(-1px) scale(1.04);
 }
@@ -4898,6 +4900,32 @@ h2 {
 
 .piece.w {
   filter: drop-shadow(0 7px 4px rgba(0, 0, 0, 0.26));
+}
+
+.piece-set-neo .piece,
+.piece.piece-set-neo {
+  filter: drop-shadow(0 7px 4px rgba(0, 0, 0, 0.28)) saturate(1.28) contrast(1.12);
+}
+
+.piece-set-marble .piece,
+.piece.piece-set-marble {
+  filter: drop-shadow(0 8px 5px rgba(0, 0, 0, 0.22)) saturate(0.78) contrast(1.2) brightness(1.08);
+}
+
+.piece-set-shadow .piece,
+.piece.piece-set-shadow {
+  filter: drop-shadow(0 11px 7px rgba(0, 0, 0, 0.42)) contrast(1.26) brightness(0.92);
+}
+
+.piece-set-royal .piece,
+.piece.piece-set-royal {
+  filter: drop-shadow(0 8px 5px rgba(52, 34, 6, 0.34)) sepia(0.18) saturate(1.22) contrast(1.13);
+}
+
+.piece-set-minimal .piece,
+.piece.piece-set-minimal {
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.2)) saturate(0.9) contrast(1.02);
+  transform: scale(0.95);
 }
 
 .coord {
@@ -10455,4 +10483,49 @@ h2 {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+.history-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.history-filters span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(246, 240, 222, 0.72);
+  font-weight: 800;
+}
+
+.history-filters select {
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  padding: 0 12px;
+}
+
+.profile-achievements .profile-skill-grid article.locked {
+  opacity: 0.72;
+}
+
+.profile-achievements .profile-skill-grid article.unlocked {
+  border-color: rgba(235, 202, 116, 0.48);
+}
+
+.profile-training-card .profile-summary {
+  margin-top: 16px;
+}
+
+.app-shell[data-color-scheme="light"] .history-filters span {
+  color: rgba(31, 35, 43, 0.68);
+}
+
+.app-shell[data-color-scheme="light"] .history-filters select {
+  border-color: rgba(31, 35, 43, 0.16);
+  background: rgba(255, 255, 255, 0.72);
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { apiUrl } from '../api/config';
-import { BOARD_PRESETS, DARK_THEME, DEFAULT_THEME, LIGHT_THEME } from '../game/constants';
+import { BOARD_PRESETS, DARK_THEME, DEFAULT_PIECE_SET, DEFAULT_THEME, LIGHT_THEME, normalizePieceSet } from '../game/constants';
 
 function loadStoredTheme() {
   return DEFAULT_THEME;
@@ -10,7 +10,8 @@ export function useThemeSettings(authUser) {
   const [theme, setTheme] = React.useState(() => loadStoredTheme());
   const [systemDark, setSystemDark] = React.useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const [pieceSet, setPieceSet] = React.useState('classic');
+  const [pieceSet, setPieceSetState] = React.useState(DEFAULT_PIECE_SET);
+  const [preferencesReady, setPreferencesReady] = React.useState(false);
   const themeSaveTimerRef = React.useRef(null);
 
   const appearance = ['system', 'dark', 'light', 'custom'].includes(theme.appearance) ? theme.appearance : 'custom';
@@ -49,7 +50,7 @@ export function useThemeSettings(authUser) {
   }, [colorScheme, resolvedTheme.accent, resolvedTheme.darkSquare, resolvedTheme.lightSquare, resolvedTheme.page, resolvedTheme.surface]);
 
   React.useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !preferencesReady) return;
 
     if (themeSaveTimerRef.current) {
       window.clearTimeout(themeSaveTimerRef.current);
@@ -60,26 +61,34 @@ export function useThemeSettings(authUser) {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme })
+        body: JSON.stringify({ theme: { ...theme, pieceSet } })
       }).catch(() => {});
     }, 180);
-  }, [authUser, theme]);
+  }, [authUser, preferencesReady, theme, pieceSet]);
 
   React.useEffect(() => {
-    if (!authUser) return;
+    if (!authUser) {
+      setPreferencesReady(false);
+      return;
+    }
+
+    setPreferencesReady(false);
 
     fetch(apiUrl('/api/user/preferences'), { credentials: 'include' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (data?.preferences?.theme) {
+          const { pieceSet: storedPieceSet, ...storedTheme } = data.preferences.theme;
           setTheme({
             ...DEFAULT_THEME,
-            ...data.preferences.theme,
-            appearance: data.preferences.theme.appearance || 'custom'
+            ...storedTheme,
+            appearance: storedTheme.appearance || 'custom'
           });
+          setPieceSetState(normalizePieceSet(storedPieceSet));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setPreferencesReady(true));
   }, [authUser]);
 
   React.useEffect(() => () => {
@@ -98,6 +107,11 @@ export function useThemeSettings(authUser) {
 
   const resetTheme = () => {
     setTheme(DEFAULT_THEME);
+    setPieceSetState(DEFAULT_PIECE_SET);
+  };
+
+  const setPieceSet = (nextPieceSet) => {
+    setPieceSetState(normalizePieceSet(nextPieceSet));
   };
 
   const setAppearance = (nextAppearance) => {

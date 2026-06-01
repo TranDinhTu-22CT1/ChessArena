@@ -3,6 +3,7 @@ import { Chess } from 'chess.js';
 import { verifyFirebaseSession } from './firebaseAdmin';
 import { getSupabaseAdmin } from './supabaseAdmin';
 import { activeBanForUser, ensureAdminAppUser, requireAdminUser } from './admin';
+import { sanitizePieceSet } from './validation';
 
 const ONLINE_WINDOW_MS = 45_000;
 const QUEUE_STALE_MS = 30_000;
@@ -22,6 +23,37 @@ function safeUsername(value) {
 function cleanName(value, fallback = 'Player') {
   const name = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
   return name && !name.includes('@') ? name : fallback;
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+export async function relatedOnlineUserIds(supabase, user) {
+  const ids = [user.id];
+  const lookups = [
+    user.firebaseUid ? ['firebase_uid', user.firebaseUid] : null,
+    user.email ? ['email', user.email] : null,
+    user.username ? ['username', user.username] : null
+  ].filter(Boolean);
+
+  if (lookups.length === 0) return ids;
+
+  const results = await Promise.all(lookups.map(([column, value]) => (
+    supabase
+      .from('users')
+      .select('id')
+      .eq(column, value)
+  )));
+
+  return uniqueValues([
+    ...ids,
+    ...results.flatMap((result) => (result.data || []).map((item) => item.id))
+  ]);
+}
+
+export function gameParticipantUserId(game, userIds, fallbackId = null) {
+  return userIds.find((userId) => game.white_user_id === userId || game.black_user_id === userId) || fallbackId;
 }
 
 export function randomInviteCode(length = 6) {
@@ -335,7 +367,7 @@ export async function decorateGameRatings(supabase, game) {
   if (ids.length === 0) return game;
 
   const mode = game.mode || onlineModeFromTimeControl(game.time_control);
-  const [{ data: modeRatings = [] }, { data: players = [] }] = await Promise.all([
+  const [{ data: modeRatings = [] }, { data: players = [] }, { data: preferences = [] }] = await Promise.all([
     supabase
       .from('user_ratings')
       .select('user_id, rating, games_played')
@@ -344,9 +376,13 @@ export async function decorateGameRatings(supabase, game) {
     supabase
       .from('users')
       .select('id, photo_url')
-      .in('id', ids)
+      .in('id', ids),
+    supabase
+      .from('user_preferences')
+      .select('user_id, theme')
+      .in('user_id', ids)
   ]);
-  let data = modeRatings;
+  let data = modeRatings || [];
   if (data.length === 0) {
     const { data: legacyRatings = [] } = await supabase
       .from('online_ratings')
@@ -357,12 +393,18 @@ export async function decorateGameRatings(supabase, game) {
 
   const byUser = new Map((data || []).map((rating) => [rating.user_id, rating]));
   const photoByUser = new Map((players || []).map((player) => [player.id, player.photo_url]));
+  const pieceSetByUser = new Map((preferences || []).map((preference) => [
+    preference.user_id,
+    sanitizePieceSet(preference.theme?.pieceSet)
+  ]));
   return {
     ...game,
     white_rating: byUser.get(game.white_user_id)?.rating ?? DEFAULT_ONLINE_RATING,
     black_rating: byUser.get(game.black_user_id)?.rating ?? DEFAULT_ONLINE_RATING,
     white_photo_url: photoByUser.get(game.white_user_id) ?? null,
-    black_photo_url: photoByUser.get(game.black_user_id) ?? null
+    black_photo_url: photoByUser.get(game.black_user_id) ?? null,
+    white_piece_set: pieceSetByUser.get(game.white_user_id) ?? 'classic',
+    black_piece_set: pieceSetByUser.get(game.black_user_id) ?? 'classic'
   };
 }
 
@@ -545,6 +587,7 @@ export function publicGame(game, moves, userId) {
       ratingAfter: whiteRatingAfter,
       ratingDelta: whiteRatingDelta,
       photoURL: game.white_photo_url ?? null,
+      pieceSet: sanitizePieceSet(game.white_piece_set),
       you: game.white_user_id === userId
     },
     black: {
@@ -555,6 +598,7 @@ export function publicGame(game, moves, userId) {
       ratingAfter: blackRatingAfter,
       ratingDelta: blackRatingDelta,
       photoURL: game.black_photo_url ?? null,
+      pieceSet: sanitizePieceSet(game.black_piece_set),
       you: game.black_user_id === userId
     },
     rematch: game.rematch_requested_by ? {
