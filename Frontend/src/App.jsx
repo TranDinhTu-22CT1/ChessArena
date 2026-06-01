@@ -75,16 +75,16 @@ function lazyWithReload(importer) {
   });
 }
 
-const AdminPage = lazyWithReload(() => import('./routes/AdminPage'));
-const HistoryPage = lazyWithReload(() => import('./routes/HistoryPage'));
-const HomePage = lazyWithReload(() => import('./routes/HomePage'));
-const LeaderboardPage = lazyWithReload(() => import('./routes/LeaderboardPage'));
-const MembershipPage = lazyWithReload(() => import('./routes/MembershipPage'));
-const NotFoundPage = lazyWithReload(() => import('./routes/NotFoundPage'));
-const OnlinePage = lazyWithReload(() => import('./routes/OnlinePage'));
-const ProfilePage = lazyWithReload(() => import('./routes/ProfilePage'));
-const ReviewPage = lazyWithReload(() => import('./routes/ReviewPage'));
-const PuzzlePage = lazyWithReload(() => import('./routes/PuzzlePage'));
+const AdminPage = lazyWithReload(() => import('./routes/Admin/AdminPage'));
+const HistoryPage = lazyWithReload(() => import('./routes/use/HistoryPage'));
+const HomePage = lazyWithReload(() => import('./routes/use/HomePage'));
+const LeaderboardPage = lazyWithReload(() => import('./routes/use/LeaderboardPage'));
+const MembershipPage = lazyWithReload(() => import('./routes/use/MembershipPage'));
+const NotFoundPage = lazyWithReload(() => import('./routes/use/NotFoundPage'));
+const OnlinePage = lazyWithReload(() => import('./routes/use/OnlinePage'));
+const ProfilePage = lazyWithReload(() => import('./routes/use/ProfilePage'));
+const ReviewPage = lazyWithReload(() => import('./routes/use/ReviewPage'));
+const PuzzlePage = lazyWithReload(() => import('./routes/use/PuzzlePage'));
 
 function storedFinishedOutcome() {
   const currentRoute = routeFromPath(window.location.pathname);

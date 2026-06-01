@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Home, SearchX } from 'lucide-react';
 
 export default function NotFoundPage({ onNavigate }) {
@@ -10,9 +10,9 @@ export default function NotFoundPage({ onNavigate }) {
       <div className="not-found-card">
         <SearchX size={46} />
         <span>404</span>
-        <h1>Trang này không tồn tại</h1>
-        <p>Nước đi này nằm ngoài bàn cờ. Quay lại trang chủ để tiếp tục chơi hoặc luyện tập.</p>
-        <button onClick={() => onNavigate('home')}><Home size={18} /> Về trang chủ</button>
+        <h1>Trang nĂ y khĂ´ng tá»“n táº¡i</h1>
+        <p>NÆ°á»›c Ä‘i nĂ y náº±m ngoĂ i bĂ n cá». Quay láº¡i trang chá»§ Ä‘á»ƒ tiáº¿p tá»¥c chÆ¡i hoáº·c luyá»‡n táº­p.</p>
+        <button onClick={() => onNavigate('home')}><Home size={18} /> Vá» trang chá»§</button>
       </div>
     </section>
   );

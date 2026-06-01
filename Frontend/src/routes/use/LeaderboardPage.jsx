@@ -1,6 +1,6 @@
-import React from 'react';
+﻿import React from 'react';
 import { Crown, LogIn, Medal, RefreshCw, ShieldCheck, Trophy, UserRound } from 'lucide-react';
-import { fetchLeaderboard } from '../api/leaderboard';
+import { fetchLeaderboard } from '../../api/leaderboard';
 
 const MODES = [
   { id: 'bullet', label: 'Bullet' },
@@ -62,9 +62,9 @@ export default function LeaderboardPage({ authUser, onLogin }) {
     return (
       <section className="leaderboard-auth-required">
         <Trophy size={48} />
-        <h1>Bảng xếp hạng</h1>
-        <p>Đăng nhập để xem rating online theo từng chế độ và vị trí của bạn.</p>
-        <button onClick={onLogin}><LogIn size={18} /> Đăng nhập</button>
+        <h1>Báº£ng xáº¿p háº¡ng</h1>
+        <p>ÄÄƒng nháº­p Ä‘á»ƒ xem rating online theo tá»«ng cháº¿ Ä‘á»™ vĂ  vá»‹ trĂ­ cá»§a báº¡n.</p>
+        <button onClick={onLogin}><LogIn size={18} /> ÄÄƒng nháº­p</button>
       </section>
     );
   }
@@ -74,15 +74,15 @@ export default function LeaderboardPage({ authUser, onLogin }) {
       <header className="leaderboard-hero">
         <div>
           <span><Trophy size={18} /> Chess Arena Leaderboard</span>
-          <h1>Bảng xếp hạng online</h1>
-          <p>Rating được tách theo Bullet, Blitz, Rapid và Classical. Người chơi dưới 20 ván vẫn được đánh dấu tạm tính.</p>
+          <h1>Báº£ng xáº¿p háº¡ng online</h1>
+          <p>Rating Ä‘Æ°á»£c tĂ¡ch theo Bullet, Blitz, Rapid vĂ  Classical. NgÆ°á»i chÆ¡i dÆ°á»›i 20 vĂ¡n váº«n Ä‘Æ°á»£c Ä‘Ă¡nh dáº¥u táº¡m tĂ­nh.</p>
         </div>
         <button onClick={() => loadLeaderboard(mode)} disabled={loading}>
-          <RefreshCw size={17} /> {loading ? 'Đang tải' : 'Tải lại'}
+          <RefreshCw size={17} /> {loading ? 'Äang táº£i' : 'Táº£i láº¡i'}
         </button>
       </header>
 
-      <nav className="leaderboard-tabs" aria-label="Chọn chế độ rating">
+      <nav className="leaderboard-tabs" aria-label="Chá»n cháº¿ Ä‘á»™ rating">
         {MODES.map((item) => (
           <button
             className={mode === item.id ? 'active' : ''}
@@ -98,23 +98,23 @@ export default function LeaderboardPage({ authUser, onLogin }) {
         <article className="leaderboard-current">
           <ShieldCheck size={20} />
           <div>
-            <strong>Thứ hạng của bạn: #{currentUser.rank}</strong>
-            <span>{currentUser.rating} rating - {currentUser.gamesPlayed} ván - thắng {currentUser.winRate}%</span>
+            <strong>Thá»© háº¡ng cá»§a báº¡n: #{currentUser.rank}</strong>
+            <span>{currentUser.rating} rating - {currentUser.gamesPlayed} vĂ¡n - tháº¯ng {currentUser.winRate}%</span>
           </div>
         </article>
       )}
 
       {message && <p className="leaderboard-message">{message}</p>}
-      {!loading && entries.length === 0 && <p className="leaderboard-empty">Chưa có người chơi nào hoàn thành ván trong chế độ này.</p>}
+      {!loading && entries.length === 0 && <p className="leaderboard-empty">ChÆ°a cĂ³ ngÆ°á»i chÆ¡i nĂ o hoĂ n thĂ nh vĂ¡n trong cháº¿ Ä‘á»™ nĂ y.</p>}
 
-      <div className="leaderboard-table" role="table" aria-label="Bảng xếp hạng Chess Arena">
+      <div className="leaderboard-table" role="table" aria-label="Báº£ng xáº¿p háº¡ng Chess Arena">
         <div className="leaderboard-head" role="row">
           <span>Rank</span>
-          <span>Người chơi</span>
+          <span>NgÆ°á»i chÆ¡i</span>
           <span>Rating</span>
-          <span>Ván</span>
+          <span>VĂ¡n</span>
           <span>W/L/D</span>
-          <span>Cập nhật</span>
+          <span>Cáº­p nháº­t</span>
         </div>
         {entries.map((player) => (
           <div className={`leaderboard-row ${player.userId === currentUser?.userId ? 'me' : ''}`} role="row" key={player.userId}>
@@ -123,7 +123,7 @@ export default function LeaderboardPage({ authUser, onLogin }) {
               <PlayerAvatar player={player} />
               <span>
                 <strong>{player.displayName}</strong>
-                <small>@{player.username}{player.provisional ? ' - tạm tính' : ''}</small>
+                <small>@{player.username}{player.provisional ? ' - táº¡m tĂ­nh' : ''}</small>
               </span>
             </span>
             <strong>{player.rating}</strong>

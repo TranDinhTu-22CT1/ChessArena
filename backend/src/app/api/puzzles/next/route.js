@@ -2,6 +2,7 @@ import { rateLimit } from '../../../../lib/rateLimit';
 import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { PUZZLE_POSITIONS, PUZZLE_STAGES, PUZZLE_THEMES } from '../../../../lib/puzzlePositions';
 import { readJsonPayload } from '../../../../lib/validation';
+import { requireOnlineUser } from '../../../../lib/online';
 
 export const runtime = 'nodejs';
 
@@ -52,6 +53,49 @@ function selectCandidate(payload) {
   return remaining[Math.floor(Math.random() * remaining.length)];
 }
 
+async function selectPersonalPuzzle(payload) {
+  if (payload?.mode !== 'personal') return null;
+  const context = await requireOnlineUser();
+  if (context.error) return { error: context.error };
+
+  const excluded = Array.isArray(payload?.excluded) ? payload.excluded.slice(0, 300) : [];
+  let query = context.supabase
+    .from('personal_puzzles')
+    .select('*')
+    .eq('user_id', context.user.id)
+    .eq('status', 'new')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (excluded.length) query = query.not('id', 'in', `(${excluded.map((id) => `"${id}"`).join(',')})`);
+  const { data = [], error } = await query;
+  if (error) return { error: Response.json({ ok: false, error: error.message }, { status: 500 }) };
+  const puzzle = data[0];
+  if (!puzzle) {
+    return {
+      error: Response.json({
+        ok: false,
+        exhausted: true,
+        error: 'No personal puzzles yet. Review a finished online game to generate puzzles from your mistakes.'
+      }, { status: 404 })
+    };
+  }
+  return {
+    puzzle: {
+      id: puzzle.id,
+      source: 'personal',
+      fen: puzzle.fen,
+      theme: puzzle.theme || 'mistake',
+      stage: puzzle.stage || 'review',
+      rating: puzzle.rating || 1200,
+      title: 'Bai tap tu van that cua ban',
+      description: `Tim nuoc tot hon thay cho ${puzzle.san || puzzle.played_move || 'nuoc da di'}.`,
+      solution: parseMove(puzzle.solution),
+      sideToMove: puzzle.fen.split(/\s+/)[1],
+      validatedScore: null
+    }
+  };
+}
+
 export async function GET() {
   return Response.json({ ok: true, themes: PUZZLE_THEMES, stages: PUZZLE_STAGES, count: PUZZLE_POSITIONS.length });
 }
@@ -64,6 +108,10 @@ export async function POST(request) {
   if (!payload) {
     return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
   }
+
+  const personal = await selectPersonalPuzzle(payload);
+  if (personal?.error) return personal.error;
+  if (personal?.puzzle) return Response.json({ ok: true, engine: 'saved-review', puzzle: personal.puzzle });
 
   const candidate = selectCandidate(payload);
 

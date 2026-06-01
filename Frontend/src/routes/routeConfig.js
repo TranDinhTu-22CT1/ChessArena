@@ -16,11 +16,12 @@ export const ROUTES = {
   'daily-puzzle': '/puzzles/daily',
   'puzzle-rush': '/puzzles/rush',
   'puzzle-battle': '/puzzles/battle',
-  'custom-puzzles': '/puzzles/custom'
+  'custom-puzzles': '/puzzles/custom',
+  'personal-puzzles': '/puzzles/personal'
 };
 
 const GAME_ROUTES = new Set(['online', 'bot', 'coach', 'local']);
-const PUZZLE_ROUTES = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles']);
+const PUZZLE_ROUTES = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles', 'personal-puzzles']);
 
 export function isGameRoute(route) {
   return GAME_ROUTES.has(route);
@@ -45,6 +46,7 @@ export function routeFromPath(pathname) {
   if (pathname === '/puzzles/rush') return 'puzzle-rush';
   if (pathname === '/puzzles/battle') return 'puzzle-battle';
   if (pathname === '/puzzles/custom') return 'custom-puzzles';
+  if (pathname === '/puzzles/personal') return 'personal-puzzles';
   if (pathname === '/puzzles') return 'puzzles';
   if (pathname === '/play/online' || pathname === '/online') return 'online';
   if (pathname === '/coach' || pathname === '/learn/coach' || pathname === '/play/coach') return 'coach';

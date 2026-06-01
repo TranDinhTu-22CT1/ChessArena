@@ -2721,6 +2721,8 @@ input {
   grid-template-columns: 52px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
+  direction: ltr;
+  text-align: left;
   padding: 14px;
   background: rgba(255, 255, 255, 0.065);
   border: 1px solid rgba(198, 232, 178, 0.1);
@@ -2738,7 +2740,9 @@ input {
 .admin-report-card div {
   display: grid;
   gap: 4px;
+  justify-items: start;
   min-width: 0;
+  text-align: left;
 }
 
 .admin-user-card em {
@@ -2803,7 +2807,7 @@ input {
 }
 
 .admin-user-actions,
-.admin-report-card > div:last-child {
+.admin-report-card > div:last-child:not(:only-child) {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -2823,6 +2827,20 @@ input {
 
 .admin-report-card {
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-table-list .admin-report-card,
+.admin-report-list .admin-report-card {
+  justify-items: stretch;
+}
+
+.admin-report-card strong,
+.admin-report-card span,
+.admin-report-card small,
+.admin-report-card em {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .admin-report-card em {
@@ -3003,7 +3021,7 @@ input {
 
   .admin-panel-head form,
   .admin-user-actions,
-  .admin-report-card > div:last-child {
+  .admin-report-card > div:last-child:not(:only-child) {
     justify-content: stretch;
   }
 
@@ -7906,6 +7924,7 @@ h2 {
 .profile-hero,
 .profile-editor,
 .profile-stats,
+.profile-skill-lab,
 .profile-recent,
 .profile-auth-required,
 .profile-loading {
@@ -7988,6 +8007,7 @@ h2 {
 
 .profile-editor,
 .profile-stats,
+.profile-skill-lab,
 .profile-recent {
   display: grid;
   gap: 15px;
@@ -7995,9 +8015,71 @@ h2 {
 
 .profile-editor h2,
 .profile-stats h2,
+.profile-skill-lab h2,
 .profile-recent h2 {
   margin: 0;
   font-size: 1.15rem;
+}
+
+.profile-skill-lab > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.profile-skill-lab > div:first-child span {
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-skill-lab p {
+  margin: 0;
+  color: #c6dbc2;
+}
+
+.profile-skill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-skill-grid article {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.profile-skill-grid strong {
+  font-size: 0.9rem;
+}
+
+.profile-skill-grid b {
+  color: var(--accent);
+  font-size: 1.55rem;
+}
+
+.profile-skill-grid div {
+  height: 7px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.profile-skill-grid div span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #f0f8d7);
+  border-radius: inherit;
+}
+
+.profile-skill-grid small {
+  color: #c6dbc2;
+  line-height: 1.4;
 }
 
 .profile-editor label {
@@ -9913,6 +9995,10 @@ h2 {
 
   .profile-grid {
     grid-template-columns: 1fr;
+  }
+
+  .profile-skill-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .profile-summary,

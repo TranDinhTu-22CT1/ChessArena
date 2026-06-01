@@ -2,6 +2,7 @@ import { rateLimit } from '../../../../lib/rateLimit';
 import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { isOpeningBookMove } from '../../../../lib/openingBook';
 import { readJsonPayload } from '../../../../lib/validation';
+import { requireOnlineUser } from '../../../../lib/online';
 
 export const runtime = 'nodejs';
 
@@ -40,6 +41,112 @@ function classify({ position, winLoss, playedBestMove, bestScore, playedScore, r
   if (winLoss <= 16) return { label: 'Mistake', tone: 'mistake' };
   if (winningChance(bestScore) >= 70 && winningChance(playedScore) <= 45) return { label: 'Miss', tone: 'miss' };
   return { label: 'Blunder', tone: 'blunder' };
+}
+
+function reviewSummary(results, color) {
+  const own = results.filter((item) => item.mover === color);
+  const totalLoss = own.reduce((sum, item) => sum + Number(item.winLoss || 0), 0);
+  const totalCpLoss = own.reduce((sum, item) => sum + Number(item.centipawnLoss || 0), 0);
+  const countTone = (tone) => own.filter((item) => item.tone === tone).length;
+  return {
+    accuracy: own.length ? Number(Math.max(1, Math.min(99, 100 - (totalLoss / own.length) * 2.4)).toFixed(1)) : 0,
+    averageCentipawnLoss: own.length ? Math.round(totalCpLoss / own.length) : 0,
+    blunders: countTone('blunder'),
+    mistakes: countTone('mistake') + countTone('miss'),
+    inaccuracies: countTone('inaccuracy'),
+    bestMoves: ['best', 'great', 'brilliant', 'book'].reduce((sum, tone) => sum + countTone(tone), 0),
+    totalMoves: own.length,
+    own
+  };
+}
+
+async function saveOnlineReview({ payload, results }) {
+  if (!payload?.gameId || results.length === 0) return null;
+  const context = await requireOnlineUser();
+  if (context.error) return null;
+
+  const { supabase, user } = context;
+  const { data: game } = await supabase
+    .from('online_games')
+    .select('id, white_user_id, black_user_id, mode, time_control')
+    .eq('id', payload.gameId)
+    .maybeSingle();
+  if (!game || (game.white_user_id !== user.id && game.black_user_id !== user.id)) return null;
+
+  const color = game.white_user_id === user.id ? 'w' : 'b';
+  const summary = reviewSummary(results, color);
+  const now = new Date().toISOString();
+  const { data: review, error } = await supabase
+    .from('game_reviews')
+    .upsert({
+      game_id: game.id,
+      user_id: user.id,
+      color,
+      accuracy: summary.accuracy,
+      average_centipawn_loss: summary.averageCentipawnLoss,
+      blunders: summary.blunders,
+      mistakes: summary.mistakes,
+      inaccuracies: summary.inaccuracies,
+      best_moves: summary.bestMoves,
+      total_moves: summary.totalMoves,
+      summary: {
+        policy: 'stockfish_game_review_v1',
+        mode: game.mode || 'rapid',
+        updatedFromClient: true
+      },
+      updated_at: now
+    }, { onConflict: 'game_id,user_id' })
+    .select('*')
+    .single();
+  if (error || !review) return null;
+
+  await supabase.from('game_review_moves').delete().eq('review_id', review.id);
+  const positionByPly = new Map((payload.positions || []).map((position) => [position.ply, position]));
+  const rows = summary.own.map((item) => {
+    const position = positionByPly.get(item.ply) || {};
+    return {
+      review_id: review.id,
+      game_id: game.id,
+      user_id: user.id,
+      ply: item.ply,
+      san: item.san,
+      move: item.move,
+      fen: position.fen || null,
+      best_move: item.bestMove,
+      tone: item.tone,
+      label: item.label,
+      centipawn_loss: item.centipawnLoss || 0,
+      win_loss: item.winLoss || 0,
+      white_score: item.whiteScore ?? null
+    };
+  });
+  if (rows.length) await supabase.from('game_review_moves').insert(rows);
+
+  const puzzleRows = rows
+    .filter((item) => ['blunder', 'mistake', 'miss'].includes(item.tone) && item.fen && item.best_move)
+    .slice(0, 6)
+    .map((item) => ({
+      user_id: user.id,
+      source_game_id: game.id,
+      source_review_id: review.id,
+      source_ply: item.ply,
+      fen: item.fen,
+      solution: item.best_move,
+      played_move: item.move,
+      san: item.san,
+      theme: item.tone === 'miss' ? 'missed_tactic' : item.tone,
+      stage: item.ply <= 16 ? 'opening' : item.ply >= 70 ? 'endgame' : 'middlegame',
+      rating: Math.max(700, Math.min(2400, 1000 + Number(item.centipawn_loss || 0) * 2)),
+      status: 'new',
+      updated_at: now
+    }));
+  if (puzzleRows.length) {
+    await supabase
+      .from('personal_puzzles')
+      .upsert(puzzleRows, { onConflict: 'user_id,source_game_id,source_ply' });
+  }
+
+  return { reviewId: review.id, savedMoves: rows.length, personalPuzzles: puzzleRows.length, summary };
 }
 
 export async function POST(request) {
@@ -119,7 +226,8 @@ export async function POST(request) {
       return analyzed;
     });
 
-    return Response.json({ ok: true, engine: 'stockfish-wasm', movetime, results });
+    const savedReview = await saveOnlineReview({ payload, results });
+    return Response.json({ ok: true, engine: 'stockfish-wasm', movetime, results, savedReview });
   } catch (error) {
     return Response.json(
       { ok: false, error: error.message || 'Stockfish review failed.' },

@@ -30,7 +30,7 @@ function gameOutcomeForUser(game, userId) {
 }
 
 export async function profilePayload(supabase, userId, { includePrivate = false } = {}) {
-  const [{ data: profile }, { data: ratings = [] }, { data: games = [] }, { data: recentGames = [] }] = await Promise.all([
+  const [{ data: profile }, { data: ratings = [] }, { data: games = [] }, { data: recentGames = [] }, { data: reviews = [] }, { data: refundRows = [] }] = await Promise.all([
     supabase
       .from('users')
       .select('id, username, display_name, email, photo_url, email_verified, created_at')
@@ -53,7 +53,17 @@ export async function profilePayload(supabase, userId, { includePrivate = false 
       .or(`white_user_id.eq.${userId},black_user_id.eq.${userId}`)
       .in('status', ['checkmate', 'draw', 'resigned'])
       .order('finished_at', { ascending: false, nullsFirst: false })
-      .limit(12)
+      .limit(12),
+    supabase
+      .from('game_reviews')
+      .select('game_id, accuracy, average_centipawn_loss, blunders, mistakes, inaccuracies, best_moves, total_moves, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(30),
+    supabase
+      .from('rating_refunds')
+      .select('refund_delta')
+      .eq('refunded_user_id', userId)
   ]);
 
   const record = profile || {};
@@ -68,6 +78,20 @@ export async function profilePayload(supabase, userId, { includePrivate = false 
       draws: total.draws + (drawn ? 1 : 0)
     };
   }, { gamesPlayed: 0, wins: 0, losses: 0, draws: 0 });
+  const reviewsByGame = new Map(reviews.map((review) => [review.game_id, review]));
+  const reviewedMoves = reviews.reduce((sum, review) => sum + Number(review.total_moves || 0), 0);
+  const averageAccuracy = reviews.length
+    ? Number((reviews.reduce((sum, review) => sum + Number(review.accuracy || 0), 0) / reviews.length).toFixed(1))
+    : null;
+  const averageCpl = reviews.length
+    ? Math.round(reviews.reduce((sum, review) => sum + Number(review.average_centipawn_loss || 0), 0) / reviews.length)
+    : null;
+  const totalBlunders = reviews.reduce((sum, review) => sum + Number(review.blunders || 0), 0);
+  const totalMistakes = reviews.reduce((sum, review) => sum + Number(review.mistakes || 0), 0);
+  const bestMoveRate = reviewedMoves
+    ? Math.round((reviews.reduce((sum, review) => sum + Number(review.best_moves || 0), 0) / reviewedMoves) * 100)
+    : null;
+  const totalRefundedRating = refundRows.reduce((sum, refund) => sum + Number(refund.refund_delta || 0), 0);
 
   return {
     id: record.id,
@@ -79,10 +103,21 @@ export async function profilePayload(supabase, userId, { includePrivate = false 
     createdAt: record.created_at,
     ratings,
     summary,
+    skillLab: {
+      reviewedGames: reviews.length,
+      reviewedMoves,
+      averageAccuracy,
+      averageCentipawnLoss: averageCpl,
+      totalBlunders,
+      totalMistakes,
+      bestMoveRate,
+      totalRefundedRating
+    },
     recentGames: recentGames.map((game) => {
       const isWhite = game.white_user_id === userId;
       const ratingBefore = Number(isWhite ? game.white_rating_before : game.black_rating_before);
       const ratingAfter = Number(isWhite ? game.white_rating_after : game.black_rating_after);
+      const review = reviewsByGame.get(game.id);
       return {
         id: game.id,
         result: game.result,
@@ -97,6 +132,12 @@ export async function profilePayload(supabase, userId, { includePrivate = false 
           name: isWhite ? game.black_name : game.white_name
         },
         ratingDelta: Number.isFinite(ratingAfter) && Number.isFinite(ratingBefore) ? ratingAfter - ratingBefore : null,
+        review: review ? {
+          accuracy: review.accuracy,
+          blunders: review.blunders,
+          mistakes: review.mistakes,
+          averageCentipawnLoss: review.average_centipawn_loss
+        } : null,
         finishedAt: game.finished_at || game.created_at
       };
     })

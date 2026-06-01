@@ -1529,6 +1529,89 @@ create index if not exists idx_anti_cheat_reports_user_game
 on public.anti_cheat_reports(user_id, game_id, created_at desc)
 where game_id is not null;
 
+create table if not exists public.game_reviews (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references public.online_games(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  color text not null check (color in ('w', 'b')),
+  accuracy numeric(5,2) default 0,
+  average_centipawn_loss integer default 0,
+  blunders integer default 0,
+  mistakes integer default 0,
+  inaccuracies integer default 0,
+  best_moves integer default 0,
+  total_moves integer default 0,
+  summary jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(game_id, user_id)
+);
+
+create table if not exists public.game_review_moves (
+  id uuid primary key default gen_random_uuid(),
+  review_id uuid not null references public.game_reviews(id) on delete cascade,
+  game_id uuid not null references public.online_games(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  ply integer not null,
+  san text,
+  move text,
+  fen text,
+  best_move text,
+  tone text,
+  label text,
+  centipawn_loss integer default 0,
+  win_loss numeric(6,2) default 0,
+  white_score integer,
+  created_at timestamptz default now(),
+  unique(review_id, ply)
+);
+
+create table if not exists public.personal_puzzles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  source_game_id uuid references public.online_games(id) on delete cascade,
+  source_review_id uuid references public.game_reviews(id) on delete cascade,
+  source_ply integer,
+  fen text not null,
+  solution text not null,
+  played_move text,
+  san text,
+  theme text default 'mistake',
+  stage text default 'review',
+  rating integer default 1200,
+  status text default 'new' check (status in ('new', 'solved', 'dismissed')),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(user_id, source_game_id, source_ply)
+);
+
+create table if not exists public.rating_refunds (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid references public.anti_cheat_reports(id) on delete set null,
+  game_id uuid not null references public.online_games(id) on delete cascade,
+  offender_user_id uuid not null references public.users(id) on delete cascade,
+  refunded_user_id uuid not null references public.users(id) on delete cascade,
+  mode text default 'rapid',
+  rating_before integer,
+  rating_after integer,
+  refund_delta integer not null,
+  reason text default 'fair_play_refund',
+  created_at timestamptz default now(),
+  unique(game_id, refunded_user_id, reason)
+);
+
+create index if not exists idx_game_reviews_user_updated
+on public.game_reviews(user_id, updated_at desc);
+
+create index if not exists idx_game_review_moves_user_tone
+on public.game_review_moves(user_id, tone, created_at desc);
+
+create index if not exists idx_personal_puzzles_user_status
+on public.personal_puzzles(user_id, status, created_at desc);
+
+create index if not exists idx_rating_refunds_user_created
+on public.rating_refunds(refunded_user_id, created_at desc);
+
 create index if not exists idx_bot_personas_active_window
 on public.bot_personas(active, starts_at, ends_at, sort_order);
 

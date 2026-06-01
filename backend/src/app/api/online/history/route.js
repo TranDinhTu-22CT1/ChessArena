@@ -22,12 +22,23 @@ export async function GET(request) {
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   const history = await Promise.all(games.map(async (game) => {
-    const { data: moves = [] } = await supabase
+    const [{ data: moves = [] }, { data: review = null }] = await Promise.all([
+      supabase
       .from('online_game_moves')
       .select('*')
       .eq('game_id', game.id)
-      .order('ply', { ascending: true });
-    return publicGame(await decorateGameRatings(supabase, game), moves, user.id);
+        .order('ply', { ascending: true }),
+      supabase
+        .from('game_reviews')
+        .select('accuracy, blunders, mistakes, average_centipawn_loss, updated_at')
+        .eq('game_id', game.id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+    ]);
+    return {
+      ...publicGame(await decorateGameRatings(supabase, game), moves, user.id),
+      review
+    };
   }));
 
   return Response.json({ ok: true, total: count ?? history.length, games: history });
