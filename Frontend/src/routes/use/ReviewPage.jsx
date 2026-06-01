@@ -88,7 +88,7 @@ export default function ReviewPage({
             {!premiumReview && (
               <div className="review-premium-note">
                 <Crown size={18} />
-                <span>GĂ³i {plan.name} váº«n xem Ä‘Æ°á»£c review cÆ¡ báº£n. NĂ¢ng cáº¥p Pro Ä‘á»ƒ má»Ÿ giáº£i thĂ­ch sĂ¢u cho tá»«ng nÆ°á»›c.</span>
+                <span>Gói {plan.name} vẫn xem được review cơ bản. Nâng cấp Pro để mở giải thích sâu cho từng nước.</span>
               </div>
             )}
 

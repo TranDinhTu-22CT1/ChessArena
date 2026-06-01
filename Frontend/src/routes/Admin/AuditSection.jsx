@@ -6,8 +6,8 @@ export default function AuditSection({ logs }) {
     <section className="admin-panel">
       <div className="admin-panel-head">
         <div>
-          <span>Nhat ky he thong</span>
-          <h2>Hoat dong cua admin</h2>
+          <span>Nhật ký hệ thống</span>
+          <h2>Hoạt động của admin</h2>
         </div>
       </div>
       <div className="admin-table-list">
@@ -16,7 +16,7 @@ export default function AuditSection({ logs }) {
             <div>
               <strong>{log.readableAction || adminActionLabel(log.action)}</strong>
               <span>{log.readableDetail || auditFallback(log)}</span>
-              <small>Thoi gian: {time(log.created_at)} | Ma log: #{log.id}</small>
+              <small>Thời gian: {time(log.created_at)} | Mã log: #{log.id}</small>
             </div>
           </article>
         ))}

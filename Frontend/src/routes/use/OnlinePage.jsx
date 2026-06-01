@@ -29,7 +29,7 @@ const TIME_CONTROLS = [
 const REMATCH_RESPONSE_MS = 15_000;
 const REPORT_REASONS = [
   { id: 'cheating', label: 'Cheating / engine use' },
-  { id: 'stalling', label: 'Stalling / cá»‘ tĂ¬nh kĂ©o giá»' },
+  { id: 'stalling', label: 'Stalling / cố tình kéo giờ' },
   { id: 'toxic', label: 'Toxic behavior' },
   { id: 'sandbagging', label: 'Sandbagging' },
   { id: 'harassment', label: 'Harassment' },
@@ -482,7 +482,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     setGame(null);
     setGameId(null);
     setRealtimeConnected(false);
-    setMessage('Äang táº£i vĂ¡n Ä‘áº¥u tá»« lá»‹ch sá»­...');
+    setMessage('Đang tải ván đấu từ lịch sử...');
     fetchOnlineGame(reviewGameId)
       .then((data) => {
         setGameId(data.game.id);
@@ -493,7 +493,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
         setShowMateBanner(false);
         setStockfishReview([]);
         setPendingAnalysis([]);
-        setMessage('Äang xem láº¡i vĂ¡n online Ä‘Ă£ lÆ°u. DĂ¹ng mÅ©i tĂªn trĂ¡i/pháº£i Ä‘á»ƒ chuyá»ƒn nÆ°á»›c.');
+        setMessage('Đang xem lại ván online đã lưu. Dùng mũi tên trái/phải để chuyển nước.');
       })
       .catch((error) => setMessage(error.message))
       .finally(() => setBusy(false));
@@ -968,7 +968,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       });
       setReportOpen(false);
       setReportDescription('');
-      setMessage('Report Ä‘Ă£ Ä‘Æ°á»£c gá»­i tá»›i moderation team.');
+      setMessage('Report đã được gửi tới moderation team.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1063,7 +1063,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const openingRemainingMs = game?.status === 'active' && Number.isFinite(openingExpiresAt)
     ? Math.max(0, openingExpiresAt - clockNow)
     : null;
-  const openingTurnName = game?.openingDeadline?.color === game?.playerColor ? 'Báº¡n' : 'Äá»‘i thá»§';
+  const openingTurnName = game?.openingDeadline?.color === game?.playerColor ? 'Bạn' : 'Đối thủ';
 
   React.useEffect(() => {
     if (openedFromHistory || !game?.id || game.status !== 'active' || !game.turn || (clocks?.[game.turn] ?? 1) > 0) {
@@ -1109,8 +1109,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
             {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
           </div>
           <span>Game Review</span>
-          <h1>Äang má»Ÿ láº¡i vĂ¡n Ä‘áº¥u</h1>
-          <p>{message || 'Äang táº£i bĂ n cá» vĂ  danh sĂ¡ch nÆ°á»›c Ä‘i tá»« lá»‹ch sá»­ online.'}</p>
+          <h1>Đang mở lại ván đấu</h1>
+          <p>{message || 'Đang tải bàn cờ và danh sách nước đi từ lịch sử online.'}</p>
         </div>
       </section>
     );
@@ -1153,7 +1153,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
           <div className="online-board-wrap">
             {openingRemainingMs !== null && (
               <div className="online-opening-deadline" aria-live="polite">
-                {openingTurnName} cáº§n Ä‘i nÆ°á»›c Ä‘áº§u trong {Math.ceil(openingRemainingMs / 1000)} giĂ¢y, náº¿u khĂ´ng vĂ¡n sáº½ bá»‹ há»§y.
+                {openingTurnName} cần đi nước đầu trong {Math.ceil(openingRemainingMs / 1000)} giây, nếu không ván sẽ bị hủy.
               </div>
             )}
             {showMateBanner && <div className="online-checkmate-banner">Checkmate</div>}
@@ -1314,7 +1314,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
               </div>
               {reviewedMoveCount < moves.length && (
                 <div className="online-review-progress" aria-live="polite">
-                  <p>Vui lĂ²ng Ä‘á»£i AI cá»§a chĂºng tĂ´i Ä‘Ă¡nh giĂ¡ vĂ¡n cá» cá»§a báº¡n</p>
+                  <p>Vui lòng đợi AI của chúng tôi đánh giá ván cờ của bạn</p>
                   <div><span style={{ width: `${reviewProgress}%` }} /></div>
                   <small>{reviewedMoveCount} / {moves.length} moves analyzed</small>
                 </div>
@@ -1528,7 +1528,7 @@ function ReportPlayerDialog({ category, description, busy, opponentName, onCateg
             onChange={(event) => onDescriptionChange(event.target.value)}
             minLength={8}
             maxLength={1200}
-            placeholder="VĂ­ dá»¥: Ä‘á»‘i thá»§ Ä‘i ráº¥t nhanh toĂ n nÆ°á»›c engine á»Ÿ nÆ°á»›c 18-35, hoáº·c cá»‘ tĂ¬nh kĂ©o giá»..."
+            placeholder="Ví dụ: đối thủ đi rất nhanh toàn nước engine ở nước 18-35, hoặc cố tình kéo giờ..."
             required
           />
         </label>

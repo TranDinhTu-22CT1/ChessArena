@@ -32,7 +32,6 @@ export function isPuzzleRoute(route) {
 }
 
 export function routeFromPath(pathname) {
-  const knownStaticPaths = new Set(Object.values(ROUTES));
   if (pathname === '/404') return 'notFound';
   if (pathname === '/profile') return 'profile';
   if (pathname.startsWith('/profile/')) return 'profile';
@@ -52,7 +51,7 @@ export function routeFromPath(pathname) {
   if (pathname === '/coach' || pathname === '/learn/coach' || pathname === '/play/coach') return 'coach';
   if (pathname === '/play/local' || pathname === '/play/friend') return 'local';
   if (pathname === '/play/bot' || pathname === '/game') return 'bot';
-  if (pathname === '/' || knownStaticPaths.has(pathname)) return 'home';
+  if (pathname === '/') return 'home';
   return 'notFound';
 }
 

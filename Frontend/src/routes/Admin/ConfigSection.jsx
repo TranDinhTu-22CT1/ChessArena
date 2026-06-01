@@ -5,8 +5,8 @@ export default function ConfigSection({ config }) {
     <section className="admin-panel">
       <div className="admin-panel-head">
         <div>
-          <span>Cau hinh he thong</span>
-          <h2>Cau hinh runtime</h2>
+          <span>Cấu hình hệ thống</span>
+          <h2>Cấu hình runtime</h2>
         </div>
       </div>
       <div className="admin-config-grid">

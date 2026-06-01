@@ -12,12 +12,12 @@ export default function PaymentsSection({
     <section className="admin-panel">
       <div className="admin-panel-head">
         <div>
-          <span>Goi PayPal</span>
-          <h2>Quan ly thanh toan</h2>
+          <span>Gói PayPal</span>
+          <h2>Quản lý thanh toán</h2>
         </div>
         <div className="admin-inline-actions">
-          <button onClick={onRunDiagnostics}><Database size={16} /> Kiem tra goi</button>
-          <button onClick={onRunCreateTest}><CreditCard size={16} /> Tao thu</button>
+          <button onClick={onRunDiagnostics}><Database size={16} /> Kiểm tra gói</button>
+          <button onClick={onRunCreateTest}><CreditCard size={16} /> Tạo thử</button>
         </div>
       </div>
       {paypalDiagnostics && (
@@ -37,12 +37,12 @@ export default function PaymentsSection({
             <div>
               <strong>{payment.users?.display_name || payment.users?.email || payment.user_id}</strong>
               <span>
-                Goi: {tierLabel(payment.tier)}
-                {' | '}Trang thai: {paymentStatusLabel(payment.status)}
-                {' | '}Chu ky: {billingCycleLabel(payment.billing_cycle)}
-                {' | '}Ma dang ky: {payment.provider_subscription_id || 'Chua co'}
+                Gói: {tierLabel(payment.tier)}
+                {' | '}Trạng thái: {paymentStatusLabel(payment.status)}
+                {' | '}Chu kỳ: {billingCycleLabel(payment.billing_cycle)}
+                {' | '}Mã đăng ký: {payment.provider_subscription_id || 'Chưa có'}
               </span>
-              <small>Ma goi PayPal: {payment.provider_plan_id || '--'} | Gia han: {time(payment.current_period_end)} | Cap nhat: {time(payment.updated_at)}</small>
+              <small>Mã gói PayPal: {payment.provider_plan_id || '--'} | Gia hạn: {time(payment.current_period_end)} | Cập nhật: {time(payment.updated_at)}</small>
             </div>
           </article>
         ))}

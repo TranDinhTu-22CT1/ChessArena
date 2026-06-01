@@ -15,27 +15,27 @@ export default function AdminLogin({
       <form className="admin-unlock-card" onSubmit={onSubmit}>
         <div className="admin-login-banner">
           <Shield size={52} />
-          <span>ChessArena Control Room</span>
+          <span>Phòng điều hành ChessArena</span>
         </div>
-        <h1>Admin Login</h1>
+        <h1>Đăng nhập admin</h1>
         <label>
-          Admin email
+          Email admin
           <input type="email" value={unlockEmail} onChange={(event) => onEmailChange(event.target.value)} placeholder="admin@gmail.com" autoComplete="username" />
         </label>
         <label>
-          Admin password
+          Mật khẩu admin
           <input type="password" value={unlockPassword} onChange={(event) => onPasswordChange(event.target.value)} placeholder="ADMIN_PANEL_PASSWORD" autoComplete="current-password" />
         </label>
         {message && <p className="admin-message">{message}</p>}
         {loading && (
           <div className="admin-form-loading" role="status" aria-live="polite">
             <span />
-            Securing admin session...
+            Đang bảo vệ phiên admin...
           </div>
         )}
         <button disabled={loading || !unlockEmail || !unlockPassword}>
           {loading ? <RefreshCw size={18} className="admin-spin" /> : <LockKeyhole size={18} />}
-          {loading ? 'Loading admin...' : 'Login'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </main>

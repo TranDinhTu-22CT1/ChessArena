@@ -31,8 +31,8 @@ function formatMatchDate(value) {
 }
 
 function matchLabel(game) {
-  if (game.outcome === 'draw') return 'HĂ²a';
-  return game.outcome === 'win' ? 'Tháº¯ng' : 'Thua';
+  if (game.outcome === 'draw') return 'Hòa';
+  return game.outcome === 'win' ? 'Thắng' : 'Thua';
 }
 
 function clampScore(value) {
@@ -63,14 +63,14 @@ function skillProfile(profile, summary) {
     ? clampScore(Math.min(100, lab.reviewedGames * 12) + Math.min(20, lab.reviewedMoves / 8))
     : activityScore;
   const weakSpot = games.filter((game) => game.outcome === 'loss').length >= games.filter((game) => game.outcome === 'win').length
-    ? 'Can luyen lai cac van thua gan day va tim mau blunder lap lai.'
-    : 'Nen nang muc kho puzzle va review cac van thang de giu do on dinh.';
+    ? 'Cần luyện lại các ván thua gần đây và tìm mẫu blunder lặp lại.'
+    : 'Nên nâng mức khó puzzle và review các ván thắng để giữ độ ổn định.';
 
   return [
-    { label: 'Phong do hien tai', value: formScore, note: 'Tinh tu cac tran gan nhat.' },
-    { label: 'Tam nhin chien thuat', value: tacticalVision, note: lab.reviewedGames ? `Accuracy TB ${lab.averageAccuracy ?? '--'}%, ${lab.totalBlunders || 0} blunder.` : 'Se chinh xac hon sau khi ban luu Game Review.' },
-    { label: 'Ky luat review', value: reviewDiscipline, note: lab.reviewedGames ? `${lab.reviewedGames} van da co review, ${lab.reviewedMoves} nuoc da phan tich.` : 'Hay review cac van online de mo khoa thong ke sau.' },
-    { label: 'Muc san sang review', value: reviewReadiness, note: lab.totalRefundedRating ? `${weakSpot} Fair-play da hoan ${lab.totalRefundedRating} rating.` : weakSpot }
+    { label: 'Phong độ hiện tại', value: formScore, note: 'Tính từ các trận gần nhất.' },
+    { label: 'Tầm nhìn chiến thuật', value: tacticalVision, note: lab.reviewedGames ? `Accuracy TB ${lab.averageAccuracy ?? '--'}%, ${lab.totalBlunders || 0} blunder.` : 'Sẽ chính xác hơn sau khi bạn lưu Game Review.' },
+    { label: 'Kỷ luật review', value: reviewDiscipline, note: lab.reviewedGames ? `${lab.reviewedGames} ván đã có review, ${lab.reviewedMoves} nước đã phân tích.` : 'Hãy review các ván online để mở khóa thống kê sau.' },
+    { label: 'Mức sẵn sàng review', value: reviewReadiness, note: lab.totalRefundedRating ? `${weakSpot} Fair-play đã hoàn ${lab.totalRefundedRating} rating.` : weakSpot }
   ];
 }
 
@@ -88,7 +88,7 @@ function resizedAvatarData(file) {
       const context = canvas.getContext('2d');
       if (!context) {
         URL.revokeObjectURL(objectURL);
-        reject(new Error('KhĂ´ng thá»ƒ xá»­ lĂ½ áº£nh Ä‘áº¡i diá»‡n.'));
+        reject(new Error('Không thể xử lý ảnh đại diện.'));
         return;
       }
       const crop = Math.min(image.naturalWidth, image.naturalHeight);
@@ -100,7 +100,7 @@ function resizedAvatarData(file) {
     };
     image.onerror = () => {
       URL.revokeObjectURL(objectURL);
-      reject(new Error('KhĂ´ng thá»ƒ Ä‘á»c áº£nh Ä‘Ă£ chá»n.'));
+      reject(new Error('Không thể đọc ảnh đã chọn.'));
     };
     image.src = objectURL;
   });
@@ -145,7 +145,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     const url = `${window.location.origin}/profile/${encodeURIComponent(shareId)}`;
     try {
       await navigator.clipboard.writeText(url);
-      setMessage('ÄĂ£ copy link há»“ sÆ¡.');
+      setMessage('Đã copy link hồ sơ.');
     } catch {
       setMessage(url);
     }
@@ -160,7 +160,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       setProfile(nextProfile);
       setForm({ displayName: nextProfile.displayName || '', photoURL: nextProfile.photoURL || '' });
       onProfileUpdated?.({ displayName: nextProfile.displayName, photoURL: nextProfile.photoURL });
-      setMessage('Há»“ sÆ¡ Ä‘Ă£ Ä‘Æ°á»£c cáº­p nháº­t.');
+      setMessage('Hồ sơ đã được cập nhật.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -172,17 +172,17 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     const file = event.target.files?.[0];
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setMessage('Vui lĂ²ng chá»n áº£nh PNG, JPG hoáº·c WebP.');
+      setMessage('Vui lòng chọn ảnh PNG, JPG hoặc WebP.');
       return;
     }
     if (file.size > MAX_AVATAR_UPLOAD_SIZE) {
-      setMessage('áº¢nh gá»‘c tá»‘i Ä‘a 5 MB.');
+      setMessage('Ảnh gốc tối đa 5 MB.');
       return;
     }
     try {
       const photoURL = await resizedAvatarData(file);
       setForm((current) => ({ ...current, photoURL }));
-      setMessage('áº¢nh Ä‘Ă£ chá»n. Nháº¥n LÆ°u há»“ sÆ¡ Ä‘á»ƒ cáº­p nháº­t.');
+      setMessage('Ảnh đã chọn. Nhấn Lưu hồ sơ để cập nhật.');
     } catch (error) {
       setMessage(error.message);
     }
@@ -192,21 +192,21 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     return (
       <section className="profile-auth-required">
         <UserRound size={48} />
-        <h1>Há»“ sÆ¡ cĂ¡ nhĂ¢n</h1>
-        <p>ÄÄƒng nháº­p Ä‘á»ƒ quáº£n lĂ½ avatar, tĂªn hiá»ƒn thá»‹, rating vĂ  lá»‹ch sá»­ online cá»§a báº¡n.</p>
-        <button onClick={onLogin}>ÄÄƒng nháº­p</button>
+        <h1>Hồ sơ cá nhân</h1>
+        <p>Đăng nhập để quản lý avatar, tên hiển thị, rating và lịch sử online của bạn.</p>
+        <button onClick={onLogin}>Đăng nhập</button>
       </section>
     );
   }
 
-  if (loading) return <div className="profile-loading">Äang táº£i há»“ sÆ¡...</div>;
+  if (loading) return <div className="profile-loading">Đang tải hồ sơ...</div>;
   if (!profile) {
     return (
       <section className="profile-auth-required">
         <UserRound size={48} />
-        <h1>KhĂ´ng tĂ¬m tháº¥y há»“ sÆ¡</h1>
-        <p>{message || 'Link há»“ sÆ¡ nĂ y khĂ´ng tá»“n táº¡i hoáº·c ngÆ°á»i chÆ¡i chÆ°a cĂ³ dá»¯ liá»‡u.'}</p>
-        <button onClick={() => onNavigate?.('home')}>Vá» trang chá»§</button>
+        <h1>Không tìm thấy hồ sơ</h1>
+        <p>{message || 'Link hồ sơ này không tồn tại hoặc người chơi chưa có dữ liệu.'}</p>
+        <button onClick={() => onNavigate?.('home')}>Về trang chủ</button>
       </section>
     );
   }
@@ -220,7 +220,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     <section className="profile-page">
       <header className="profile-hero">
         <div className="profile-avatar">
-          {avatarURL ? <img src={avatarURL} alt="Avatar ngÆ°á»i chÆ¡i" /> : <UserRound size={56} />}
+          {avatarURL ? <img src={avatarURL} alt="Avatar người chơi" /> : <UserRound size={56} />}
         </div>
         <div>
           <span>{isPublicProfile ? 'Public Player Profile' : 'Player Profile'}</span>
@@ -230,53 +230,53 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
         </div>
         <div className="profile-verified">
           <ShieldCheck size={20} />
-          {isPublicProfile ? 'Há»“ sÆ¡ cĂ´ng khai' : profile?.emailVerified ? 'TĂ i khoáº£n Ä‘Ă£ xĂ¡c thá»±c' : 'ChÆ°a xĂ¡c thá»±c email'}
+          {isPublicProfile ? 'Hồ sơ công khai' : profile?.emailVerified ? 'Tài khoản đã xác thực' : 'Chưa xác thực email'}
         </div>
       </header>
 
       <div className="profile-grid">
         {!isPublicProfile ? (
           <form className="profile-editor" onSubmit={submitProfile}>
-            <h2>ThĂ´ng tin cĂ¡ nhĂ¢n</h2>
+            <h2>Thông tin cá nhân</h2>
             <label>
-              <span>TĂªn hiá»ƒn thá»‹</span>
+              <span>Tên hiển thị</span>
               <input value={form.displayName} maxLength={80} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
             </label>
             <label>
-              <span><ImagePlus size={16} /> áº¢nh Ä‘áº¡i diá»‡n</span>
+              <span><ImagePlus size={16} /> Ảnh đại diện</span>
               <input className="profile-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
-              <small>Chá»n áº£nh tá»« mĂ¡y cá»§a báº¡n (PNG, JPG hoáº·c WebP, tá»‘i Ä‘a 5 MB). áº¢nh sáº½ Ä‘Æ°á»£c tá»‘i Æ°u lĂ m avatar.</small>
+              <small>Chọn ảnh từ máy của bạn (PNG, JPG hoặc WebP, tối đa 5 MB). Ảnh sẽ được tối ưu làm avatar.</small>
             </label>
-            <div className="profile-detail-line"><Mail size={17} /><span>{profile?.email || 'KhĂ´ng cĂ³ email'}</span></div>
+            <div className="profile-detail-line"><Mail size={17} /><span>{profile?.email || 'Không có email'}</span></div>
             <div className="profile-detail-line"><CalendarDays size={17} /><span>Tham gia: {formattedDate(profile?.createdAt)}</span></div>
             <button className="profile-save" disabled={saving} type="submit">
-              <Save size={17} /> {saving ? 'Äang lÆ°u...' : 'LÆ°u há»“ sÆ¡'}
+              <Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu hồ sơ'}
             </button>
             <button className="profile-share-button" type="button" onClick={copyProfileLink}>
-              <Copy size={17} /> Copy link há»“ sÆ¡
+              <Copy size={17} /> Copy link hồ sơ
             </button>
             {message && <p className="profile-message">{message}</p>}
           </form>
         ) : (
           <aside className="profile-editor profile-public-card">
-            <h2>ThĂ´ng tin ngÆ°á»i chÆ¡i</h2>
+            <h2>Thông tin người chơi</h2>
             <div className="profile-detail-line"><UserRound size={17} /><span>@{profile?.username || 'player'}</span></div>
             <div className="profile-detail-line"><CalendarDays size={17} /><span>Tham gia: {formattedDate(profile?.createdAt)}</span></div>
             <button className="profile-share-button" type="button" onClick={copyProfileLink}>
-              <Copy size={17} /> Copy link há»“ sÆ¡
+              <Copy size={17} /> Copy link hồ sơ
             </button>
             {message && <p className="profile-message">{message}</p>}
           </aside>
         )}
 
         <div className="profile-stats">
-          <h2>ThĂ nh tĂ­ch online</h2>
+          <h2>Thành tích online</h2>
           <div className="profile-summary">
-            <div><Swords size={18} /><b>{summary.gamesPlayed}</b><span>VĂ¡n Ä‘Ă£ chÆ¡i</span></div>
-            <div><Trophy size={18} /><b>{summary.wins}</b><span>Tháº¯ng</span></div>
+            <div><Swords size={18} /><b>{summary.gamesPlayed}</b><span>Ván đã chơi</span></div>
+            <div><Trophy size={18} /><b>{summary.wins}</b><span>Thắng</span></div>
             <div><b>{summary.losses}</b><span>Thua</span></div>
-            <div><b>{summary.draws}</b><span>HĂ²a</span></div>
-            <div><CheckCircle2 size={18} /><b>{winRate(summary)}</b><span>Tá»‰ lá»‡ tháº¯ng</span></div>
+            <div><b>{summary.draws}</b><span>Hòa</span></div>
+            <div><CheckCircle2 size={18} /><b>{winRate(summary)}</b><span>Tỉ lệ thắng</span></div>
           </div>
           <div className="profile-ratings">
             {(profile?.ratings || []).map((rating) => {
@@ -285,14 +285,14 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
                 <div key={mode}>
                   <strong>{MODE_LABELS[mode] || mode}</strong>
                   <b>{rating.rating}</b>
-                  <small>{rating.games_played} vĂ¡n{rating.provisional ? ' - táº¡m tĂ­nh' : ''}</small>
+                  <small>{rating.games_played} ván{rating.provisional ? ' - tạm tính' : ''}</small>
                 </div>
               );
             })}
           </div>
-          {profile?.ratings?.length === 0 && <p className="profile-empty">ChÆ°a cĂ³ rating online Ä‘Æ°á»£c ghi nháº­n.</p>}
+          {profile?.ratings?.length === 0 && <p className="profile-empty">Chưa có rating online được ghi nhận.</p>}
           <button className="profile-leaderboard-link" onClick={() => onNavigate?.('leaderboard')}>
-            <Medal size={17} /> Xem báº£ng xáº¿p háº¡ng
+            <Medal size={17} /> Xem bảng xếp hạng
           </button>
         </div>
       </div>
@@ -300,8 +300,8 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       <section className="profile-skill-lab">
         <div>
           <span>Skill Lab</span>
-          <h2>Ho so ky nang chuyen sau</h2>
-          <p>He thong doc lich su dau online de goi y diem manh, diem yeu va muc uu tien khi review van.</p>
+          <h2>Hồ sơ kỹ năng chuyên sâu</h2>
+          <p>Hệ thống đọc lịch sử đấu online để gợi ý điểm mạnh, điểm yếu và mức ưu tiên khi review ván.</p>
         </div>
         <div className="profile-skill-grid">
           {skills.map((skill) => (
@@ -317,8 +317,8 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
 
       <section className="profile-recent">
         <div className="profile-recent-heading">
-          <h2>Lá»‹ch sá»­ tráº­n Ä‘áº¥u</h2>
-          {!isPublicProfile && <button onClick={() => onNavigate?.('history')}><History size={17} /> Xem lá»‹ch sá»­ vĂ  review</button>}
+          <h2>Lịch sử trận đấu</h2>
+          {!isPublicProfile && <button onClick={() => onNavigate?.('history')}><History size={17} /> Xem lịch sử và review</button>}
         </div>
         {(profile?.recentGames || []).length > 0 ? (
           <div className="profile-game-list">
@@ -333,7 +333,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
                     </small>
                   )}
                 </span>
-                <small>{game.mode || 'rapid'} - {game.timeControl || '--'} - {game.color === 'w' ? 'Tráº¯ng' : 'Äen'}</small>
+                <small>{game.mode || 'rapid'} - {game.timeControl || '--'} - {game.color === 'w' ? 'Trắng' : 'Đen'}</small>
                 {game.review && <small>Review: accuracy {game.review.accuracy}% - {game.review.blunders} blunder - CPL {game.review.averageCentipawnLoss}</small>}
                 <time>{formatMatchDate(game.finishedAt)}</time>
               </div>
@@ -341,7 +341,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
           </div>
         ) : (
           <p className="profile-empty">
-            {isPublicProfile ? 'NgÆ°á»i chÆ¡i nĂ y chÆ°a cĂ³ tráº­n online hoĂ n thĂ nh.' : `Báº¡n Ä‘Ă£ chÆ¡i ${summary.gamesPlayed} tráº­n online Ä‘Æ°á»£c tĂ­nh káº¿t quáº£. Má»Ÿ danh sĂ¡ch lá»‹ch sá»­ Ä‘á»ƒ chá»n Ä‘Ăºng vĂ¡n cáº§n xem láº¡i.`}
+            {isPublicProfile ? 'Người chơi này chưa có trận online hoàn thành.' : `Bạn đã chơi ${summary.gamesPlayed} trận online được tính kết quả. Mở danh sách lịch sử để chọn đúng ván cần xem lại.`}
           </p>
         )}
       </section>

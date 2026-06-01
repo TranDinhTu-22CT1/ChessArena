@@ -1,13 +1,13 @@
 export const NAV_ITEMS = [
-  { id: 'overview', label: 'Tong quan', iconName: 'LayoutDashboard' },
-  { id: 'players', label: 'Nguoi choi', iconName: 'Users' },
-  { id: 'matches', label: 'Tran dau', iconName: 'Swords' },
-  { id: 'fairplay', label: 'Anti-cheat', iconName: 'ShieldAlert' },
-  { id: 'moderation', label: 'Bao cao', iconName: 'Shield' },
-  { id: 'payments', label: 'Thanh toan', iconName: 'CreditCard' },
-  { id: 'bots', label: 'Bot & su kien', iconName: 'Bot' },
-  { id: 'audit', label: 'Nhat ky', iconName: 'FileText' },
-  { id: 'config', label: 'Cau hinh', iconName: 'Settings' }
+  { id: 'overview', label: 'Tổng quan', iconName: 'LayoutDashboard' },
+  { id: 'players', label: 'Người chơi', iconName: 'Users' },
+  { id: 'matches', label: 'Trận đấu', iconName: 'Swords' },
+  { id: 'fairplay', label: 'Chống gian lận', iconName: 'ShieldAlert' },
+  { id: 'moderation', label: 'Báo cáo', iconName: 'Shield' },
+  { id: 'payments', label: 'Thanh toán', iconName: 'CreditCard' },
+  { id: 'bots', label: 'Bot & sự kiện', iconName: 'Bot' },
+  { id: 'audit', label: 'Nhật ký', iconName: 'FileText' },
+  { id: 'config', label: 'Cấu hình', iconName: 'Settings' }
 ];
 
 export function pct(value) {
@@ -28,62 +28,63 @@ export function time(value) {
 
 export function defaultBotForm(index = 0) {
   return {
-    name: `Custom Bot ${index + 1}`,
+    name: `Bot tùy chỉnh ${index + 1}`,
     elo: 1200 + index * 200,
-    mood: 'Custom challenge bot',
-    chat: 'Ready for a themed game.',
+    mood: 'Bot thử thách theo chủ đề',
+    chat: 'Sẵn sàng cho một ván đấu đặc biệt.',
     eventTag: 'seasonal',
     avatarUrl: '/chessarena-mark.svg',
+    sortOrder: 50 + index,
     active: true
   };
 }
 
 export function gameStatusLabel(status) {
   const labels = {
-    waiting: 'Dang cho nguoi choi',
-    active: 'Dang dien ra',
-    checkmate: 'Chieu het',
-    draw: 'Hoa',
-    resigned: 'Da dau hang',
-    abandoned: 'Bo van',
-    timeout: 'Het gio'
+    waiting: 'Đang chờ người chơi',
+    active: 'Đang diễn ra',
+    checkmate: 'Chiếu hết',
+    draw: 'Hòa',
+    resigned: 'Đã đầu hàng',
+    abandoned: 'Bỏ ván',
+    timeout: 'Hết giờ'
   };
   return labels[status] || status || '--';
 }
 
 export function gameModeLabel(mode) {
   const labels = {
-    bullet: 'Co sieu chop',
-    blitz: 'Co chop',
-    rapid: 'Co nhanh',
-    classical: 'Co tieu chuan'
+    bullet: 'Cờ siêu chớp',
+    blitz: 'Cờ chớp',
+    rapid: 'Cờ nhanh',
+    classical: 'Cờ tiêu chuẩn'
   };
   return labels[mode] || mode || '--';
 }
 
 export function resultLabel(result) {
-  if (!result || result === '*') return 'Chua co ket qua';
-  if (result === '1-0') return 'Trang thang';
-  if (result === '0-1') return 'Den thang';
-  if (result === '1/2-1/2') return 'Hoa';
+  if (!result || result === '*') return 'Chưa có kết quả';
+  if (result === '1-0') return 'Trắng thắng';
+  if (result === '0-1') return 'Đen thắng';
+  if (result === '1/2-1/2') return 'Hòa';
   return result;
 }
 
 export function paymentStatusLabel(status) {
   const labels = {
-    active: 'Dang hoat dong',
-    cancelled: 'Da huy',
-    expired: 'Da het han',
-    past_due: 'Qua han thanh toan',
-    pending: 'Dang cho'
+    active: 'Đang hoạt động',
+    cancelled: 'Đã hủy',
+    expired: 'Đã hết hạn',
+    past_due: 'Quá hạn thanh toán',
+    pending: 'Đang chờ'
   };
   return labels[status] || status || '--';
 }
 
 export function billingCycleLabel(cycle) {
   const labels = {
-    monthly: 'Hang thang',
-    yearly: 'Hang nam'
+    monthly: 'Hàng tháng',
+    yearly: 'Hàng năm'
   };
   return labels[cycle] || cycle || '--';
 }
@@ -92,34 +93,34 @@ export function tierLabel(tier) {
   const labels = {
     master: 'Master',
     plus: 'Plus',
-    free: 'Mien phi'
+    free: 'Miễn phí'
   };
   return labels[tier] || tier || '--';
 }
 
 export function auditFallback(log) {
   const target = log.targetLabel || log.target_user_id || log.target_device_fingerprint || '--';
-  return `Doi tuong: ${target}`;
+  return `Đối tượng: ${target}`;
 }
 
 export function adminActionLabel(action) {
   const labels = {
-    'admin.me': 'Admin kiem tra phien dang nhap',
-    'admin.login': 'Admin dang nhap',
-    'admin.logout': 'Admin dang xuat',
-    'anti_cheat.scan': 'Admin quet gian lan',
-    'anti_cheat.report_status': 'Admin doi trang thai bao cao gian lan',
-    'user.ban': 'Admin cam nguoi choi',
-    'user.unban': 'Admin go cam nguoi choi',
-    'user.mute': 'Admin chan chat nguoi choi',
-    'user.unmute': 'Admin mo chan chat nguoi choi',
-    'bot.create': 'Admin them bot',
-    'bot.batch_create': 'Admin them 5 bot',
-    'bot.update': 'Admin cap nhat bot',
-    'event.create': 'Admin tao su kien',
-    'event.update': 'Admin cap nhat su kien',
-    'paypal.diagnostics': 'Admin kiem tra PayPal',
-    'paypal.test_subscription': 'Admin tao thu dang ky PayPal'
+    'admin.me': 'Admin kiểm tra phiên đăng nhập',
+    'admin.login': 'Admin đăng nhập',
+    'admin.logout': 'Admin đăng xuất',
+    'anti_cheat.scan': 'Admin quét gian lận',
+    'anti_cheat.report_status': 'Admin đổi trạng thái báo cáo gian lận',
+    'user.ban': 'Admin cấm người chơi',
+    'user.unban': 'Admin gỡ cấm người chơi',
+    'user.mute': 'Admin chặn chat người chơi',
+    'user.unmute': 'Admin mở chặn chat người chơi',
+    'bot.create': 'Admin thêm bot',
+    'bot.batch_create': 'Admin thêm 5 bot',
+    'bot.update': 'Admin cập nhật bot',
+    'event.create': 'Admin tạo sự kiện',
+    'event.update': 'Admin cập nhật sự kiện',
+    'paypal.diagnostics': 'Admin kiểm tra PayPal',
+    'paypal.test_subscription': 'Admin tạo thử đăng ký PayPal'
   };
-  return labels[action] || action || 'Hoat dong admin';
+  return labels[action] || action || 'Hoạt động admin';
 }

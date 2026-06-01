@@ -43,6 +43,7 @@ const puzzleMenuItems = [
   { icon: Zap, label: 'Puzzle Rush', route: 'puzzle-rush' },
   { icon: Trophy, label: 'Custom Puzzles', route: 'custom-puzzles' }
 ];
+const playModeRoutes = new Set(['online', 'bot', 'coach', 'local']);
 
 export default function Sidebar({
   authUser,
@@ -118,7 +119,7 @@ export default function Sidebar({
                         title={playItem.note}
                         onClick={() => {
                           if (playItem.disabled) return;
-                          if (playItem.route) onSelectPlayMode?.(playItem.route);
+                          if (playModeRoutes.has(playItem.route)) onSelectPlayMode?.(playItem.route);
                           handleNavigate(playItem.route ?? 'bot');
                         }}
                       >

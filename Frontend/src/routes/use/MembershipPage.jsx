@@ -31,33 +31,33 @@ const PLAN_COPY = {
   plus: {
     icon: Sparkles,
     title: 'Plus',
-    tag: 'Táº­p tactics Ä‘á»u má»—i ngĂ y',
-    benefits: ['10 game review cÆ¡ báº£n má»—i ngĂ y', '80 puzzle má»—i ngĂ y', 'Má»Ÿ Puzzle Rush khĂ´ng giá»›i háº¡n lÆ°á»£t', 'Há»“ sÆ¡ cĂ³ huy hiá»‡u Plus']
+    tag: 'Tập tactics đều mỗi ngày',
+    benefits: ['10 game review cơ bản mỗi ngày', '80 puzzle mỗi ngày', 'Mở Puzzle Rush không giới hạn lượt', 'Hồ sơ có huy hiệu Plus']
   },
   pro: {
     icon: Gem,
     title: 'Pro',
-    tag: 'GĂ³i Ä‘Ă¡ng mua nháº¥t',
-    benefits: ['Game review khĂ´ng giá»›i háº¡n', 'Puzzle vĂ  Custom Puzzles khĂ´ng giá»›i háº¡n', 'Explain Pro cho tá»«ng nÆ°á»›c Ä‘i', 'Thá»‘ng kĂª sau tráº­n rĂµ hÆ¡n']
+    tag: 'Gói đáng mua nhất',
+    benefits: ['Game review không giới hạn', 'Puzzle và Custom Puzzles không giới hạn', 'Explain Pro cho từng nước đi', 'Thống kê sau trận rõ hơn']
   },
   master: {
     icon: Crown,
     title: 'Master',
-    tag: 'Cho ngÆ°á»i chÆ¡i nghiĂªm tĂºc',
-    benefits: ['ToĂ n bá»™ quyá»n lá»£i Pro', 'Coach Ä‘á»‹nh hÆ°á»›ng luyá»‡n táº­p nĂ¢ng cao', 'Huy hiá»‡u Master ná»•i báº­t', 'Æ¯u tiĂªn khi má»Ÿ tĂ­nh nÄƒng giáº£i Ä‘áº¥u']
+    tag: 'Cho người chơi nghiêm túc',
+    benefits: ['Toàn bộ quyền lợi Pro', 'Coach định hướng luyện tập nâng cao', 'Huy hiệu Master nổi bật', 'Ưu tiên khi mở tính năng giải đấu']
   }
 };
 
 const FREE_LIMITS = [
-  '5 puzzle má»—i ngĂ y',
-  '1 game review cÆ¡ báº£n má»—i ngĂ y',
-  'KhĂ´ng cĂ³ Puzzle Rush',
-  'KhĂ´ng cĂ³ Custom Puzzles',
-  'KhĂ´ng cĂ³ Explain Pro'
+  '5 puzzle mỗi ngày',
+  '1 game review cơ bản mỗi ngày',
+  'Không có Puzzle Rush',
+  'Không có Custom Puzzles',
+  'Không có Explain Pro'
 ];
 
 function currency(price) {
-  if (!price?.value || !price?.currency) return 'Äang láº¥y giĂ¡ PayPal';
+  if (!price?.value || !price?.currency) return 'Đang lấy giá PayPal';
   const value = Number(price?.value ?? 0);
   const code = price?.currency || 'USD';
   return new Intl.NumberFormat('en-US', {
@@ -84,15 +84,15 @@ function mergePlanPrices(current, remote) {
 }
 
 function planHealthMessage(planId, planHealth, fallbackCurrency) {
-  if (!planId) return 'Thiáº¿u PayPal plan id cho gĂ³i nĂ y.';
-  if (!planHealth) return 'Äang kiá»ƒm tra plan PayPal...';
+  if (!planId) return 'Thiếu PayPal plan id cho gói này.';
+  if (!planHealth) return 'Đang kiểm tra plan PayPal...';
   if (planHealth.ok === false) {
-    return planHealth.error || 'Backend PayPal credential hiá»‡n táº¡i khĂ´ng nhĂ¬n tháº¥y plan nĂ y. HĂ£y dĂ¹ng Ä‘Ăºng PAYPAL_CLIENT_ID/PAYPAL_SECRET cá»§a app Ä‘Ă£ táº¡o plan, hoáº·c táº¡o láº¡i plan dÆ°á»›i app Ä‘ang cáº¥u hĂ¬nh.';
+    return planHealth.error || 'Backend PayPal credential hiện tại không nhìn thấy plan này. Hãy dùng đúng PAYPAL_CLIENT_ID/PAYPAL_SECRET của app đã tạo plan, hoặc tạo lại plan dưới app đang cấu hình.';
   }
-  if (planHealth.plan?.status && planHealth.plan.status !== 'ACTIVE') return `Plan Ä‘ang á»Ÿ tráº¡ng thĂ¡i ${planHealth.plan.status}, cáº§n ACTIVE.`;
+  if (planHealth.plan?.status && planHealth.plan.status !== 'ACTIVE') return `Plan đang ở trạng thái ${planHealth.plan.status}, cần ACTIVE.`;
   const planCurrency = planHealth.plan?.currency;
   if (planCurrency && planCurrency !== fallbackCurrency) {
-    return `Plan dĂ¹ng ${planCurrency}, SDK sáº½ táº£i láº¡i theo currency nĂ y.`;
+    return `Plan dùng ${planCurrency}, SDK sẽ tải lại theo currency này.`;
   }
   return '';
 }
@@ -124,7 +124,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('paypal') === 'cancelled') {
-      setMessage('Báº¡n Ä‘Ă£ há»§y thanh toĂ¡n PayPal.');
+      setMessage('Bạn đã hủy thanh toán PayPal.');
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
@@ -135,7 +135,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
     const approvedCycle = params.get('cycle') || 'monthly';
     const planId = planIdFor(approvedTier, approvedCycle);
     if (!subscriptionId || !planId) {
-      setMessage('PayPal Ä‘Ă£ approve nhÆ°ng chÆ°a tráº£ subscription_id. Webhook sáº½ Ä‘á»“ng bá»™ khi PayPal gá»­i sá»± kiá»‡n.');
+      setMessage('PayPal đã approve nhưng chưa trả subscription_id. Webhook sẽ đồng bộ khi PayPal gửi sự kiện.');
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
@@ -143,7 +143,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
     activateMembership({ tier: approvedTier, billingCycle: approvedCycle, planId, subscriptionId })
       .then((data) => {
         onMembershipUpdated(data);
-        notify('GĂ³i PayPal Ä‘Ă£ Ä‘Æ°á»£c kĂ­ch hoáº¡t.', 'success');
+        notify('Gói PayPal đã được kích hoạt.', 'success');
       })
       .catch((error) => setMessage(error.message))
       .finally(() => window.history.replaceState({}, '', window.location.pathname));
@@ -169,8 +169,8 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
       });
       window.location.assign(data.approveUrl);
     } catch (error) {
-      const text = error.message || 'PayPal Sandbox chÆ°a táº¡o Ä‘Æ°á»£c subscription.';
-      setMessage(`${text} GĂ³i Ä‘ang dĂ¹ng plan ${checkoutPlanId}, currency ${checkoutPrice?.currency || PAYPAL_CURRENCY}.`);
+      const text = error.message || 'PayPal Sandbox chưa tạo được subscription.';
+      setMessage(`${text} Gói đang dùng plan ${checkoutPlanId}, currency ${checkoutPrice?.currency || PAYPAL_CURRENCY}.`);
       notify(text, 'error');
     } finally {
       setCheckoutLoading(false);
@@ -211,8 +211,8 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
       <section className="membership-auth-required">
         <Crown size={48} />
         <h1>Chess Arena Premium</h1>
-        <p>ÄÄƒng nháº­p Ä‘á»ƒ mua gĂ³i, lÆ°u quyá»n lá»£i vĂ  Ä‘á»“ng bá»™ vá»›i há»“ sÆ¡ ngÆ°á»i chÆ¡i.</p>
-        <button onClick={onLogin}><LogIn size={18} /> ÄÄƒng nháº­p</button>
+        <p>Đăng nhập để mua gói, lưu quyền lợi và đồng bộ với hồ sơ người chơi.</p>
+        <button onClick={onLogin}><LogIn size={18} /> Đăng nhập</button>
       </section>
     );
   }
@@ -225,12 +225,12 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           setCheckoutTier(null);
           setMessage('');
         }}>
-          <ArrowLeft size={18} /> Quay láº¡i chá»n gĂ³i
+          <ArrowLeft size={18} /> Quay lại chọn gói
         </button>
 
         <section className="membership-payment-shell">
           <div className="membership-payment-summary">
-            <span><CreditCard size={18} /> Thanh toĂ¡n PayPal Sandbox</span>
+            <span><CreditCard size={18} /> Thanh toán PayPal Sandbox</span>
             <div className="membership-payment-title">
               <Icon size={34} />
               <div>
@@ -240,15 +240,15 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
             </div>
             <strong className="membership-price payment-price">
               {currency(checkoutPrice)}
-              <small>{checkoutPrice?.value ? `/${cycle === 'monthly' ? 'thĂ¡ng' : 'nÄƒm'}` : ''}</small>
+              <small>{checkoutPrice?.value ? `/${cycle === 'monthly' ? 'tháng' : 'năm'}` : ''}</small>
             </strong>
             <div className="membership-payment-meta">
-              <span>Plan ID: <b>{checkoutPlanId || 'ChÆ°a cáº¥u hĂ¬nh'}</b></span>
+              <span>Plan ID: <b>{checkoutPlanId || 'Chưa cấu hình'}</b></span>
               <span>Currency: <b>{checkoutPrice?.currency || PAYPAL_CURRENCY}</b></span>
-              <span>Status: <b>{planHealth?.plan?.status || checkoutPrice?.status || 'Äang kiá»ƒm tra'}</b></span>
+              <span>Status: <b>{planHealth?.plan?.status || checkoutPrice?.status || 'Đang kiểm tra'}</b></span>
             </div>
             {planHealthNote && <p className="membership-config-note">{planHealthNote}</p>}
-            {!checkoutPrice?.value && <p className="membership-config-note">KhĂ´ng hiá»ƒn thá»‹ giĂ¡ fallback Ä‘á»ƒ trĂ¡nh sai tiá»n. Backend pháº£i Ä‘á»c Ä‘Æ°á»£c giĂ¡ tháº­t tá»« PayPal plan trÆ°á»›c khi thanh toĂ¡n.</p>}
+            {!checkoutPrice?.value && <p className="membership-config-note">Không hiển thị giá fallback để tránh sai tiền. Backend phải đọc được giá thật từ PayPal plan trước khi thanh toán.</p>}
             <ul>
               {checkoutPlan.benefits.map((benefit) => (
                 <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
@@ -257,16 +257,16 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           </div>
 
           <div className="membership-payment-card">
-            <span>HoĂ n táº¥t Ä‘Äƒng kĂ½</span>
-            <h2>{checkoutPlan.title} - {cycle === 'monthly' ? 'theo thĂ¡ng' : 'theo nÄƒm'}</h2>
-            <p>NĂºt nĂ y táº¡o subscription tá»« backend báº±ng server credential rá»“i chuyá»ƒn sang trang approve cá»§a PayPal. Náº¿u lá»—i, backend sáº½ tráº£ Ä‘Ăºng lĂ½ do PayPal tá»« chá»‘i.</p>
+            <span>Hoàn tất đăng ký</span>
+            <h2>{checkoutPlan.title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
+            <p>Nút này tạo subscription từ backend bằng server credential rồi chuyển sang trang approve của PayPal. Nếu lỗi, backend sẽ trả đúng lý do PayPal từ chối.</p>
             <button
               className="membership-paypal-primary"
               onClick={startServerCheckout}
               disabled={checkoutLoading || checkoutBlocked}
             >
               <CreditCard size={18} />
-              {checkoutLoading ? 'Äang má»Ÿ PayPal...' : 'Sang trang thanh toĂ¡n PayPal'}
+              {checkoutLoading ? 'Đang mở PayPal...' : 'Sang trang thanh toán PayPal'}
             </button>
             {message && <p className="membership-message">{message}</p>}
           </div>
@@ -280,27 +280,27 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
       <header className="membership-hero">
         <div>
           <span><Crown size={18} /> Chess Arena Premium</span>
-          <h1>NĂ¢ng cáº¥p Ä‘á»ƒ luyá»‡n cá» hiá»‡u quáº£ hÆ¡n</h1>
-          <p>Há»c theo mĂ´ hĂ¬nh premium cá»§a cĂ¡c ná»n táº£ng lá»›n: Free chá»‰ Ä‘á»§ tráº£i nghiá»‡m cÆ¡ báº£n, cĂ²n gĂ³i tráº£ phĂ­ má»Ÿ review sĂ¢u, puzzle nhiá»u hÆ¡n, coach há»¯u Ă­ch hÆ¡n vĂ  thá»‘ng kĂª rĂµ sau tráº­n.</p>
+          <h1>Nâng cấp để luyện cờ hiệu quả hơn</h1>
+          <p>Học theo mô hình premium của các nền tảng lớn: Free chỉ đủ trải nghiệm cơ bản, còn gói trả phí mở review sâu, puzzle nhiều hơn, coach hữu ích hơn và thống kê rõ sau trận.</p>
         </div>
         <div className="membership-current">
           <strong>{MEMBERSHIP_TIERS[currentTier].name}</strong>
-          <span>GĂ³i hiá»‡n táº¡i</span>
+          <span>Gói hiện tại</span>
         </div>
       </header>
 
       <div className="membership-value-grid">
-        <div><Brain size={22} /><strong>Game Review</strong><span>Biáº¿t nÆ°á»›c sai, nÆ°á»›c tá»‘t vĂ  xem láº¡i vĂ¡n nhanh hÆ¡n.</span></div>
-        <div><Puzzle size={22} /><strong>Puzzle</strong><span>Má»Ÿ thĂªm Rush vĂ  Custom Ä‘á»ƒ luyá»‡n theo chá»§ Ä‘á».</span></div>
-        <div><Trophy size={22} /><strong>Rating</strong><span>Gáº¯n vá»›i leaderboard, lá»‹ch sá»­ vĂ  káº¿t quáº£ sau tráº­n.</span></div>
-        <div><Zap size={22} /><strong>Coach</strong><span>Gá»£i Ă½ sĂ¢u hÆ¡n theo tháº¿ cá» vĂ  cáº¥p Ä‘á»™ ngÆ°á»i chÆ¡i.</span></div>
+        <div><Brain size={22} /><strong>Game Review</strong><span>Biết nước sai, nước tốt và xem lại ván nhanh hơn.</span></div>
+        <div><Puzzle size={22} /><strong>Puzzle</strong><span>Mở thêm Rush và Custom để luyện theo chủ đề.</span></div>
+        <div><Trophy size={22} /><strong>Rating</strong><span>Gắn với leaderboard, lịch sử và kết quả sau trận.</span></div>
+        <div><Zap size={22} /><strong>Coach</strong><span>Gợi ý sâu hơn theo thế cờ và cấp độ người chơi.</span></div>
       </div>
 
       <section className="membership-free-limits">
         <div>
           <ShieldCheck size={22} />
-          <strong>Free váº«n chÆ¡i Ä‘Æ°á»£c, nhÆ°ng bá»‹ giá»›i háº¡n</strong>
-          <span>Giá»¯ free Ä‘á»§ dĂ¹ng thá»­ sáº£n pháº©m, cĂ²n giĂ¡ trá»‹ luyá»‡n táº­p nghiĂªm tĂºc náº±m á»Ÿ Plus/Pro/Master.</span>
+          <strong>Free vẫn chơi được, nhưng bị giới hạn</strong>
+          <span>Giữ free đủ dùng thử sản phẩm, còn giá trị luyện tập nghiêm túc nằm ở Plus/Pro/Master.</span>
         </div>
         <ul>
           {FREE_LIMITS.map((limit) => <li key={limit}>{limit}</li>)}
@@ -308,8 +308,8 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
       </section>
 
       <div className="billing-toggle" aria-label="Billing cycle">
-        <button className={cycle === 'monthly' ? 'active' : ''} onClick={() => setCycle('monthly')}>Theo thĂ¡ng</button>
-        <button className={cycle === 'yearly' ? 'active' : ''} onClick={() => setCycle('yearly')}>Theo nÄƒm <small>tiáº¿t kiá»‡m 2 thĂ¡ng</small></button>
+        <button className={cycle === 'monthly' ? 'active' : ''} onClick={() => setCycle('monthly')}>Theo tháng</button>
+        <button className={cycle === 'yearly' ? 'active' : ''} onClick={() => setCycle('yearly')}>Theo năm <small>tiết kiệm 2 tháng</small></button>
       </div>
 
       <div className="membership-plans">
@@ -327,7 +327,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
                   <h2>{plan.title}</h2>
                 </div>
               </div>
-              <strong className="membership-price">{currency(prices[tier][cycle])}<small>{prices[tier][cycle]?.value ? `/${cycle === 'monthly' ? 'thĂ¡ng' : 'nÄƒm'}` : ''}</small></strong>
+              <strong className="membership-price">{currency(prices[tier][cycle])}<small>{prices[tier][cycle]?.value ? `/${cycle === 'monthly' ? 'tháng' : 'năm'}` : ''}</small></strong>
               <ul>
                 {plan.benefits.map((benefit) => (
                   <li key={benefit}><CheckCircle2 size={17} /> {benefit}</li>
@@ -340,7 +340,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
                   setMessage('');
                 }
               }}>
-                {active ? 'Äang dĂ¹ng' : 'Chá»n gĂ³i'}
+                {active ? 'Đang dùng' : 'Chọn gói'}
               </button>
             </article>
           );
@@ -349,15 +349,15 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
 
       <section className="membership-checkout">
         <div>
-          <span>BÆ°á»›c tiáº¿p theo</span>
-          <h2>{PLAN_COPY[selectedTier].title} - {cycle === 'monthly' ? 'theo thĂ¡ng' : 'theo nÄƒm'}</h2>
-          <p>GiĂ¡ hiá»ƒn thá»‹ Ä‘Æ°á»£c láº¥y tá»« PayPal plan qua backend. Nháº¥n tiáº¿p tá»¥c Ä‘á»ƒ sang trang thanh toĂ¡n riĂªng, xem láº¡i gĂ³i vĂ  hoĂ n táº¥t báº±ng PayPal Sandbox.</p>
+          <span>Bước tiếp theo</span>
+          <h2>{PLAN_COPY[selectedTier].title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
+          <p>Giá hiển thị được lấy từ PayPal plan qua backend. Nhấn tiếp tục để sang trang thanh toán riêng, xem lại gói và hoàn tất bằng PayPal Sandbox.</p>
         </div>
         <button className="membership-checkout-button" onClick={() => {
           setCheckoutTier(selectedTier);
           setMessage('');
         }}>
-          Tiáº¿p tá»¥c thanh toĂ¡n <CreditCard size={18} />
+          Tiếp tục thanh toán <CreditCard size={18} />
         </button>
       </section>
     </section>

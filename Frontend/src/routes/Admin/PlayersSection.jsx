@@ -20,15 +20,15 @@ export default function PlayersSection({
     <section className="admin-panel">
       <div className="admin-panel-head">
         <div>
-          <span>Quan ly nguoi choi</span>
-          <h2>Tai khoan, thiet bi va lenh cam</h2>
+          <span>Quản lý người chơi</span>
+          <h2>Tài khoản, thiết bị và lệnh cấm</h2>
         </div>
         <form onSubmit={(event) => {
           event.preventDefault();
           onLoad(search);
         }}>
-          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Tim username/email..." />
-          <button disabled={loading}><Search size={16} /> Tim</button>
+          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Tìm username/email..." />
+          <button disabled={loading}><Search size={16} /> Tìm</button>
         </form>
       </div>
 
@@ -45,26 +45,26 @@ export default function PlayersSection({
               <div>
                 <strong>{user.display_name || user.username || user.email}</strong>
                 <span>{user.email || user.username}</span>
-                <small>UID: {user.id} | Elo: {topRating?.rating ?? 400} | Van: {topRating?.games_played ?? 0} | Diem gian lan: {risk}</small>
-                {device && <em>Tin hieu rui ro: {device.device_fingerprint.slice(0, 16)}... | IP {device.ip_prefix || '--'} | UA {device.user_agent_hash?.slice(0, 10) || '--'} | {time(device.last_seen_at)}</em>}
-                {ban && <b className="admin-ban-note">Dang bi cam: {ban.reason}</b>}
-                {mute && <b className="admin-ban-note mute">Dang bi mute: {mute.reason}</b>}
+                <small>UID: {user.id} | Elo: {topRating?.rating ?? 400} | Ván: {topRating?.games_played ?? 0} | Điểm gian lận: {risk}</small>
+                {device && <em>Tín hiệu rủi ro: {device.device_fingerprint.slice(0, 16)}... | IP {device.ip_prefix || '--'} | UA {device.user_agent_hash?.slice(0, 10) || '--'} | {time(device.last_seen_at)}</em>}
+                {ban && <b className="admin-ban-note">Đang bị cấm: {ban.reason}</b>}
+                {mute && <b className="admin-ban-note mute">Đang bị tắt chat: {mute.reason}</b>}
               </div>
               <div className="admin-user-actions">
-                <button onClick={() => onOpenDetail(user)}><UserCog size={16} /> Chi tiet</button>
-                <button onClick={() => onOpenPublicProfile(user)}><ExternalLink size={16} /> Ho so</button>
-                <button onClick={() => onScanUser(user)}><ShieldAlert size={16} /> Quet</button>
+                <button onClick={() => onOpenDetail(user)}><UserCog size={16} /> Chi tiết</button>
+                <button onClick={() => onOpenPublicProfile(user)}><ExternalLink size={16} /> Hồ sơ</button>
+                <button onClick={() => onScanUser(user)}><ShieldAlert size={16} /> Quét</button>
                 {mute ? (
-                  <button onClick={() => onUnmuteUser(user)}><CheckCircle2 size={16} /> Go mute</button>
+                  <button onClick={() => onUnmuteUser(user)}><CheckCircle2 size={16} /> Mở chat</button>
                 ) : (
-                  <button onClick={() => onMuteUser(user)}><Shield size={16} /> Mute</button>
+                  <button onClick={() => onMuteUser(user)}><Shield size={16} /> Tắt chat</button>
                 )}
                 {ban ? (
-                  <button onClick={() => onUnbanUser(user)}><CheckCircle2 size={16} /> Go cam</button>
+                  <button onClick={() => onUnbanUser(user)}><CheckCircle2 size={16} /> Gỡ cấm</button>
                 ) : (
                   <>
-                    <button onClick={() => onOpenBan(user, 'account')}><Ban size={16} /> Cam</button>
-                    <button disabled={!device} onClick={() => onOpenBan(user, 'risk')}><Ban size={16} /> Risk ban</button>
+                    <button onClick={() => onOpenBan(user, 'account')}><Ban size={16} /> Cấm</button>
+                    <button disabled={!device} onClick={() => onOpenBan(user, 'risk')}><Ban size={16} /> Cấm rủi ro</button>
                   </>
                 )}
               </div>

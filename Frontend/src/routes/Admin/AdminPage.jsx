@@ -84,9 +84,9 @@ export default function AdminPage() {
   const [message, setMessage] = React.useState('');
   const [selectedDetail, setSelectedDetail] = React.useState(null);
   const [banTarget, setBanTarget] = React.useState(null);
-  const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Fair play / policy violation', expiresAt: '' });
+  const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Vi phạm fair play / chính sách', expiresAt: '' });
   const [botForms, setBotForms] = React.useState(() => Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
-  const [eventForm, setEventForm] = React.useState({ title: 'Holiday Bot Challenge', eventType: 'bot_challenge', description: 'Beat the featured bot and climb a limited-time event board.', rewardLabel: 'Seasonal badge', active: true });
+  const [eventForm, setEventForm] = React.useState({ title: 'Thử thách bot mùa lễ', eventType: 'bot_challenge', description: 'Đánh bại bot nổi bật và leo bảng sự kiện trong thời gian giới hạn.', rewardLabel: 'Huy hiệu mùa', active: true });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState('overview');
   const [unlockEmail, setUnlockEmail] = React.useState('');
@@ -135,7 +135,7 @@ export default function AdminPage() {
       setConfig(configData.config || null);
       setLoginRequired(false);
     } catch (error) {
-      const text = error.message || 'Cannot load admin panel.';
+      const text = error.message || 'Không thể tải trang quản trị.';
       setMessage(text);
       setLoginRequired(true);
       notify(text, 'error');
@@ -157,11 +157,11 @@ export default function AdminPage() {
       setAdmin(data.admin);
       setUnlockPassword('');
       setLoginRequired(false);
-      notify('Admin logged in.', 'success');
+      notify('Admin đã đăng nhập.', 'success');
       await load('');
     } catch (error) {
-      setMessage(error.message || 'Cannot login admin.');
-      notify(error.message || 'Cannot login admin.', 'error');
+      setMessage(error.message || 'Không thể đăng nhập admin.');
+      notify(error.message || 'Không thể đăng nhập admin.', 'error');
     } finally {
       setLoading(false);
     }
@@ -172,14 +172,14 @@ export default function AdminPage() {
     setAdmin(null);
     setSummary(null);
     setLoginRequired(true);
-    notify('Admin session locked.', 'info');
+    notify('Phiên admin đã được khóa.', 'info');
   };
 
   const openBan = (user, banType) => {
     setBanTarget(user);
     setBanForm({
       banType,
-      reason: banType === 'risk' ? 'Risk-linked fair play violation' : 'Fair play / policy violation',
+      reason: banType === 'risk' ? 'Vi phạm công bằng liên quan tín hiệu rủi ro' : 'Vi phạm công bằng / chính sách',
       expiresAt: ''
     });
   };
@@ -197,7 +197,7 @@ export default function AdminPage() {
         reason: banForm.reason,
         expiresAt: banForm.expiresAt || null
       });
-      notify(banForm.banType === 'risk' ? 'Risk ban applied.' : 'User banned.', 'success');
+      notify(banForm.banType === 'risk' ? 'Đã áp dụng cấm theo rủi ro.' : 'Đã cấm người chơi.', 'success');
       setBanTarget(null);
       await load();
     } catch (error) {
@@ -218,12 +218,12 @@ export default function AdminPage() {
   };
 
   const scanUser = async (user) => {
-    setMessage(`Scanning ${user.display_name || user.email}...`);
+    setMessage(`Đang quét ${user.display_name || user.email}...`);
     try {
       const data = await scanUserAntiCheat(user.id);
       const scan = data.summary || {};
-      setMessage(`Scanned ${scan.gamesScanned ?? data.reports?.length ?? 0} games. Max risk ${scan.maxRisk ?? 0}/100, ${scan.recommendation || 'no_action'}.`);
-      notify('Anti-cheat scan completed.', 'success');
+      setMessage(`Đã quét ${scan.gamesScanned ?? data.reports?.length ?? 0} ván. Rủi ro cao nhất ${scan.maxRisk ?? 0}/100, ${scan.recommendation || 'không cần xử lý'}.`);
+      notify('Quét chống gian lận hoàn tất.', 'success');
       await load();
       setSection('fairplay');
     } catch (error) {
@@ -233,7 +233,7 @@ export default function AdminPage() {
   };
 
   const openDetail = async (user) => {
-    setMessage(`Loading ${user.display_name || user.email}...`);
+    setMessage(`Đang tải ${user.display_name || user.email}...`);
     try {
       const detail = await fetchAdminUserDetail(user.id);
       setSelectedDetail(detail);
@@ -253,7 +253,7 @@ export default function AdminPage() {
     event.preventDefault();
     try {
       await createAdminBot({ bots: botForms });
-      notify('5 bots added to Play Bots.', 'success');
+      notify('Đã thêm 5 bot vào Play Bot.', 'success');
       setBotForms(Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
       await load();
     } catch (error) {
@@ -271,7 +271,7 @@ export default function AdminPage() {
     event.preventDefault();
     try {
       await createAdminEvent(eventForm);
-      notify('Event created.', 'success');
+      notify('Đã tạo sự kiện.', 'success');
       setEventForm((form) => ({ ...form, title: '' }));
       await load();
     } catch (error) {
@@ -279,22 +279,44 @@ export default function AdminPage() {
     }
   };
 
+  const saveBot = async (botId, payload) => {
+    try {
+      await updateAdminBot(botId, payload);
+      notify('Đã cập nhật bot.', 'success');
+      await load();
+    } catch (error) {
+      notify(error.message, 'error');
+      throw error;
+    }
+  };
+
+  const saveEvent = async (eventId, payload) => {
+    try {
+      await updateAdminEvent(eventId, payload);
+      notify('Đã cập nhật sự kiện.', 'success');
+      await load();
+    } catch (error) {
+      notify(error.message, 'error');
+      throw error;
+    }
+  };
+
   const changeModerationStatus = async (report, status) => {
     const resolutionNote = ['resolved', 'dismissed', 'escalated'].includes(status)
-      ? window.prompt('Resolution note', status === 'dismissed' ? 'No policy violation found.' : 'Reviewed by moderation.')
+      ? window.prompt('Ghi chú xử lý', status === 'dismissed' ? 'Không phát hiện vi phạm chính sách.' : 'Đã được đội kiểm duyệt xem xét.')
       : '';
     if (resolutionNote === null) return;
     await updateModerationReport(report.id, status, resolutionNote || '');
-    notify('Moderation report updated.', 'success');
+    notify('Đã cập nhật báo cáo kiểm duyệt.', 'success');
     await load();
   };
 
   const runPayPalDiagnostics = async () => {
-    setMessage('Running PayPal diagnostics...');
+    setMessage('Đang kiểm tra PayPal...');
     try {
       const data = await fetchPayPalDiagnostics();
       setPaypalDiagnostics(data);
-      setMessage('PayPal diagnostics completed.');
+      setMessage('Đã kiểm tra PayPal xong.');
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
@@ -302,10 +324,10 @@ export default function AdminPage() {
   };
 
   const runPayPalCreateTest = async () => {
-    setMessage('Testing PayPal subscription create for Master monthly...');
+    setMessage('Đang tạo thử gói PayPal Master hàng tháng...');
     try {
       const data = await testPayPalSubscription('master', 'monthly');
-      setMessage(data.approveUrl ? `PayPal test OK. Subscription ${data.subscriptionId}` : `PayPal test OK: ${data.status}`);
+      setMessage(data.approveUrl ? `PayPal thử nghiệm OK. Mã đăng ký ${data.subscriptionId}` : `PayPal thử nghiệm OK: ${data.status}`);
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
@@ -346,17 +368,17 @@ export default function AdminPage() {
             );
           })}
         </nav>
-        <button className="admin-lock-button" onClick={logoutAdmin}><LogOut size={18} /> Lock admin</button>
+        <button className="admin-lock-button" onClick={logoutAdmin}><LogOut size={18} /> Khóa admin</button>
       </aside>
 
       <section className="admin-main">
         <header className="admin-hero">
           <div>
-            <span><Shield size={18} /> Production Admin Console</span>
-            <h1>Operations, payments and fair play</h1>
-            <p>Admin: {admin?.email || 'verifying'} | Role: {admin?.role || 'owner'} | Separate admin session.</p>
+            <span><Shield size={18} /> Bảng quản trị vận hành</span>
+            <h1>Vận hành, thanh toán và công bằng</h1>
+            <p>Admin: {admin?.email || 'đang xác thực'} | Vai trò: {admin?.role || 'owner'} | Phiên admin tách riêng.</p>
           </div>
-          <button onClick={() => load()} disabled={loading}><RefreshCw size={18} /> Refresh</button>
+          <button onClick={() => load()} disabled={loading}><RefreshCw size={18} /> Làm mới</button>
         </header>
 
         {message && <p className="admin-message">{message}</p>}
@@ -372,11 +394,11 @@ export default function AdminPage() {
             onOpenPublicProfile={openPublicProfile}
             onScanUser={scanUser}
             onMuteUser={(user) => {
-              const reason = window.prompt('Mute reason', 'Chat/report abuse');
-              if (reason) runUserAction('mute', user, 'User muted.', { reason });
+              const reason = window.prompt('Lý do tắt chat', 'Lạm dụng chat/báo cáo');
+              if (reason) runUserAction('mute', user, 'Đã tắt chat người chơi.', { reason });
             }}
-            onUnmuteUser={(user) => runUserAction('unmute', user, 'Mute lifted.')}
-            onUnbanUser={(user) => runUserAction('unban', user, 'Ban lifted.')}
+            onUnmuteUser={(user) => runUserAction('unmute', user, 'Đã mở chat.')}
+            onUnbanUser={(user) => runUserAction('unban', user, 'Đã gỡ cấm.')}
             onOpenBan={openBan}
           />
         )}
@@ -394,6 +416,8 @@ export default function AdminPage() {
             onUpdateBotForm={updateBotForm}
             onSubmitEvent={submitEvent}
             onUpdateEventForm={(patch) => setEventForm((form) => ({ ...form, ...patch }))}
+            onSaveBot={saveBot}
+            onSaveEvent={saveEvent}
             onToggleBot={(bot) => updateAdminBot(bot.id, { ...bot, active: !bot.active }).then(() => load())}
             onToggleEvent={(item) => updateAdminEvent(item.id, { ...item, active: !item.active }).then(() => load())}
           />

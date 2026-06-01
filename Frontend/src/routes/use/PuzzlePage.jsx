@@ -17,16 +17,16 @@ const ROUTE_MODES = {
   'personal-puzzles': 'personal'
 };
 const THEMES = [
-  { id: 'all', label: 'Táº¥t cáº£' },
-  { id: 'mate', label: 'Chiáº¿u háº¿t' },
-  { id: 'material', label: 'Tháº¯ng quĂ¢n' },
-  { id: 'promotion', label: 'Phong cáº¥p' }
+  { id: 'all', label: 'Tất cả' },
+  { id: 'mate', label: 'Chiếu hết' },
+  { id: 'material', label: 'Thắng quân' },
+  { id: 'promotion', label: 'Phong cấp' }
 ];
 const THEME_LABELS = Object.fromEntries(THEMES.map((item) => [item.id, item.label]));
 const STAGES = [
-  { id: 'all', label: 'Táº¥t cáº£ giai Ä‘oáº¡n' },
-  { id: 'middlegame', label: 'Trung cuá»™c' },
-  { id: 'endgame', label: 'TĂ n cuá»™c' }
+  { id: 'all', label: 'Tất cả giai đoạn' },
+  { id: 'middlegame', label: 'Trung cuộc' },
+  { id: 'endgame', label: 'Tàn cuộc' }
 ];
 const STAGE_LABELS = Object.fromEntries(STAGES.map((item) => [item.id, item.label]));
 const MODES = [
@@ -151,7 +151,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       setPuzzle(nextPuzzle);
       setPosition(new Chess(nextPuzzle.fen));
       if (nextMode === 'daily' && progress.dailySolved[dateKey()]) {
-        setFeedback({ correct: true, text: 'Báº¡n Ä‘Ă£ giáº£i Daily Puzzle hĂ´m nay.' });
+        setFeedback({ correct: true, text: 'Bạn đã giải Daily Puzzle hôm nay.' });
       }
       setProgress((current) => ({
         ...current,
@@ -163,8 +163,8 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       setPuzzle(null);
       setPosition(null);
       setError(loadError.exhausted
-        ? 'Báº¡n Ä‘Ă£ hoĂ n thĂ nh toĂ n bá»™ cĂ¢u Ä‘á»‘ chÆ°a gáº·p trong bá»™ lá»c nĂ y.'
-        : 'Stockfish khĂ´ng thá»ƒ táº£i cĂ¢u Ä‘á»‘ lĂºc nĂ y.');
+        ? 'Bạn đã hoàn thành toàn bộ câu đố chưa gặp trong bộ lọc này.'
+        : 'Stockfish không thể tải câu đố lúc này.');
     } finally {
       setLoading(false);
     }
@@ -192,7 +192,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       setRushSeconds((seconds) => {
         if (seconds > 1) return seconds - 1;
         setRushActive(false);
-        setFeedback({ correct: false, text: 'Háº¿t giá».' });
+        setFeedback({ correct: false, text: 'Hết giờ.' });
         setProgress((current) => ({ ...current, rushBest: Math.max(current.rushBest, rushScore) }));
         return 0;
       });
@@ -215,7 +215,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
           : Math.max(5, Math.min(24, Math.round((puzzle.rating - progress.rating) / 40) + 12));
 
     showScoreBurst(reward);
-    setFeedback({ correct: true, text: `ChĂ­nh xĂ¡c! +${reward}` });
+    setFeedback({ correct: true, text: `Chính xác! +${reward}` });
 
     if (mode === 'rated') {
       setProgress((current) => ({
@@ -275,14 +275,14 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       if (nextMisses >= 3) {
         setRushActive(false);
         setProgress((current) => ({ ...current, rushBest: Math.max(current.rushBest, rushScore) }));
-        setFeedback({ correct: false, text: `Háº¿t lÆ°á»£t: 3 lá»—i. -${penalty}` });
+        setFeedback({ correct: false, text: `Hết lượt: 3 lỗi. -${penalty}` });
         return;
       }
-      setFeedback({ correct: false, text: `Sai. Chuyá»ƒn cĂ¢u tiáº¿p theo. -${penalty}` });
+      setFeedback({ correct: false, text: `Sai. Chuyển câu tiếp theo. -${penalty}` });
       window.setTimeout(() => loadPuzzle(mode, [puzzle.id]), 520);
       return;
     }
-    setFeedback({ correct: false, text: `ChÆ°a Ä‘Ăºng. HĂ£y thá»­ nÆ°á»›c khĂ¡c. -${penalty}` });
+    setFeedback({ correct: false, text: `Chưa đúng. Hãy thử nước khác. -${penalty}` });
     setProgress((current) => ({
       ...current,
       attempted: mode === 'rated' ? current.attempted + 1 : current.attempted,
@@ -326,7 +326,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       setPosition(solvedPosition);
       completePuzzle();
     } catch {
-      setError('Stockfish khĂ´ng thá»ƒ kiá»ƒm tra nÆ°á»›c Ä‘i lĂºc nĂ y.');
+      setError('Stockfish không thể kiểm tra nước đi lúc này.');
     } finally {
       setChecking(false);
     }
@@ -344,7 +344,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
 
   return (
     <section className="puzzle-workspace">
-      <nav className="puzzle-mode-nav" aria-label="Cháº¿ Ä‘á»™ cĂ¢u Ä‘á»‘">
+      <nav className="puzzle-mode-nav" aria-label="Chế độ câu đố">
         {MODES.map((item) => {
           const Icon = item.icon;
           const locked = (item.id === 'rush' && !hasPremium(membership, 'plus'))
@@ -378,23 +378,23 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
         {quotaLocked ? (
           <section className="puzzle-unavailable premium-puzzle-lock">
             <Crown size={42} />
-            <h2>ÄĂ£ háº¿t {formatLimit(plan.puzzleLimit)} puzzle hĂ´m nay</h2>
-            <p>GĂ³i hiá»‡n táº¡i cá»§a báº¡n lĂ  {plan.name}. NĂ¢ng cáº¥p Ä‘á»ƒ má»Ÿ thĂªm quota puzzle, Puzzle Rush vĂ  bĂ i táº­p theo chá»§ Ä‘á».</p>
-            <button onClick={() => onNavigate('membership')}>NĂ¢ng cáº¥p Premium</button>
+            <h2>Đã hết {formatLimit(plan.puzzleLimit)} puzzle hôm nay</h2>
+            <p>Gói hiện tại của bạn là {plan.name}. Nâng cấp để mở thêm quota puzzle, Puzzle Rush và bài tập theo chủ đề.</p>
+            <button onClick={() => onNavigate('membership')}>Nâng cấp Premium</button>
           </section>
         ) : premiumLocked ? (
           <section className="puzzle-unavailable premium-puzzle-lock">
             <Crown size={42} />
-            <h2>{mode === 'rush' ? 'Puzzle Rush thuá»™c gĂ³i Plus' : 'Custom Puzzles thuá»™c gĂ³i Pro'}</h2>
-            <p>GĂ³i hiá»‡n táº¡i cá»§a báº¡n lĂ  {plan.name}. NĂ¢ng cáº¥p Ä‘á»ƒ má»Ÿ thĂªm puzzle, luyá»‡n theo chá»§ Ä‘á» vĂ  tÄƒng tiáº¿n Ä‘á»™ nhanh hÆ¡n.</p>
-            <button onClick={() => onNavigate('membership')}>Xem gĂ³i Premium</button>
+            <h2>{mode === 'rush' ? 'Puzzle Rush thuộc gói Plus' : 'Custom Puzzles thuộc gói Pro'}</h2>
+            <p>Gói hiện tại của bạn là {plan.name}. Nâng cấp để mở thêm puzzle, luyện theo chủ đề và tăng tiến độ nhanh hơn.</p>
+            <button onClick={() => onNavigate('membership')}>Xem gói Premium</button>
           </section>
         ) : mode === 'battle' ? (
           <section className="puzzle-unavailable">
             <Swords size={42} />
-            <h2>Puzzle Battle cáº§n Ä‘á»‘i thá»§ realtime</h2>
-            <p>Cháº¿ Ä‘á»™ nĂ y cáº§n ghĂ©p tráº­n, Ä‘á»“ng há»“ Ä‘á»“ng bá»™ vĂ  xĂ¡c nháº­n Ä‘iá»ƒm tá»« server. Hiá»‡n táº¡i khĂ´ng táº¡o Ä‘á»‘i thá»§ giáº£ Ä‘á»ƒ trĂ¡nh káº¿t quáº£ sai.</p>
-            <button onClick={() => onNavigate('puzzle-rush')}>ChÆ¡i Puzzle Rush</button>
+            <h2>Puzzle Battle cần đối thủ realtime</h2>
+            <p>Chế độ này cần ghép trận, đồng hồ đồng bộ và xác nhận điểm từ server. Hiện tại không tạo đối thủ giả để tránh kết quả sai.</p>
+            <button onClick={() => onNavigate('puzzle-rush')}>Chơi Puzzle Rush</button>
           </section>
         ) : (
           <section className={`puzzle-play-layout ${feedback?.correct ? 'puzzle-solved' : feedback && !feedback.correct ? 'puzzle-missed' : ''}`}>
@@ -409,7 +409,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
             <aside className="puzzle-panel">
               {mode === 'custom' && (
                 <div className="puzzle-filters">
-                  <strong>Luyá»‡n theo chá»§ Ä‘á»</strong>
+                  <strong>Luyện theo chủ đề</strong>
                   <select value={theme} onChange={(event) => setTheme(event.target.value)}>
                     {THEMES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                   </select>
@@ -417,19 +417,19 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
                     {STAGES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                   </select>
                   <select value={ratingBand} onChange={(event) => setRatingBand(event.target.value)}>
-                    <option value="0-1100">CÆ¡ báº£n (0 - 1100)</option>
-                    <option value="1101-1400">Trung cáº¥p (1101 - 1400)</option>
-                    <option value="1401-4000">NĂ¢ng cao (1401+)</option>
-                    <option value="0-4000">Má»i Ä‘á»™ khĂ³</option>
+                    <option value="0-1100">Cơ bản (0 - 1100)</option>
+                    <option value="1101-1400">Trung cấp (1101 - 1400)</option>
+                    <option value="1401-4000">Nâng cao (1401+)</option>
+                    <option value="0-4000">Mọi độ khó</option>
                   </select>
-                  <button onClick={() => loadPuzzle('custom')}>Ăp dá»¥ng</button>
+                  <button onClick={() => loadPuzzle('custom')}>Áp dụng</button>
                 </div>
               )}
               {mode === 'rush' && !rushActive && (
                 <div className="rush-start">
-                  <strong>{rushSeconds === 0 || feedback ? `Äiá»ƒm: ${rushScore}` : '3 phĂºt, tá»‘i Ä‘a 3 lá»—i'}</strong>
-                  <span>Ká»· lá»¥c: {progress.rushBest}</span>
-                  <button onClick={startRush}>Báº¯t Ä‘áº§u Rush</button>
+                  <strong>{rushSeconds === 0 || feedback ? `Điểm: ${rushScore}` : '3 phút, tối đa 3 lỗi'}</strong>
+                  <span>Kỷ lục: {progress.rushBest}</span>
+                  <button onClick={startRush}>Bắt đầu Rush</button>
                 </div>
               )}
               <div className="puzzle-status">
@@ -438,13 +438,13 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
                     {scoreBurst.value > 0 ? '+' : ''}{scoreBurst.value}
                   </span>
                 )}
-                {loading && <p>Stockfish Ä‘ang táº¡o cĂ¢u Ä‘á»‘...</p>}
-                {checking && <p>Stockfish Ä‘ang kiá»ƒm tra nÆ°á»›c Ä‘i...</p>}
+                {loading && <p>Stockfish đang tạo câu đố...</p>}
+                {checking && <p>Stockfish đang kiểm tra nước đi...</p>}
                 {error && <p className="error">{error}</p>}
                 {!loading && !error && puzzle && (
                   <>
-                    <strong>{puzzle.sideToMove === 'w' ? 'Tráº¯ng' : 'Äen'} Ä‘i trÆ°á»›c</strong>
-                    <span>{THEME_LABELS[puzzle.theme] ?? puzzle.theme} Â· {STAGE_LABELS[puzzle.stage] ?? puzzle.stage} Â· {puzzle.rating}</span>
+                    <strong>{puzzle.sideToMove === 'w' ? 'Trắng' : 'Đen'} đi trước</strong>
+                    <span>{THEME_LABELS[puzzle.theme] ?? puzzle.theme} · {STAGE_LABELS[puzzle.stage] ?? puzzle.stage} · {puzzle.rating}</span>
                     {mode === 'daily' && <small>{dateKey()}</small>}
                   </>
                 )}
@@ -455,8 +455,8 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
                   </p>
                 )}
               </div>
-              {mode === 'rated' && <p className="puzzle-note">NÆ°á»›c Ä‘Ăºng cá»™ng Ä‘iá»ƒm vĂ  chuyá»ƒn ngay sang cĂ¢u tiáº¿p theo. KhĂ´ng má»Ÿ review.</p>}
-              {mode === 'daily' && progress.dailySolved[dateKey()] && <p className="puzzle-note">Daily Puzzle hĂ´m nay Ä‘Ă£ hoĂ n thĂ nh.</p>}
+              {mode === 'rated' && <p className="puzzle-note">Nước đúng cộng điểm và chuyển ngay sang câu tiếp theo. Không mở review.</p>}
+              {mode === 'daily' && progress.dailySolved[dateKey()] && <p className="puzzle-note">Daily Puzzle hôm nay đã hoàn thành.</p>}
             </aside>
           </section>
         )}

@@ -19,7 +19,7 @@ export default function HomePage({
           <Shield size={22} />
         </div>
         <div>
-          <span>ChĂ o má»«ng trá»Ÿ láº¡i</span>
+          <span>Chào mừng trở lại</span>
           <strong>{userName}</strong>
         </div>
       </div>
@@ -27,21 +27,21 @@ export default function HomePage({
       <section className="home-hero">
         <div className="home-hero-copy">
           <span className="hero-kicker">Chess Arena Studio</span>
-          <h1>ChĂ o má»«ng, {userName}</h1>
-          <p>VĂ o tráº­n nhanh, luyá»‡n chiáº¿n thuáº­t vĂ  xem láº¡i vĂ¡n Ä‘áº¥u trong má»™t khĂ´ng gian táº­p trung, hiá»‡n Ä‘áº¡i vĂ  dĂ nh riĂªng cho báº¡n.</p>
+          <h1>Chào mừng, {userName}</h1>
+          <p>Vào trận nhanh, luyện chiến thuật và xem lại ván đấu trong một không gian tập trung, hiện đại và dành riêng cho bạn.</p>
           <div className="home-hero-actions">
             <button onClick={() => {
               onStartNewGame();
               onNavigate('bot');
-            }}>ChÆ¡i ngay</button>
+            }}>Chơi ngay</button>
             <button onClick={() => {
               onStartNewGame({ nextBotGameStarted: false });
               onNavigate('coach');
-            }}>Luyá»‡n vá»›i coach</button>
+            }}>Luyện với coach</button>
           </div>
         </div>
         <div className="home-hero-board">
-          <img src={HOME_IMAGES.hero} alt="BĂ n cá» vua Ä‘ang sáºµn sĂ ng cho vĂ¡n má»›i" loading="eager" />
+          <img src={HOME_IMAGES.hero} alt="Bàn cờ vua đang sẵn sàng cho ván mới" loading="eager" />
           <span>Rapid 10+0</span>
         </div>
       </section>
@@ -121,7 +121,7 @@ export default function HomePage({
         ))}
       </section>
 
-      <p className="home-image-credit">HĂ¬nh minh há»a bĂ n cá» online Ä‘Æ°á»£c dá»±ng riĂªng cho Chess Arena.</p>
+      <p className="home-image-credit">Hình minh họa bàn cờ online được dựng riêng cho Chess Arena.</p>
     </section>
   );
 }

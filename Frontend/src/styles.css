@@ -3227,6 +3227,417 @@ input {
   border-radius: 999px;
 }
 
+.admin-page,
+.admin-login-shell {
+  color: #123124;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(91, 214, 150, 0.34), transparent 30%),
+    radial-gradient(circle at 86% 12%, rgba(213, 255, 232, 0.72), transparent 30%),
+    linear-gradient(135deg, #f4fff8 0%, #dff7e9 48%, #effcf4 100%);
+}
+
+.admin-login-shell section,
+.admin-unlock-card,
+.admin-hero,
+.admin-stats div,
+.admin-panel,
+.admin-message,
+.admin-sidebar,
+.admin-modal {
+  color: #123124;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(236, 252, 243, 0.88)),
+    #ffffff;
+  border-color: rgba(29, 128, 84, 0.16);
+  box-shadow: 0 22px 60px rgba(29, 116, 78, 0.13);
+}
+
+.admin-sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(226, 249, 235, 0.94)),
+    #f7fff9;
+}
+
+.admin-login-banner {
+  color: #123124;
+  background:
+    radial-gradient(circle at 50% 4%, rgba(91, 214, 150, 0.38), transparent 58%),
+    linear-gradient(135deg, #e8fff0, #ffffff);
+  border-color: rgba(29, 128, 84, 0.18);
+}
+
+.admin-login-banner span,
+.admin-hero span,
+.admin-panel-head span,
+.admin-sidebar-brand svg,
+.admin-stats svg,
+.admin-stat-card svg,
+.admin-login-banner svg,
+.admin-bot-batch-row > span,
+.admin-editor-title span,
+.admin-bot-row-head span {
+  color: #16945d;
+}
+
+.admin-sidebar-brand span,
+.admin-hero p,
+.admin-user-card span,
+.admin-user-card small,
+.admin-user-card em,
+.admin-report-card span,
+.admin-report-card small,
+.admin-message,
+.admin-report-card em,
+.admin-diagnostic-card,
+.admin-config-grid div,
+.admin-unlock-card label,
+.admin-ban-form label,
+.admin-editor-card label,
+.admin-editor-title small {
+  color: #496b58;
+}
+
+.admin-hero h1,
+.admin-panel h2,
+.admin-stats strong,
+.admin-stat-card strong,
+.admin-user-card strong,
+.admin-report-card strong,
+.admin-editor-card strong,
+.admin-sidebar-brand strong {
+  color: #123124;
+}
+
+.admin-login-shell button,
+.admin-hero button,
+.admin-panel button,
+.admin-unlock-card button,
+.admin-sidebar button {
+  color: #08301e;
+  background: linear-gradient(135deg, #7ee3a2, #b9f7cf);
+  border: 1px solid rgba(22, 148, 93, 0.16);
+  box-shadow: 0 10px 24px rgba(22, 148, 93, 0.16);
+}
+
+.admin-sidebar nav button,
+.admin-lock-button,
+.admin-user-card,
+.admin-report-card,
+.admin-diagnostic-card,
+.admin-config-grid div {
+  color: #173524;
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(29, 128, 84, 0.14);
+}
+
+.admin-sidebar nav button.active {
+  color: #062918;
+  background: linear-gradient(135deg, #7ee3a2, #c9fadd);
+  box-shadow: 0 14px 30px rgba(22, 148, 93, 0.22);
+}
+
+.admin-lock-button {
+  color: #9a2e2e;
+  background: #fff1f1;
+  box-shadow: none;
+}
+
+.admin-unlock-card input,
+.admin-panel-head input,
+.admin-ban-form input,
+.admin-ban-form select,
+.admin-ban-form textarea,
+.admin-editor-card input,
+.admin-editor-card textarea {
+  color: #123124;
+  background: #fbfffd;
+  border-color: rgba(29, 128, 84, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.78);
+}
+
+.admin-unlock-card input::placeholder,
+.admin-panel-head input::placeholder,
+.admin-editor-card input::placeholder,
+.admin-editor-card textarea::placeholder {
+  color: #7c9587;
+}
+
+.admin-content-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-editor-card {
+  gap: 14px;
+  padding: 16px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(235, 253, 242, 0.84)),
+    #ffffff;
+  border-color: rgba(29, 128, 84, 0.14);
+  border-radius: 18px;
+}
+
+.admin-editor-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(29, 128, 84, 0.12);
+}
+
+.admin-editor-title div {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-editor-title span {
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-editor-title small {
+  max-width: 320px;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.admin-bot-builder {
+  grid-template-columns: 1fr;
+}
+
+.admin-bot-batch-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  background: rgba(246, 255, 250, 0.9);
+  border-color: rgba(29, 128, 84, 0.13);
+  border-radius: 14px;
+}
+
+.admin-bot-row-head {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(29, 128, 84, 0.1);
+}
+
+.admin-bot-row-head img,
+.admin-bot-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #dcf8e7;
+  border: 1px solid rgba(29, 128, 84, 0.18);
+}
+
+.admin-bot-row-head div {
+  min-width: 0;
+}
+
+.admin-bot-row-head strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-bot-batch-row label {
+  min-width: 0;
+}
+
+.admin-bot-batch-row label:nth-last-child(-n + 2) {
+  grid-column: span 2;
+}
+
+.admin-bot-batch-row textarea {
+  min-height: 92px;
+}
+
+.admin-check {
+  display: inline-grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #17412b;
+  background: #e9fbf0;
+  border: 1px solid rgba(29, 128, 84, 0.14);
+  border-radius: 999px;
+}
+
+.admin-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #25aa6b;
+}
+
+.admin-event-builder {
+  position: sticky;
+  top: 18px;
+}
+
+.admin-bot-card {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.admin-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(29, 128, 84, 0.12);
+  border-radius: 14px;
+}
+
+.admin-list-toolbar label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  color: #16945d;
+  background: #fbfffd;
+  border: 1px solid rgba(29, 128, 84, 0.16);
+  border-radius: 999px;
+}
+
+.admin-list-toolbar input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #123124;
+  background: transparent;
+  font: inherit;
+}
+
+.admin-list-toolbar div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-list-toolbar button {
+  min-height: 38px;
+  background: #ecfbf1;
+  box-shadow: none;
+}
+
+.admin-list-toolbar button.active {
+  background: linear-gradient(135deg, #7ee3a2, #c9fadd);
+}
+
+.admin-inline-editor {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-inline-editor-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-inline-editor label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #496b58;
+  font-weight: 850;
+}
+
+.admin-inline-editor input,
+.admin-inline-editor textarea {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(29, 128, 84, 0.18);
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: #123124;
+  background: #fbfffd;
+  font: inherit;
+  outline: none;
+}
+
+.admin-inline-editor textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.admin-inline-editor label:nth-last-child(3),
+.admin-inline-editor label:nth-last-child(2) {
+  grid-column: span 2;
+}
+
+.admin-inline-editor .admin-check {
+  align-self: end;
+  justify-self: start;
+}
+
+.admin-inline-editor-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 980px) {
+  .admin-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-event-builder {
+    position: static;
+  }
+
+  .admin-bot-batch-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-list-toolbar,
+  .admin-inline-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inline-editor label:nth-last-child(3),
+  .admin-inline-editor label:nth-last-child(2) {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-bot-batch-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-bot-batch-row label:nth-last-child(-n + 2) {
+    grid-column: auto;
+  }
+
+  .admin-bot-row-head,
+  .admin-bot-card {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-check {
+    justify-self: start;
+  }
+}
+
 .route-loading,
 .offline-overlay {
   position: fixed;

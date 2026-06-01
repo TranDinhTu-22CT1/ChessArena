@@ -6,24 +6,24 @@ export default function MatchesSection({ matches }) {
     <section className="admin-panel">
       <div className="admin-panel-head">
         <div>
-          <span>Quan ly tran dau</span>
-          <h2>Cac tran online gan day</h2>
+          <span>Quản lý trận đấu</span>
+          <h2>Các trận online gần đây</h2>
         </div>
       </div>
       <div className="admin-table-list">
         {matches.map((match) => (
           <article className="admin-report-card" key={match.id}>
             <div>
-              <strong>{match.white_name || 'Trang'} dau voi {match.black_name || 'Den'}</strong>
+              <strong>{match.white_name || 'Trắng'} đấu với {match.black_name || 'Đen'}</strong>
               <span>
-                Trang thai: {gameStatusLabel(match.status)}
-                {' | '}Ket qua: {resultLabel(match.result)}
-                {' | '}Che do: {gameModeLabel(match.mode)}
-                {' | '}Thoi gian: {match.time_control || '--'}
-                {' | '}So nuoc: {match.moveCount ?? 0}
+                Trạng thái: {gameStatusLabel(match.status)}
+                {' | '}Kết quả: {resultLabel(match.result)}
+                {' | '}Chế độ: {gameModeLabel(match.mode)}
+                {' | '}Thời gian: {match.time_control || '--'}
+                {' | '}Số nước: {match.moveCount ?? 0}
               </span>
-              <small>Ma tran: {match.id} | Tao luc: {time(match.created_at)} | Cap nhat: {time(match.updated_at)}</small>
-              <em>Nuoc cuoi: {(match.lastMoves || []).map((move) => move.san).join(' ') || 'Chua co nuoc di'}</em>
+              <small>Mã trận: {match.id} | Tạo lúc: {time(match.created_at)} | Cập nhật: {time(match.updated_at)}</small>
+              <em>Nước cuối: {(match.lastMoves || []).map((move) => move.san).join(' ') || 'Chưa có nước đi'}</em>
             </div>
           </article>
         ))}
