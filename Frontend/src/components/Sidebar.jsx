@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bell,
   Bot,
+  Brain,
   CalendarDays,
   ChevronRight,
   Crown,
@@ -15,6 +16,7 @@ import {
   Puzzle,
   Shield,
   Swords,
+  Target,
   Trophy,
   UserRound,
   Users,
@@ -27,6 +29,7 @@ const menuItems = [
   { icon: Swords, label: 'Play', active: true, hasFlyout: true },
   { icon: Users, label: 'Bạn bè', route: 'friends' },
   { icon: Bell, label: 'Thông báo', route: 'notifications', badge: true },
+  { icon: Trophy, label: 'Giải đấu', route: 'tournaments' },
   { icon: Puzzle, label: 'Puzzles', route: 'puzzles', hasPuzzleFlyout: true },
   { icon: Crown, label: 'Premium', route: 'membership' }
 ];
@@ -37,6 +40,8 @@ const playMenuItems = [
   { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
   { icon: Trophy, label: 'Leaderboard', route: 'leaderboard' },
+  { icon: Target, label: 'Achievements', route: 'achievements' },
+  { icon: Brain, label: 'Coach Lab', route: 'coachLab' },
   { icon: BarChart3, label: 'Profile', route: 'profile' },
   { icon: History, label: 'Game History', route: 'history' }
 ];
@@ -45,7 +50,9 @@ const puzzleMenuItems = [
   { icon: Puzzle, label: 'Puzzles', route: 'puzzles' },
   { icon: CalendarDays, label: 'Daily Puzzle', route: 'daily-puzzle' },
   { icon: Zap, label: 'Puzzle Rush', route: 'puzzle-rush' },
-  { icon: Trophy, label: 'Custom Puzzles', route: 'custom-puzzles' }
+  { icon: Target, label: 'Puzzle Streak', route: 'puzzle-streak' },
+  { icon: Trophy, label: 'Custom Puzzles', route: 'custom-puzzles' },
+  { icon: Brain, label: 'Mistake Lab', route: 'personal-puzzles' }
 ];
 const playModeRoutes = new Set(['online', 'bot', 'coach', 'local']);
 
@@ -99,7 +106,7 @@ export default function Sidebar({
           const isActive = item.hasFlyout
             ? ['online', 'bot', 'coach', 'local', 'review', 'history', 'leaderboard', 'friends', 'notifications'].includes(activeRoute)
             : item.hasPuzzleFlyout
-              ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
+              ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-streak', 'puzzle-battle', 'custom-puzzles', 'personal-puzzles'].includes(activeRoute)
               : item.route === activeRoute || item.active;
           return (
             <div className={`nav-item ${isActive ? 'active' : ''} ${(item.hasFlyout || item.hasPuzzleFlyout) ? 'has-flyout' : ''} ${openFlyout === item.label ? 'open' : ''}`} key={item.label}>

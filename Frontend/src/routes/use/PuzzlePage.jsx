@@ -1,7 +1,7 @@
 ﻿import React from 'react';
 import { Chess } from 'chess.js';
 import { CalendarDays, Check, Crown, Flame, Lock, Puzzle, Swords, Timer, Trophy, X, Zap } from 'lucide-react';
-import { checkPuzzleMove, requestPuzzle } from '../../api/puzzles';
+import { checkPuzzleMove, recordPuzzleSession, requestPuzzle } from '../../api/puzzles';
 import { PIECE_IMAGES } from '../../game/pieces';
 import { squareName } from '../../game/chessLogic';
 import { formatLimit, hasPremium, membershipPlan } from '../../membership/plans';
@@ -12,6 +12,7 @@ const ROUTE_MODES = {
   puzzles: 'rated',
   'daily-puzzle': 'daily',
   'puzzle-rush': 'rush',
+  'puzzle-streak': 'streak',
   'puzzle-battle': 'battle',
   'custom-puzzles': 'custom',
   'personal-puzzles': 'personal'
@@ -33,6 +34,7 @@ const MODES = [
   { id: 'rated', route: 'puzzles', label: 'Puzzles', icon: Puzzle },
   { id: 'daily', route: 'daily-puzzle', label: 'Daily Puzzle', icon: CalendarDays },
   { id: 'rush', route: 'puzzle-rush', label: 'Puzzle Rush', icon: Zap },
+  { id: 'streak', route: 'puzzle-streak', label: 'Puzzle Streak', icon: Flame },
   { id: 'battle', route: 'puzzle-battle', label: 'Puzzle Battle', icon: Swords },
   { id: 'custom', route: 'custom-puzzles', label: 'Custom Puzzles', icon: Trophy },
   { id: 'personal', route: 'personal-puzzles', label: 'Mistake Lab', icon: Flame }
@@ -121,6 +123,9 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
   const [rushSeconds, setRushSeconds] = React.useState(180);
   const [rushScore, setRushScore] = React.useState(0);
   const [rushMisses, setRushMisses] = React.useState(0);
+  const [streakActive, setStreakActive] = React.useState(false);
+  const [streakScore, setStreakScore] = React.useState(0);
+  const sessionStartedAtRef = React.useRef(null);
 
   React.useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
@@ -183,6 +188,11 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       setRushMisses(0);
       return;
     }
+    if (mode === 'streak') {
+      setStreakActive(false);
+      setStreakScore(0);
+      return;
+    }
     if (mode !== 'battle') loadPuzzle(mode);
   }, [mode]);
 
@@ -194,6 +204,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
         setRushActive(false);
         setFeedback({ correct: false, text: 'Hết giờ.' });
         setProgress((current) => ({ ...current, rushBest: Math.max(current.rushBest, rushScore) }));
+        saveSession({ mode: 'rush', score: rushScore, correct: rushScore, attempted: rushScore + rushMisses, bestStreak: rushScore, durationSeconds: 180 });
         return 0;
       });
     }, 1000);
@@ -204,12 +215,23 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
     setScoreBurst({ id: Date.now(), value });
   };
 
+  const saveSession = (payload) => {
+    recordPuzzleSession({
+      startedAt: sessionStartedAtRef.current,
+      date: dateKey(),
+      puzzleId: puzzle?.id,
+      ...payload
+    }).catch(() => {});
+  };
+
   const completePuzzle = () => {
     const today = dateKey();
     const reward = mode === 'daily'
       ? 20
       : mode === 'rush'
         ? 1
+        : mode === 'streak'
+          ? 1
         : mode === 'custom'
           ? 10
           : Math.max(5, Math.min(24, Math.round((puzzle.rating - progress.rating) / 40) + 12));
@@ -218,6 +240,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
     setFeedback({ correct: true, text: `Chính xác! +${reward}` });
 
     if (mode === 'rated') {
+      saveSession({ mode: 'rated', score: reward, correct: 1, attempted: 1, bestStreak: 1, durationSeconds: 0 });
       setProgress((current) => ({
         ...current,
         attempted: current.attempted + 1,
@@ -231,6 +254,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
         seen: current.seen.includes(puzzle.id) ? current.seen : [...current.seen, puzzle.id]
       }));
     } else if (mode === 'daily') {
+      saveSession({ mode: 'daily', score: reward, correct: 1, attempted: 1, bestStreak: 1, durationSeconds: 0 });
       setProgress((current) => ({
         ...current,
         correct: current.correct + (current.dailySolved[today] ? 0 : 1),
@@ -247,7 +271,23 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
         ...current,
         seen: current.seen.includes(puzzle.id) ? current.seen : [...current.seen, puzzle.id]
       }));
+    } else if (mode === 'streak') {
+      const nextScore = streakScore + 1;
+      setStreakScore(nextScore);
+      setProgress((current) => ({
+        ...current,
+        seen: current.seen.includes(puzzle.id) ? current.seen : [...current.seen, puzzle.id]
+      }));
     } else if (mode === 'custom') {
+      saveSession({ mode: 'custom', score: reward, correct: 1, attempted: 1, bestStreak: 1, durationSeconds: 0 });
+      setProgress((current) => ({
+        ...current,
+        correct: current.correct + 1,
+        points: current.points + reward,
+        seen: current.seen.includes(puzzle.id) ? current.seen : [...current.seen, puzzle.id]
+      }));
+    } else if (mode === 'personal') {
+      saveSession({ mode: 'personal', score: reward, correct: 1, attempted: 1, bestStreak: 1, durationSeconds: 0 });
       setProgress((current) => ({
         ...current,
         correct: current.correct + 1,
@@ -257,7 +297,8 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
     }
 
     window.setTimeout(() => {
-      if (mode !== 'rush' || rushActive) loadPuzzle(mode, [puzzle.id]);
+      if ((mode === 'rush' && !rushActive) || (mode === 'streak' && !streakActive)) return;
+      loadPuzzle(mode, [puzzle.id]);
     }, 620);
   };
 
@@ -276,10 +317,17 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
         setRushActive(false);
         setProgress((current) => ({ ...current, rushBest: Math.max(current.rushBest, rushScore) }));
         setFeedback({ correct: false, text: `Hết lượt: 3 lỗi. -${penalty}` });
+        saveSession({ mode: 'rush', score: rushScore, correct: rushScore, attempted: rushScore + nextMisses, bestStreak: rushScore, durationSeconds: 180 - rushSeconds });
         return;
       }
       setFeedback({ correct: false, text: `Sai. Chuyển câu tiếp theo. -${penalty}` });
       window.setTimeout(() => loadPuzzle(mode, [puzzle.id]), 520);
+      return;
+    }
+    if (mode === 'streak') {
+      setStreakActive(false);
+      saveSession({ mode: 'streak', score: streakScore, correct: streakScore, attempted: streakScore + 1, bestStreak: streakScore, durationSeconds: Math.max(1, Math.floor((Date.now() - new Date(sessionStartedAtRef.current || Date.now()).getTime()) / 1000)) });
+      setFeedback({ correct: false, text: `Chuỗi dừng ở ${streakScore}.` });
       return;
     }
     setFeedback({ correct: false, text: `Chưa đúng. Hãy thử nước khác. -${penalty}` });
@@ -294,6 +342,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
   const playSquare = async (square) => {
     if (!position || !puzzle || feedback?.correct || loading || checking) return;
     if (mode === 'rush' && !rushActive) return;
+    if (mode === 'streak' && !streakActive) return;
     if (mode === 'daily' && progress.dailySolved[dateKey()]) return;
     const piece = position.get(square);
     if (!selected) {
@@ -333,11 +382,19 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
   };
 
   const startRush = () => {
+    sessionStartedAtRef.current = new Date().toISOString();
     setRushActive(true);
     setRushSeconds(180);
     setRushScore(0);
     setRushMisses(0);
     loadPuzzle('rush');
+  };
+
+  const startStreak = () => {
+    sessionStartedAtRef.current = new Date().toISOString();
+    setStreakActive(true);
+    setStreakScore(0);
+    loadPuzzle('streak');
   };
 
   const flipped = puzzle?.sideToMove === 'b';
@@ -370,8 +427,8 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
             <h1>{MODES.find((item) => item.id === mode)?.label}</h1>
           </div>
           <div className="puzzle-metrics">
-            {mode === 'rush' ? <b><Timer size={17} />{Math.floor(rushSeconds / 60)}:{String(rushSeconds % 60).padStart(2, '0')}</b> : <b><Trophy size={17} />{progress.rating}</b>}
-            <b><Flame size={17} />{mode === 'daily' ? progress.dailyStreak : progress.points}</b>
+            {mode === 'rush' ? <b><Timer size={17} />{Math.floor(rushSeconds / 60)}:{String(rushSeconds % 60).padStart(2, '0')}</b> : <b><Trophy size={17} />{mode === 'streak' ? streakScore : progress.rating}</b>}
+            <b><Flame size={17} />{mode === 'daily' ? progress.dailyStreak : mode === 'rush' ? rushScore : progress.points}</b>
           </div>
         </header>
 
@@ -430,6 +487,13 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
                   <strong>{rushSeconds === 0 || feedback ? `Điểm: ${rushScore}` : '3 phút, tối đa 3 lỗi'}</strong>
                   <span>Kỷ lục: {progress.rushBest}</span>
                   <button onClick={startRush}>Bắt đầu Rush</button>
+                </div>
+              )}
+              {mode === 'streak' && !streakActive && (
+                <div className="rush-start">
+                  <strong>{feedback ? `Chuỗi vừa rồi: ${streakScore}` : 'Sai là kết thúc'}</strong>
+                  <span>Luyện chính xác trước khi luyện tốc độ.</span>
+                  <button onClick={startStreak}>Bắt đầu Streak</button>
                 </div>
               )}
               <div className="puzzle-status">

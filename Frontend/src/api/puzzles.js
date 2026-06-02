@@ -43,3 +43,23 @@ export async function checkPuzzleMove(puzzleId, move, timeoutMs = 20000) {
     window.clearTimeout(timeout);
   }
 }
+
+export async function recordPuzzleSession(payload, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(apiUrl('/api/puzzles/session'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not save puzzle session.');
+    return data;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}

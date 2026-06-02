@@ -1650,6 +1650,68 @@ create table if not exists public.rating_refunds (
   unique(game_id, refunded_user_id, reason)
 );
 
+create table if not exists public.user_achievements (
+  user_id uuid not null references public.users(id) on delete cascade,
+  achievement_key text not null,
+  tier text not null default 'bronze',
+  progress integer not null default 0,
+  target integer not null default 1,
+  unlocked_at timestamptz,
+  updated_at timestamptz not null default now(),
+  metadata jsonb not null default '{}'::jsonb,
+  primary key (user_id, achievement_key)
+);
+
+create table if not exists public.puzzle_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  mode text not null check (mode in ('rated', 'daily', 'rush', 'streak', 'custom', 'personal')),
+  score integer not null default 0,
+  correct integer not null default 0,
+  attempted integer not null default 0,
+  best_streak integer not null default 0,
+  duration_seconds integer not null default 0,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz not null default now(),
+  metadata jsonb not null default '{}'::jsonb
+);
+
+create table if not exists public.daily_puzzle_claims (
+  user_id uuid not null references public.users(id) on delete cascade,
+  puzzle_date date not null,
+  puzzle_id text not null,
+  solved_at timestamptz,
+  streak integer not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (user_id, puzzle_date)
+);
+
+create table if not exists public.arena_tournaments (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  status text not null default 'scheduled' check (status in ('scheduled', 'open', 'running', 'finished', 'cancelled')),
+  time_control text not null default '300+0',
+  starts_at timestamptz not null default now(),
+  ends_at timestamptz not null default now() + interval '30 minutes',
+  created_by uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.arena_tournament_players (
+  tournament_id uuid not null references public.arena_tournaments(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  display_name text not null default 'Player',
+  score integer not null default 0,
+  games_played integer not null default 0,
+  wins integer not null default 0,
+  draws integer not null default 0,
+  losses integer not null default 0,
+  joined_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tournament_id, user_id)
+);
+
 create index if not exists idx_game_reviews_user_updated
 on public.game_reviews(user_id, updated_at desc);
 
@@ -1661,6 +1723,21 @@ on public.personal_puzzles(user_id, status, created_at desc);
 
 create index if not exists idx_rating_refunds_user_created
 on public.rating_refunds(refunded_user_id, created_at desc);
+
+create index if not exists idx_user_achievements_user_unlocked
+on public.user_achievements(user_id, unlocked_at desc, updated_at desc);
+
+create index if not exists idx_puzzle_sessions_user_finished
+on public.puzzle_sessions(user_id, mode, finished_at desc);
+
+create index if not exists idx_daily_puzzle_claims_user_date
+on public.daily_puzzle_claims(user_id, puzzle_date desc);
+
+create index if not exists idx_arena_tournaments_status_time
+on public.arena_tournaments(status, starts_at desc);
+
+create index if not exists idx_arena_tournament_players_score
+on public.arena_tournament_players(tournament_id, score desc, updated_at desc);
 
 create index if not exists idx_bot_personas_active_window
 on public.bot_personas(active, starts_at, ends_at, sort_order);
@@ -1733,6 +1810,11 @@ alter table public.user_active_locks enable row level security;
 alter table public.online_rating_events enable row level security;
 alter table public.online_game_moves enable row level security;
 alter table public.online_game_tickets enable row level security;
+alter table public.user_achievements enable row level security;
+alter table public.puzzle_sessions enable row level security;
+alter table public.daily_puzzle_claims enable row level security;
+alter table public.arena_tournaments enable row level security;
+alter table public.arena_tournament_players enable row level security;
 
 -- DROP OLD POLICIES IF EXIST
 drop policy if exists "service role manages users" on public.users;
@@ -1763,6 +1845,11 @@ drop policy if exists "service role manages user active locks" on public.user_ac
 drop policy if exists "service role manages online rating events" on public.online_rating_events;
 drop policy if exists "service role manages online game moves" on public.online_game_moves;
 drop policy if exists "service role manages online game tickets" on public.online_game_tickets;
+drop policy if exists "service role manages user achievements" on public.user_achievements;
+drop policy if exists "service role manages puzzle sessions" on public.puzzle_sessions;
+drop policy if exists "service role manages daily puzzle claims" on public.daily_puzzle_claims;
+drop policy if exists "service role manages arena tournaments" on public.arena_tournaments;
+drop policy if exists "service role manages arena tournament players" on public.arena_tournament_players;
 
 -- CREATE POLICIES
 create policy "service role manages users"
@@ -1929,6 +2016,36 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages online game tickets"
 on public.online_game_tickets
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user achievements"
+on public.user_achievements
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages puzzle sessions"
+on public.puzzle_sessions
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages daily puzzle claims"
+on public.daily_puzzle_claims
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages arena tournaments"
+on public.arena_tournaments
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages arena tournament players"
+on public.arena_tournament_players
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

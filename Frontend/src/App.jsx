@@ -77,6 +77,8 @@ function lazyWithReload(importer) {
 }
 
 const AdminPage = lazyWithReload(() => import('./routes/Admin/AdminPage'));
+const AchievementsPage = lazyWithReload(() => import('./routes/use/AchievementsPage'));
+const CoachLabPage = lazyWithReload(() => import('./routes/use/CoachLabPage'));
 const HistoryPage = lazyWithReload(() => import('./routes/use/HistoryPage'));
 const HomePage = lazyWithReload(() => import('./routes/use/HomePage'));
 const FriendsPage = lazyWithReload(() => import('./routes/use/FriendsPage'));
@@ -88,6 +90,7 @@ const OnlinePage = lazyWithReload(() => import('./routes/use/OnlinePage'));
 const ProfilePage = lazyWithReload(() => import('./routes/use/ProfilePage'));
 const ReviewPage = lazyWithReload(() => import('./routes/use/ReviewPage'));
 const PuzzlePage = lazyWithReload(() => import('./routes/use/PuzzlePage'));
+const TournamentsPage = lazyWithReload(() => import('./routes/use/TournamentsPage'));
 
 function storedFinishedOutcome() {
   const currentRoute = routeFromPath(window.location.pathname);
@@ -1171,6 +1174,30 @@ export default function App() {
           />
         )}
 
+        {route === 'achievements' && (
+          <AchievementsPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+            onNavigate={navigate}
+          />
+        )}
+
+        {route === 'tournaments' && (
+          <TournamentsPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+            onNavigate={navigate}
+          />
+        )}
+
+        {route === 'coachLab' && (
+          <CoachLabPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+            onNavigate={navigate}
+          />
+        )}
+
         {route === 'membership' && (
           <MembershipPage
             authUser={authUser}
@@ -1262,7 +1289,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'achievements' && route !== 'tournaments' && route !== 'coachLab' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}
