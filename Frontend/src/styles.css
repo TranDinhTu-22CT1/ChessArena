@@ -4,6 +4,8 @@
   --dark-square: #86a666;
   --surface: #34342d;
   --page: #3d402a;
+  --text: #f3f4ee;
+  --muted: #d6e0cf;
   --app-font: "Segoe UI", Arial, sans-serif;
   color: #f3f4ee;
   background: var(--page);
@@ -37,6 +39,8 @@ body {
 }
 
 :root[data-color-scheme="light"] body {
+  --text: #102416;
+  --muted: #43543f;
   color: #1d261a;
   background:
     radial-gradient(circle at 72% 12%, rgba(174, 206, 113, 0.2), transparent 30%),
@@ -11559,4 +11563,192 @@ h2 {
     grid-auto-flow: row;
     justify-items: start;
   }
+}
+
+.app-shell[data-color-scheme="light"],
+.app-shell[data-color-scheme="light"] .content-shell,
+.app-shell[data-color-scheme="light"] .feature-page,
+.app-shell[data-color-scheme="light"] .auth-page,
+.app-shell[data-color-scheme="light"] .profile-page,
+.app-shell[data-color-scheme="light"] .history-page,
+.app-shell[data-color-scheme="light"] .leaderboard-page,
+.app-shell[data-color-scheme="light"] .membership-page,
+.app-shell[data-color-scheme="light"] .friends-page,
+.app-shell[data-color-scheme="light"] .notifications-page,
+.app-shell[data-color-scheme="light"] .puzzle-page,
+.app-shell[data-color-scheme="light"] .online-page {
+  color: #102416;
+  --text: #102416;
+  --muted: #43543f;
+}
+
+.app-shell[data-color-scheme="light"] .auth-card,
+.app-shell[data-color-scheme="light"] .feature-hero,
+.app-shell[data-color-scheme="light"] .empty-feature,
+.app-shell[data-color-scheme="light"] .feature-note,
+.app-shell[data-color-scheme="light"] .coach-recommendations,
+.app-shell[data-color-scheme="light"] .achievement-card,
+.app-shell[data-color-scheme="light"] .tournament-card,
+.app-shell[data-color-scheme="light"] .coach-card-grid article,
+.app-shell[data-color-scheme="light"] .notifications-hero,
+.app-shell[data-color-scheme="light"] .notifications-message,
+.app-shell[data-color-scheme="light"] .notifications-empty,
+.app-shell[data-color-scheme="light"] .notification-card,
+.app-shell[data-color-scheme="light"] .friends-hero,
+.app-shell[data-color-scheme="light"] .friends-message,
+.app-shell[data-color-scheme="light"] .friends-empty,
+.app-shell[data-color-scheme="light"] .friends-invite-card,
+.app-shell[data-color-scheme="light"] .friend-card,
+.app-shell[data-color-scheme="light"] .friends-search-box,
+.app-shell[data-color-scheme="light"] .profile-hero,
+.app-shell[data-color-scheme="light"] .profile-editor,
+.app-shell[data-color-scheme="light"] .profile-stats,
+.app-shell[data-color-scheme="light"] .profile-skill-lab,
+.app-shell[data-color-scheme="light"] .profile-recent,
+.app-shell[data-color-scheme="light"] .profile-auth-required,
+.app-shell[data-color-scheme="light"] .profile-loading,
+.app-shell[data-color-scheme="light"] .leaderboard-hero,
+.app-shell[data-color-scheme="light"] .leaderboard-tabs,
+.app-shell[data-color-scheme="light"] .leaderboard-current,
+.app-shell[data-color-scheme="light"] .leaderboard-message,
+.app-shell[data-color-scheme="light"] .leaderboard-empty,
+.app-shell[data-color-scheme="light"] .leaderboard-auth-required,
+.app-shell[data-color-scheme="light"] .leaderboard-table,
+.app-shell[data-color-scheme="light"] .membership-hero,
+.app-shell[data-color-scheme="light"] .membership-value-grid div,
+.app-shell[data-color-scheme="light"] .membership-free-limits,
+.app-shell[data-color-scheme="light"] .membership-plan,
+.app-shell[data-color-scheme="light"] .membership-checkout,
+.app-shell[data-color-scheme="light"] .membership-payment-summary,
+.app-shell[data-color-scheme="light"] .membership-payment-card,
+.app-shell[data-color-scheme="light"] .membership-auth-required,
+.app-shell[data-color-scheme="light"] .history-header,
+.app-shell[data-color-scheme="light"] .history-message,
+.app-shell[data-color-scheme="light"] .history-empty,
+.app-shell[data-color-scheme="light"] .history-auth-required,
+.app-shell[data-color-scheme="light"] .history-row {
+  color: #102416 !important;
+  background: rgba(251, 255, 247, 0.96) !important;
+  border-color: rgba(31, 46, 23, 0.16) !important;
+  box-shadow: 0 18px 52px rgba(28, 41, 23, 0.12);
+}
+
+.app-shell[data-color-scheme="light"] .auth-card h1,
+.app-shell[data-color-scheme="light"] .auth-card label,
+.app-shell[data-color-scheme="light"] .auth-card label span,
+.app-shell[data-color-scheme="light"] .feature-page h1,
+.app-shell[data-color-scheme="light"] .feature-page h2,
+.app-shell[data-color-scheme="light"] .feature-page h3,
+.app-shell[data-color-scheme="light"] .feature-page strong,
+.app-shell[data-color-scheme="light"] .profile-page h1,
+.app-shell[data-color-scheme="light"] .profile-page h2,
+.app-shell[data-color-scheme="light"] .profile-page strong,
+.app-shell[data-color-scheme="light"] .history-page h1,
+.app-shell[data-color-scheme="light"] .history-page strong,
+.app-shell[data-color-scheme="light"] .leaderboard-page h1,
+.app-shell[data-color-scheme="light"] .leaderboard-page h2,
+.app-shell[data-color-scheme="light"] .leaderboard-page strong,
+.app-shell[data-color-scheme="light"] .membership-page h1,
+.app-shell[data-color-scheme="light"] .membership-page h2,
+.app-shell[data-color-scheme="light"] .membership-page strong,
+.app-shell[data-color-scheme="light"] .friends-page h1,
+.app-shell[data-color-scheme="light"] .friends-page h2,
+.app-shell[data-color-scheme="light"] .friends-page strong,
+.app-shell[data-color-scheme="light"] .notifications-page h1,
+.app-shell[data-color-scheme="light"] .notifications-page strong,
+.app-shell[data-color-scheme="light"] .notification-card strong {
+  color: #102416 !important;
+}
+
+.app-shell[data-color-scheme="light"] .auth-card p,
+.app-shell[data-color-scheme="light"] .auth-card small,
+.app-shell[data-color-scheme="light"] .auth-card-header p,
+.app-shell[data-color-scheme="light"] .auth-card .remember-row small,
+.app-shell[data-color-scheme="light"] .feature-page p,
+.app-shell[data-color-scheme="light"] .feature-message,
+.app-shell[data-color-scheme="light"] .tournament-meta,
+.app-shell[data-color-scheme="light"] .notifications-hero span,
+.app-shell[data-color-scheme="light"] .notifications-hero p,
+.app-shell[data-color-scheme="light"] .notification-card small,
+.app-shell[data-color-scheme="light"] .notification-card time,
+.app-shell[data-color-scheme="light"] .friends-hero p,
+.app-shell[data-color-scheme="light"] .friends-empty,
+.app-shell[data-color-scheme="light"] .friends-message,
+.app-shell[data-color-scheme="light"] .friend-main small,
+.app-shell[data-color-scheme="light"] .friends-search-box,
+.app-shell[data-color-scheme="light"] .friends-invite-card span,
+.app-shell[data-color-scheme="light"] .friends-invite-card small,
+.app-shell[data-color-scheme="light"] .profile-page p,
+.app-shell[data-color-scheme="light"] .profile-page small,
+.app-shell[data-color-scheme="light"] .profile-page time,
+.app-shell[data-color-scheme="light"] .history-page p,
+.app-shell[data-color-scheme="light"] .history-page small,
+.app-shell[data-color-scheme="light"] .history-page time,
+.app-shell[data-color-scheme="light"] .history-page em,
+.app-shell[data-color-scheme="light"] .leaderboard-page p,
+.app-shell[data-color-scheme="light"] .leaderboard-page small,
+.app-shell[data-color-scheme="light"] .leaderboard-page time,
+.app-shell[data-color-scheme="light"] .membership-page p,
+.app-shell[data-color-scheme="light"] .membership-page span,
+.app-shell[data-color-scheme="light"] .membership-page li,
+.app-shell[data-color-scheme="light"] .membership-page small {
+  color: #43543f !important;
+}
+
+.app-shell[data-color-scheme="light"] .feature-hero span,
+.app-shell[data-color-scheme="light"] .achievement-card span,
+.app-shell[data-color-scheme="light"] .tournament-top span,
+.app-shell[data-color-scheme="light"] .coach-card-grid span,
+.app-shell[data-color-scheme="light"] .friends-hero span,
+.app-shell[data-color-scheme="light"] .friends-list h2,
+.app-shell[data-color-scheme="light"] .friends-invite-card strong,
+.app-shell[data-color-scheme="light"] .notifications-hero > div > span,
+.app-shell[data-color-scheme="light"] .leaderboard-hero span,
+.app-shell[data-color-scheme="light"] .membership-hero span,
+.app-shell[data-color-scheme="light"] .membership-checkout span,
+.app-shell[data-color-scheme="light"] .history-header span,
+.app-shell[data-color-scheme="light"] .profile-hero span {
+  color: #4f7f26 !important;
+}
+
+.app-shell[data-color-scheme="light"] .auth-input,
+.app-shell[data-color-scheme="light"] .auth-input input,
+.app-shell[data-color-scheme="light"] .auth-card > label > input,
+.app-shell[data-color-scheme="light"] .friends-search-box input,
+.app-shell[data-color-scheme="light"] .profile-editor input,
+.app-shell[data-color-scheme="light"] .history-filters select {
+  color: #102416 !important;
+  background: #ffffff !important;
+  border-color: rgba(31, 46, 23, 0.18) !important;
+}
+
+.app-shell[data-color-scheme="light"] .auth-input input::placeholder,
+.app-shell[data-color-scheme="light"] .auth-card > label > input::placeholder {
+  color: rgba(67, 84, 63, 0.7) !important;
+}
+
+.app-shell[data-color-scheme="light"] .friends-tabs,
+.app-shell[data-color-scheme="light"] .leaderboard-tabs {
+  background: rgba(31, 46, 23, 0.08) !important;
+}
+
+.app-shell[data-color-scheme="light"] .friends-tabs button,
+.app-shell[data-color-scheme="light"] .leaderboard-tabs button {
+  color: #43543f !important;
+}
+
+.app-shell[data-color-scheme="light"] .friends-tabs button.active,
+.app-shell[data-color-scheme="light"] .leaderboard-tabs button.active,
+.app-shell[data-color-scheme="light"] .feature-hero button,
+.app-shell[data-color-scheme="light"] .empty-feature button,
+.app-shell[data-color-scheme="light"] .secondary-feature-action,
+.app-shell[data-color-scheme="light"] .tournament-card button,
+.app-shell[data-color-scheme="light"] .coach-actions button,
+.app-shell[data-color-scheme="light"] .notifications-hero button,
+.app-shell[data-color-scheme="light"] .notifications-auth-required button,
+.app-shell[data-color-scheme="light"] .friends-hero button,
+.app-shell[data-color-scheme="light"] .friends-auth-required button,
+.app-shell[data-color-scheme="light"] .friend-actions button,
+.app-shell[data-color-scheme="light"] .friends-invite-card button {
+  color: #102115 !important;
 }
