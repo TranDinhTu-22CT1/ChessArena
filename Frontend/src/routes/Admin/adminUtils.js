@@ -120,6 +120,7 @@ export function adminActionLabel(action) {
     'bot.update': 'Admin cập nhật bot',
     'event.create': 'Admin tạo sự kiện',
     'event.update': 'Admin cập nhật sự kiện',
+    'match.create': 'Admin tạo trận đấu',
     'paypal.diagnostics': 'Admin kiểm tra PayPal',
     'paypal.test_subscription': 'Admin tạo thử đăng ký PayPal'
   };

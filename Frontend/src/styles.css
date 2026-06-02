@@ -3185,6 +3185,7 @@ input {
 .admin-ban-form select,
 .admin-ban-form textarea,
 .admin-editor-card input,
+.admin-editor-card select,
 .admin-editor-card textarea {
   min-height: 42px;
   border: 1px solid rgba(198, 232, 178, 0.16);
@@ -3295,6 +3296,7 @@ input {
   .admin-stats-wide,
   .admin-diagnostic-grid,
   .admin-config-grid,
+  .admin-match-create,
   .admin-content-grid {
     grid-template-columns: 1fr;
   }
@@ -3608,6 +3610,7 @@ input {
 .admin-ban-form select,
 .admin-ban-form textarea,
 .admin-editor-card input,
+.admin-editor-card select,
 .admin-editor-card textarea {
   color: #123124;
   background: #fbfffd;
@@ -3667,6 +3670,38 @@ input {
 
 .admin-bot-builder {
   grid-template-columns: 1fr;
+}
+
+.admin-match-create {
+  margin-bottom: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-match-create .admin-editor-title,
+.admin-match-preview,
+.admin-match-create button[type="submit"],
+.admin-match-create .admin-message {
+  grid-column: 1 / -1;
+}
+
+.admin-match-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-match-preview span {
+  padding: 7px 10px;
+  color: #17412b;
+  background: #e9fbf0;
+  border: 1px solid rgba(29, 128, 84, 0.12);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.admin-match-create button[type="submit"] {
+  justify-self: start;
 }
 
 .admin-bot-batch-row {

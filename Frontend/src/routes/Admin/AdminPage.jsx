@@ -17,6 +17,7 @@ import {
   adminUserAction,
   createAdminBot,
   createAdminEvent,
+  createAdminMatch,
   fetchAdminAuditLogs,
   fetchAdminBots,
   fetchAdminConfig,
@@ -104,6 +105,14 @@ export default function AdminPage() {
   const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Vi phạm fair play / chính sách', expiresAt: '' });
   const [botForms, setBotForms] = React.useState(() => Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
   const [eventForm, setEventForm] = React.useState({ title: 'Thử thách bot mùa lễ', eventType: 'bot_challenge', description: 'Đánh bại bot nổi bật và leo bảng sự kiện trong thời gian giới hạn.', rewardLabel: 'Huy hiệu mùa', active: true });
+  const [matchForm, setMatchForm] = React.useState({
+    whiteUserId: '',
+    blackUserId: '',
+    side: 'random',
+    timeControl: '600+0',
+    matchType: 'friend',
+    rated: false
+  });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState(() => sectionFromPath());
   const [unlockEmail, setUnlockEmail] = React.useState('');
@@ -381,6 +390,20 @@ export default function AdminPage() {
     }
   };
 
+  const submitMatch = async (event) => {
+    event.preventDefault();
+    try {
+      const data = await createAdminMatch(matchForm);
+      const code = data.match?.invite_code ? ` Invite code: ${data.match.invite_code}.` : '';
+      notify(`Admin match created.${code}`, 'success');
+      setMatchForm((form) => ({ ...form, blackUserId: '' }));
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
   const changeModerationStatus = async (report, status) => {
     const resolutionNote = ['resolved', 'dismissed', 'escalated'].includes(status)
       ? window.prompt('Ghi chú xử lý', status === 'dismissed' ? 'Không phát hiện vi phạm chính sách.' : 'Đã được đội kiểm duyệt xem xét.')
@@ -501,7 +524,15 @@ export default function AdminPage() {
             onOpenBan={openBan}
           />
         )}
-        {section === 'matches' && <MatchesSection matches={matches} />}
+        {section === 'matches' && (
+          <MatchesSection
+            matches={matches}
+            users={users}
+            form={matchForm}
+            onChangeForm={(patch) => setMatchForm((form) => ({ ...form, ...patch }))}
+            onSubmit={submitMatch}
+          />
+        )}
         {section === 'fairplay' && (
           <FairPlaySection
             reports={reports}
