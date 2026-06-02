@@ -103,20 +103,20 @@ export async function requireOnlineUser(options = {}) {
   if (error) return { error };
 
   const cookieStore = await cookies();
-  const adminContext = await requireAdminUser();
-  if (!adminContext.error) {
-    try {
-      return {
-        supabase,
-        user: await ensureAdminAppUser(supabase, adminContext.admin)
-      };
-    } catch (error) {
-      return { error: Response.json({ ok: false, error: error.message || 'Could not create admin user context.' }, { status: 500 }) };
-    }
-  }
-
   const token = cookieStore.get('firebase_id_token')?.value;
   if (!token) {
+    const adminContext = await requireAdminUser();
+    if (!adminContext.error) {
+      try {
+        return {
+          supabase,
+          user: await ensureAdminAppUser(supabase, adminContext.admin)
+        };
+      } catch (error) {
+        return { error: Response.json({ ok: false, error: error.message || 'Could not create admin user context.' }, { status: 500 }) };
+      }
+    }
+
     return { error: Response.json({ ok: false, error: 'Sign in is required for online play.' }, { status: 401 }) };
   }
 

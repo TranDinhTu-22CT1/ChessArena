@@ -4,7 +4,7 @@ import { createFirebaseSessionCookie, verifyFirebaseToken } from '../../../../li
 import { rateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { readJsonPayload, validateSessionPayload } from '../../../../lib/validation';
-import { activeBanForUser, recordUserDevice } from '../../../../lib/admin';
+import { activeBanForUser, clearAdminSessionCookie, recordUserDevice } from '../../../../lib/admin';
 
 export const runtime = 'nodejs';
 const ONE_HOUR = 60 * 60;
@@ -125,6 +125,7 @@ export async function POST(request) {
 
     const cookieStore = await cookies();
     cookieStore.set('firebase_id_token', authCookieValue, authCookieOptions(cookieMaxAge));
+    await clearAdminSessionCookie();
 
     return Response.json({
       ok: true,
