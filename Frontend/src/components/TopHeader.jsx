@@ -64,6 +64,8 @@ export default function TopHeader({
   appearance,
   pieceSet,
   authUser,
+  notificationCount = 0,
+  onOpenNotifications,
   onToggleSettings,
   onResetTheme,
   onUpdateTheme,
@@ -94,8 +96,9 @@ export default function TopHeader({
           {apiOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
           API
         </span>
-        <button aria-label="Notifications">
+        <button className="notification-bell" aria-label="Notifications" onClick={onOpenNotifications}>
           <Bell size={19} />
+          {notificationCount > 0 && <b>{Math.min(notificationCount, 99)}</b>}
         </button>
         <button aria-label="Settings" onClick={onToggleSettings}>
           <Settings size={19} />

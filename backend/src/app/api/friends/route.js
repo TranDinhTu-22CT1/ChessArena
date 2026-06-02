@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../lib/online';
+import { createUserNotification } from '../../../lib/notifications';
 import { readJsonPayload } from '../../../lib/validation';
 
 export const runtime = 'nodejs';
@@ -177,6 +178,14 @@ export async function POST(request) {
           .single();
       const { data, error } = await write;
       if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+      await createUserNotification(supabase, {
+        recipientUserId: targetUserId,
+        type: 'friend_request',
+        title: 'Lời mời kết bạn mới',
+        body: `${user.displayName || user.username} muốn kết bạn với bạn.`,
+        actionUrl: '/friends',
+        metadata: { friendshipId: data.id, requesterId: user.id }
+      });
       return Response.json({ ok: true, status: relationStatus(data, user.id), friendship: data });
     }
 
@@ -196,6 +205,14 @@ export async function POST(request) {
         .maybeSingle();
       if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
       if (!data) return Response.json({ ok: false, error: 'Friend request not found.' }, { status: 404 });
+      await createUserNotification(supabase, {
+        recipientUserId: data.requester_id,
+        type: response === 'accepted' ? 'friend_accepted' : 'friend_declined',
+        title: response === 'accepted' ? 'Lời mời kết bạn đã được chấp nhận' : 'Lời mời kết bạn đã bị từ chối',
+        body: `${user.displayName || user.username} đã ${response === 'accepted' ? 'chấp nhận' : 'từ chối'} lời mời kết bạn.`,
+        actionUrl: '/friends',
+        metadata: { friendshipId: data.id, receiverId: user.id, response }
+      });
       return Response.json({ ok: true, status: relationStatus(data, user.id), friendship: data });
     }
 

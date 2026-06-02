@@ -1467,6 +1467,30 @@ on public.user_friendships(requester_id, status, updated_at desc);
 create index if not exists idx_user_friendships_receiver_status
 on public.user_friendships(receiver_id, status, updated_at desc);
 
+-- USER NOTIFICATIONS
+create table if not exists public.user_notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_user_id uuid references public.users(id) on delete cascade,
+  audience text not null default 'user' check (audience in ('user', 'admin', 'system')),
+  type text not null default 'system',
+  title text not null,
+  body text not null default '',
+  action_url text,
+  priority text not null default 'normal' check (priority in ('low', 'normal', 'high', 'critical')),
+  metadata jsonb not null default '{}'::jsonb,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_user_notifications_recipient_created
+on public.user_notifications(recipient_user_id, created_at desc);
+
+create index if not exists idx_user_notifications_unread
+on public.user_notifications(recipient_user_id, read_at, created_at desc);
+
+create index if not exists idx_user_notifications_audience_created
+on public.user_notifications(audience, created_at desc);
+
 create index if not exists idx_auth_otps_email_purpose
 on public.auth_otps(email, purpose, created_at desc);
 
@@ -1683,6 +1707,7 @@ alter table public.games enable row level security;
 alter table public.game_moves enable row level security;
 alter table public.user_preferences enable row level security;
 alter table public.user_friendships enable row level security;
+alter table public.user_notifications enable row level security;
 alter table public.auth_otps enable row level security;
 alter table public.online_presence enable row level security;
 alter table public.online_match_queue enable row level security;
@@ -1712,6 +1737,7 @@ drop policy if exists "service role manages games" on public.games;
 drop policy if exists "service role manages game moves" on public.game_moves;
 drop policy if exists "service role manages user preferences" on public.user_preferences;
 drop policy if exists "service role manages user friendships" on public.user_friendships;
+drop policy if exists "service role manages user notifications" on public.user_notifications;
 drop policy if exists "service role manages auth otps" on public.auth_otps;
 drop policy if exists "service role manages online presence" on public.online_presence;
 drop policy if exists "service role manages online match queue" on public.online_match_queue;
@@ -1762,6 +1788,12 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages user friendships"
 on public.user_friendships
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user notifications"
+on public.user_notifications
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

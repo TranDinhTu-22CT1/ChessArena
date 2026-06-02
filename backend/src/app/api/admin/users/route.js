@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
+import { ensureAdminAppUser, requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
+import { createUserNotification } from '../../../../lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +20,23 @@ function cleanExpiresAt(value) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isFinite(date.getTime()) && date > new Date() ? date.toISOString() : null;
+}
+
+async function notifyAdminAction(context, payload) {
+  try {
+    const adminUser = await ensureAdminAppUser(context.supabase, context.admin);
+    await createUserNotification(context.supabase, {
+      recipientUserId: adminUser.id,
+      type: payload.type,
+      title: payload.title,
+      body: payload.body,
+      actionUrl: payload.actionUrl || '/admin/players',
+      priority: payload.priority || 'normal',
+      metadata: payload.metadata || {}
+    });
+  } catch (error) {
+    console.warn('Could not create admin notification:', error.message);
+  }
 }
 
 export async function GET(request) {
@@ -145,6 +163,21 @@ export async function PATCH(request) {
       riskSignals: banType === 'risk' ? signals : undefined,
       reason: data.reason
     });
+    await createUserNotification(context.supabase, {
+      recipientUserId: userId,
+      type: 'account_ban',
+      title: 'Tài khoản bị hạn chế',
+      body: data.reason || 'Tài khoản của bạn đang bị cấm theo chính sách fair play.',
+      actionUrl: '/profile',
+      priority: 'critical',
+      metadata: { banId: data.id, banType, requestedBanType, expiresAt: data.expires_at }
+    });
+    await notifyAdminAction(context, {
+      type: 'admin_user_ban',
+      title: 'Đã cấm người chơi',
+      body: `Ban type ${banType}. Lý do: ${data.reason}`,
+      metadata: { targetUserId: userId, banId: data.id, banType }
+    });
     return Response.json({ ok: true, ban: data });
   }
 
@@ -158,6 +191,20 @@ export async function PATCH(request) {
 
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
     await writeAdminAudit(context.supabase, context.admin, 'user.unban', { targetUserId: userId });
+    await createUserNotification(context.supabase, {
+      recipientUserId: userId,
+      type: 'account_unban',
+      title: 'Lệnh cấm đã được gỡ',
+      body: 'Tài khoản của bạn đã được mở lại.',
+      actionUrl: '/profile',
+      priority: 'high'
+    });
+    await notifyAdminAction(context, {
+      type: 'admin_user_unban',
+      title: 'Đã gỡ cấm người chơi',
+      body: `User ${userId} đã được gỡ lệnh cấm.`,
+      metadata: { targetUserId: userId }
+    });
     return Response.json({ ok: true });
   }
 
@@ -179,6 +226,21 @@ export async function PATCH(request) {
       reason: data.reason,
       scopes: data.scopes
     });
+    await createUserNotification(context.supabase, {
+      recipientUserId: userId,
+      type: 'chat_mute',
+      title: 'Chat/báo cáo đang bị hạn chế',
+      body: data.reason || 'Tài khoản của bạn đang bị hạn chế chat hoặc báo cáo.',
+      actionUrl: '/profile',
+      priority: 'high',
+      metadata: { muteId: data.id, scopes: data.scopes }
+    });
+    await notifyAdminAction(context, {
+      type: 'admin_user_mute',
+      title: 'Đã tắt chat người chơi',
+      body: data.reason || 'Đã áp dụng hạn chế chat/báo cáo.',
+      metadata: { targetUserId: userId, muteId: data.id }
+    });
     return Response.json({ ok: true, mute: data });
   }
 
@@ -192,6 +254,19 @@ export async function PATCH(request) {
 
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
     await writeAdminAudit(context.supabase, context.admin, 'user.unmute', { targetUserId: userId });
+    await createUserNotification(context.supabase, {
+      recipientUserId: userId,
+      type: 'chat_unmute',
+      title: 'Hạn chế chat đã được gỡ',
+      body: 'Bạn có thể sử dụng lại các chức năng chat/báo cáo.',
+      actionUrl: '/profile'
+    });
+    await notifyAdminAction(context, {
+      type: 'admin_user_unmute',
+      title: 'Đã mở chat người chơi',
+      body: `User ${userId} đã được gỡ hạn chế chat/báo cáo.`,
+      metadata: { targetUserId: userId }
+    });
     return Response.json({ ok: true });
   }
 

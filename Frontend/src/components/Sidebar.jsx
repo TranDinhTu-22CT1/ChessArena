@@ -2,6 +2,7 @@
 import BrandMark from './BrandMark';
 import {
   BarChart3,
+  Bell,
   Bot,
   CalendarDays,
   ChevronRight,
@@ -35,6 +36,7 @@ const playMenuItems = [
   { divider: true },
   { icon: Trophy, label: 'Leaderboard', route: 'leaderboard' },
   { icon: Users, label: 'Bạn bè', route: 'friends' },
+  { icon: Bell, label: 'Thông báo', route: 'notifications' },
   { icon: BarChart3, label: 'Profile', route: 'profile' },
   { icon: History, label: 'Game History', route: 'history' }
 ];
@@ -52,6 +54,7 @@ export default function Sidebar({
   userName,
   activeRoute,
   membership,
+  notificationCount = 0,
   mobileOpen,
   onToggleMobile,
   onCloseMobile,
@@ -94,7 +97,7 @@ export default function Sidebar({
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.hasFlyout
-            ? ['online', 'bot', 'coach', 'local', 'review', 'history', 'leaderboard', 'friends'].includes(activeRoute)
+            ? ['online', 'bot', 'coach', 'local', 'review', 'history', 'leaderboard', 'friends', 'notifications'].includes(activeRoute)
             : item.hasPuzzleFlyout
               ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
               : item.route === activeRoute || item.active;
@@ -127,6 +130,7 @@ export default function Sidebar({
                       >
                         <PlayIcon size={20} />
                         <span>{playItem.label}</span>
+                        {playItem.route === 'notifications' && notificationCount > 0 && <b className="nav-badge">{Math.min(notificationCount, 99)}</b>}
                         {playItem.note && <small>{playItem.note}</small>}
                       </button>
                     );

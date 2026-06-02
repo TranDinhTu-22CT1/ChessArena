@@ -4,6 +4,7 @@ import { apiUrl } from './api/config';
 import { fetchPublicBots } from './api/bots';
 import { fetchMembership } from './api/membership';
 import { fetchModerationStatus } from './api/moderation';
+import { fetchNotifications } from './api/notifications';
 import { requestStockfishMove } from './api/stockfish';
 import { PIECE_IMAGES } from './game/pieces';
 import {
@@ -81,6 +82,7 @@ const HomePage = lazyWithReload(() => import('./routes/use/HomePage'));
 const FriendsPage = lazyWithReload(() => import('./routes/use/FriendsPage'));
 const LeaderboardPage = lazyWithReload(() => import('./routes/use/LeaderboardPage'));
 const MembershipPage = lazyWithReload(() => import('./routes/use/MembershipPage'));
+const NotificationsPage = lazyWithReload(() => import('./routes/use/NotificationsPage'));
 const NotFoundPage = lazyWithReload(() => import('./routes/use/NotFoundPage'));
 const OnlinePage = lazyWithReload(() => import('./routes/use/OnlinePage'));
 const ProfilePage = lazyWithReload(() => import('./routes/use/ProfilePage'));
@@ -172,6 +174,7 @@ export default function App() {
   const [manualResult, setManualResult] = React.useState(() => storedFinishedOutcome());
   const [membership, setMembership] = React.useState(null);
   const [moderationStatus, setModerationStatus] = React.useState(null);
+  const [notificationCount, setNotificationCount] = React.useState(0);
   const [hintMove, setHintMove] = React.useState(null);
   const [premoveQueue, setPremoveQueue] = React.useState([]);
   const [suggestionMove, setSuggestionMove] = React.useState(null);
@@ -275,6 +278,7 @@ export default function App() {
     if (!authUser) {
       setMembership(null);
       setModerationStatus(null);
+      setNotificationCount(0);
       return undefined;
     }
     let cancelled = false;
@@ -286,6 +290,26 @@ export default function App() {
       });
     return () => {
       cancelled = true;
+    };
+  }, [authUser]);
+
+  React.useEffect(() => {
+    if (!authUser) return undefined;
+    let cancelled = false;
+    const loadNotificationCount = () => {
+      fetchNotifications({ page: 1, limit: 5 })
+        .then((data) => {
+          if (!cancelled) setNotificationCount(data.unreadCount || 0);
+        })
+        .catch(() => {
+          if (!cancelled) setNotificationCount(0);
+        });
+    };
+    loadNotificationCount();
+    const timer = window.setInterval(loadNotificationCount, 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
     };
   }, [authUser]);
 
@@ -968,6 +992,7 @@ export default function App() {
         userName={userName}
         activeRoute={route}
         membership={membership}
+        notificationCount={notificationCount}
         mobileOpen={mobileSidebarOpen}
         onToggleMobile={() => setMobileSidebarOpen((open) => !open)}
         onCloseMobile={() => setMobileSidebarOpen(false)}
@@ -1095,6 +1120,15 @@ export default function App() {
           />
         )}
 
+        {route === 'notifications' && (
+          <NotificationsPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+            onNavigate={() => {}}
+            onUnreadChange={setNotificationCount}
+          />
+        )}
+
         {route === 'leaderboard' && (
           <LeaderboardPage
             authUser={authUser}
@@ -1125,6 +1159,8 @@ export default function App() {
               appearance={appearance}
               pieceSet={pieceSet}
               authUser={authUser}
+              notificationCount={notificationCount}
+              onOpenNotifications={() => navigate('notifications')}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
@@ -1155,6 +1191,8 @@ export default function App() {
               appearance={appearance}
               pieceSet={pieceSet}
               authUser={authUser}
+              notificationCount={notificationCount}
+              onOpenNotifications={() => navigate('notifications')}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
@@ -1176,6 +1214,8 @@ export default function App() {
               appearance={appearance}
               pieceSet={pieceSet}
               authUser={authUser}
+              notificationCount={notificationCount}
+              onOpenNotifications={() => navigate('notifications')}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
@@ -1187,7 +1227,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}
@@ -1197,6 +1237,8 @@ export default function App() {
           appearance={appearance}
           pieceSet={pieceSet}
           authUser={authUser}
+          notificationCount={notificationCount}
+          onOpenNotifications={() => navigate('notifications')}
           onToggleSettings={() => setSettingsOpen((value) => !value)}
           onResetTheme={resetTheme}
           onUpdateTheme={updateTheme}
