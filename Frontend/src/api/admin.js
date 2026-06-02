@@ -60,8 +60,15 @@ export async function adminUserAction(payload) {
   return readJson(response);
 }
 
-export async function fetchAntiCheatReports() {
-  const response = await fetch(apiUrl('/api/admin/anti-cheat'), { credentials: 'include' });
+export async function fetchAntiCheatReports({ page = 1, limit = 10, status = 'all', minRisk = 0, search = '' } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    status,
+    minRisk: String(minRisk)
+  });
+  if (search) params.set('search', search);
+  const response = await fetch(apiUrl(`/api/admin/anti-cheat?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 

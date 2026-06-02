@@ -72,13 +72,31 @@ export async function GET(request) {
   if (context.error) return context.error;
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit')) || 30));
-  const { data: reports = [], error } = await context.supabase
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const limit = Math.max(5, Math.min(50, Math.floor(Number(searchParams.get('limit')) || 10)));
+  const minRisk = Math.max(0, Math.min(100, Math.floor(Number(searchParams.get('minRisk')) || 0)));
+  const status = String(searchParams.get('status') || 'all').trim();
+  const search = String(searchParams.get('search') || '').trim().slice(0, 80);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = context.supabase
     .from('anti_cheat_reports')
-    .select('*, users:user_id(id, username, display_name, email, photo_url)')
+    .select('*, users:user_id(id, username, display_name, email, photo_url)', { count: 'exact' })
     .order('risk_score', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .gte('risk_score', minRisk)
+    .range(from, to);
+
+  if (['open', 'reviewed', 'dismissed', 'actioned'].includes(status)) {
+    query = query.eq('status', status);
+  }
+
+  if (search) {
+    query = query.or(`status.ilike.%${search}%,details->>band.ilike.%${search}%`);
+  }
+
+  const { data: reports = [], error, count } = await query;
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
@@ -95,6 +113,10 @@ export async function GET(request) {
 
   return Response.json({
     ok: true,
+    page,
+    limit,
+    total: count ?? reports.length,
+    totalPages: Math.max(1, Math.ceil((count ?? reports.length) / limit)),
     reports: (reports || []).map((report) => ({
       ...report,
       activeBan: (bans || []).find((ban) => ban.user_id === report.user_id) || null

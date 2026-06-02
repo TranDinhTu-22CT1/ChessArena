@@ -10967,6 +10967,82 @@ h2 {
   color: #a9bea3;
 }
 
+.admin-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-filter-bar label,
+.admin-filter-bar form {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-filter-bar label span,
+.admin-filter-bar form svg {
+  color: #6f875f;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.admin-filter-bar select,
+.admin-filter-bar input {
+  min-height: 40px;
+  border: 1px solid rgba(36, 84, 54, 0.16);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #16301f;
+  background: #ffffff;
+  font-weight: 850;
+}
+
+.admin-filter-bar form {
+  grid-template-columns: 18px minmax(180px, 1fr);
+  align-items: center;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(36, 84, 54, 0.16);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.admin-filter-bar form input {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  outline: 0;
+}
+
+.admin-ban-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  color: #183321;
+  background: #f0f8ec;
+  border: 1px solid rgba(36, 84, 54, 0.16);
+  border-radius: 8px;
+}
+
+.admin-ban-preview div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-ban-preview span {
+  overflow: hidden;
+  color: #4d6247;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
 .auth-page,
 .auth-card,
 .auth-card h1,

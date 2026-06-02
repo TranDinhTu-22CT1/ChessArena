@@ -86,6 +86,9 @@ export default function AdminPage() {
   const [userPage, setUserPage] = React.useState(() => getUrlPage('page'));
   const [userTotalPages, setUserTotalPages] = React.useState(1);
   const [reports, setReports] = React.useState([]);
+  const [fairPlayPage, setFairPlayPage] = React.useState(() => getUrlPage('fairplayPage'));
+  const [fairPlayTotalPages, setFairPlayTotalPages] = React.useState(1);
+  const [fairPlayFilters, setFairPlayFilters] = React.useState({ status: 'all', minRisk: 0, search: '' });
   const [moderationReports, setModerationReports] = React.useState([]);
   const [matches, setMatches] = React.useState([]);
   const [payments, setPayments] = React.useState([]);
@@ -107,7 +110,12 @@ export default function AdminPage() {
   const [unlockPassword, setUnlockPassword] = React.useState('');
   const [loginRequired, setLoginRequired] = React.useState(true);
 
-  const load = React.useCallback(async (nextSearch = search, nextUserPage = userPage) => {
+  const load = React.useCallback(async (
+    nextSearch = search,
+    nextUserPage = userPage,
+    nextFairPlayPage = fairPlayPage,
+    nextFairPlayFilters = fairPlayFilters
+  ) => {
     setLoading(true);
     setMessage('');
     try {
@@ -127,7 +135,7 @@ export default function AdminPage() {
         fetchAdminMe(),
         fetchAdminSummary(),
         fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }),
-        fetchAntiCheatReports(),
+        fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }),
         fetchModerationReports().catch(() => ({ reports: [] })),
         fetchAdminMatches(),
         fetchAdminPayments(),
@@ -141,6 +149,7 @@ export default function AdminPage() {
       setUsers(usersData.users || []);
       setUserTotalPages(usersData.totalPages || 1);
       setReports(reportsData.reports || []);
+      setFairPlayTotalPages(reportsData.totalPages || 1);
       setModerationReports(moderationData.reports || []);
       setMatches(matchesData.matches || []);
       setPayments(paymentsData.payments || []);
@@ -157,7 +166,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, userPage]);
+  }, [fairPlayFilters, fairPlayPage, search, userPage]);
 
   const changeSection = React.useCallback((nextSection) => {
     const nextPath = adminSectionPath(nextSection);
@@ -171,8 +180,22 @@ export default function AdminPage() {
   const changeUserPage = React.useCallback((nextPage) => {
     setUserPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, nextPage);
-  }, [load, search]);
+    load(search, nextPage, fairPlayPage, fairPlayFilters);
+  }, [fairPlayFilters, fairPlayPage, load, search]);
+
+  const changeFairPlayPage = React.useCallback((nextPage) => {
+    setFairPlayPage(nextPage);
+    setUrlPage(nextPage, 'fairplayPage');
+    load(search, userPage, nextPage, fairPlayFilters);
+  }, [fairPlayFilters, load, search, userPage]);
+
+  const changeFairPlayFilters = React.useCallback((patch) => {
+    const nextFilters = { ...fairPlayFilters, ...patch };
+    setFairPlayFilters(nextFilters);
+    setFairPlayPage(1);
+    setUrlPage(1, 'fairplayPage');
+    load(search, userPage, 1, nextFilters);
+  }, [fairPlayFilters, load, search, userPage]);
 
   React.useEffect(() => {
     const syncSection = () => setSection(sectionFromPath());
@@ -482,6 +505,11 @@ export default function AdminPage() {
         {section === 'fairplay' && (
           <FairPlaySection
             reports={reports}
+            filters={fairPlayFilters}
+            page={fairPlayPage}
+            totalPages={fairPlayTotalPages}
+            onFilterChange={changeFairPlayFilters}
+            onPageChange={changeFairPlayPage}
             onUpdateReport={changeAntiCheatStatus}
             onBanUser={banFromAntiCheat}
             onUnbanUser={unbanFromAntiCheat}
