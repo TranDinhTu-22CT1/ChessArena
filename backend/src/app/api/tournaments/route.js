@@ -39,7 +39,7 @@ async function ensureDefaultTournament(supabase) {
   const startsAt = new Date(now.getTime() + 5 * 60_000);
   const endsAt = new Date(startsAt.getTime() + 30 * 60_000);
   await supabase.from('arena_tournaments').insert({
-    title: 'Daily Rapid Arena',
+    title: 'Giải nhanh hằng ngày',
     status: 'open',
     time_control: '300+0',
     starts_at: startsAt.toISOString(),
@@ -84,7 +84,7 @@ export async function GET(request) {
     const tournaments = await loadTournaments(context);
     return Response.json({ ok: true, tournaments });
   } catch (error) {
-    return Response.json({ ok: false, error: error.message || 'Could not load tournaments.' }, { status: 500 });
+    return Response.json({ ok: false, error: error.message || 'Không tải được danh sách giải đấu.' }, { status: 500 });
   }
 }
 
@@ -96,22 +96,22 @@ export async function POST(request) {
   if (context.error) return context.error;
 
   const payload = await readJsonPayload(request);
-  if (!payload) return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
+  if (!payload) return Response.json({ ok: false, error: 'Dữ liệu gửi lên không hợp lệ.' }, { status: 400 });
 
   const action = String(payload.action || '').trim();
   const tournamentId = String(payload.tournamentId || '').trim();
 
   if (action === 'join') {
-    if (!tournamentId) return Response.json({ ok: false, error: 'Missing tournament id.' }, { status: 400 });
+    if (!tournamentId) return Response.json({ ok: false, error: 'Thiếu mã giải đấu.' }, { status: 400 });
     const { data: tournament, error: tournamentError } = await context.supabase
       .from('arena_tournaments')
       .select('*')
       .eq('id', tournamentId)
       .maybeSingle();
     if (tournamentError) return Response.json({ ok: false, error: tournamentError.message }, { status: 500 });
-    if (!tournament) return Response.json({ ok: false, error: 'Tournament not found.' }, { status: 404 });
+    if (!tournament) return Response.json({ ok: false, error: 'Không tìm thấy giải đấu.' }, { status: 404 });
     if (!['scheduled', 'open', 'running'].includes(tournament.status)) {
-      return Response.json({ ok: false, error: 'Tournament is not open.' }, { status: 409 });
+      return Response.json({ ok: false, error: 'Giải đấu chưa mở tham gia.' }, { status: 409 });
     }
 
     const { data, error } = await context.supabase
@@ -119,7 +119,7 @@ export async function POST(request) {
       .upsert({
         tournament_id: tournamentId,
         user_id: context.user.id,
-        display_name: context.user.displayName || context.user.username || 'Player',
+        display_name: context.user.displayName || context.user.username || 'Người chơi',
         updated_at: new Date().toISOString()
       }, { onConflict: 'tournament_id,user_id' })
       .select('*')
@@ -130,7 +130,7 @@ export async function POST(request) {
     return Response.json({ ok: true, player: data, achievements });
   }
 
-  return Response.json({ ok: false, error: 'Unsupported tournament action.' }, { status: 400 });
+  return Response.json({ ok: false, error: 'Thao tác giải đấu không được hỗ trợ.' }, { status: 400 });
 }
 
 export function OPTIONS() {

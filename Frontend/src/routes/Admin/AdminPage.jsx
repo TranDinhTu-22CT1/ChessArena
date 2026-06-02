@@ -17,7 +17,7 @@ import {
   adminUserAction,
   createAdminBot,
   createAdminEvent,
-  createAdminMatch,
+  createAdminTournament,
   fetchAdminAuditLogs,
   fetchAdminBots,
   fetchAdminConfig,
@@ -28,6 +28,7 @@ import {
   fetchAdminSummary,
   fetchAdminUserDetail,
   fetchAdminUsers,
+  fetchAdminTournaments,
   fetchAntiCheatReports,
   fetchModerationReports,
   fetchPayPalDiagnostics,
@@ -92,6 +93,7 @@ export default function AdminPage() {
   const [fairPlayFilters, setFairPlayFilters] = React.useState({ status: 'all', minRisk: 0, search: '' });
   const [moderationReports, setModerationReports] = React.useState([]);
   const [matches, setMatches] = React.useState([]);
+  const [tournaments, setTournaments] = React.useState([]);
   const [payments, setPayments] = React.useState([]);
   const [bots, setBots] = React.useState([]);
   const [events, setEvents] = React.useState([]);
@@ -105,13 +107,11 @@ export default function AdminPage() {
   const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Vi phạm fair play / chính sách', expiresAt: '' });
   const [botForms, setBotForms] = React.useState(() => Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
   const [eventForm, setEventForm] = React.useState({ title: 'Thử thách bot mùa lễ', eventType: 'bot_challenge', description: 'Đánh bại bot nổi bật và leo bảng sự kiện trong thời gian giới hạn.', rewardLabel: 'Huy hiệu mùa', active: true });
-  const [matchForm, setMatchForm] = React.useState({
-    whiteUserId: '',
-    blackUserId: '',
-    side: 'random',
-    timeControl: '600+0',
-    matchType: 'friend',
-    rated: false
+  const [tournamentForm, setTournamentForm] = React.useState({
+    title: 'Giải nhanh ChessArena',
+    timeControl: '300+0',
+    durationMinutes: 30,
+    startsAt: ''
   });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState(() => sectionFromPath());
@@ -135,6 +135,7 @@ export default function AdminPage() {
         reportsData,
         moderationData,
         matchesData,
+        tournamentsData,
         paymentsData,
         botsData,
         eventsData,
@@ -147,6 +148,7 @@ export default function AdminPage() {
         fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }),
         fetchModerationReports().catch(() => ({ reports: [] })),
         fetchAdminMatches(),
+        fetchAdminTournaments().catch(() => ({ tournaments: [] })),
         fetchAdminPayments(),
         fetchAdminBots().catch(() => ({ bots: [] })),
         fetchAdminEvents().catch(() => ({ events: [] })),
@@ -161,6 +163,7 @@ export default function AdminPage() {
       setFairPlayTotalPages(reportsData.totalPages || 1);
       setModerationReports(moderationData.reports || []);
       setMatches(matchesData.matches || []);
+      setTournaments(tournamentsData.tournaments || []);
       setPayments(paymentsData.payments || []);
       setBots(botsData.bots || []);
       setEvents(eventsData.events || []);
@@ -390,13 +393,12 @@ export default function AdminPage() {
     }
   };
 
-  const submitMatch = async (event) => {
+  const submitTournament = async (event) => {
     event.preventDefault();
     try {
-      const data = await createAdminMatch(matchForm);
-      const code = data.match?.invite_code ? ` Invite code: ${data.match.invite_code}.` : '';
-      notify(`Admin match created.${code}`, 'success');
-      setMatchForm((form) => ({ ...form, blackUserId: '' }));
+      const data = await createAdminTournament(tournamentForm);
+      notify(`Đã tạo giải đấu và thông báo cho ${data.notifiedPlayers || 0} người chơi.`, 'success');
+      setTournamentForm((form) => ({ ...form, title: 'Giải nhanh ChessArena', startsAt: '' }));
       await load();
     } catch (error) {
       setMessage(error.message);
@@ -489,9 +491,9 @@ export default function AdminPage() {
       <section className="admin-main">
         <header className="admin-hero">
           <div>
-            <span><Shield size={18} /> Bảng quản trị vận hành</span>
-            <h1>Vận hành, thanh toán và công bằng</h1>
-            <p>Admin: {admin?.email || 'đang xác thực'} | Vai trò: {admin?.role || 'owner'} | Phiên admin tách riêng.</p>
+            <span><Shield size={18} /> Bảng quản trị</span>
+            <h1>Quản lý trận đấu và tạo giải đấu</h1>
+            <p>Admin: {admin?.email || 'đang xác thực'} | Vai trò: {admin?.role || 'owner'} | Phiên quản trị riêng.</p>
           </div>
           <button onClick={() => load()} disabled={loading}><RefreshCw size={18} /> Làm mới</button>
         </header>
@@ -527,10 +529,10 @@ export default function AdminPage() {
         {section === 'matches' && (
           <MatchesSection
             matches={matches}
-            users={users}
-            form={matchForm}
-            onChangeForm={(patch) => setMatchForm((form) => ({ ...form, ...patch }))}
-            onSubmit={submitMatch}
+            tournaments={tournaments}
+            tournamentForm={tournamentForm}
+            onChangeTournamentForm={(patch) => setTournamentForm((form) => ({ ...form, ...patch }))}
+            onSubmitTournament={submitTournament}
           />
         )}
         {section === 'fairplay' && (

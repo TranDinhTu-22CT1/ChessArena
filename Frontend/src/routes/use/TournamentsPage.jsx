@@ -3,7 +3,18 @@ import { CalendarClock, Crown, Trophy, Users } from 'lucide-react';
 import { fetchTournaments, joinTournament } from '../../api/tournaments';
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString() : 'Chưa lên lịch';
+  return value ? new Date(value).toLocaleString('vi-VN') : 'Chưa lên lịch';
+}
+
+function statusLabel(status) {
+  const labels = {
+    scheduled: 'Sắp diễn ra',
+    open: 'Đang mở đăng ký',
+    running: 'Đang thi đấu',
+    finished: 'Đã kết thúc',
+    cancelled: 'Đã hủy'
+  };
+  return labels[status] || status || '--';
 }
 
 export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
@@ -18,7 +29,7 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
     setMessage('');
     fetchTournaments()
       .then((data) => setTournaments(data.tournaments || []))
-      .catch((error) => setMessage(error.message || 'Could not load tournaments.'))
+      .catch((error) => setMessage(error.message || 'Không tải được danh sách giải đấu.'))
       .finally(() => setLoading(false));
   }, [authUser]);
 
@@ -31,10 +42,10 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
     setMessage('');
     try {
       await joinTournament(id);
-      setMessage('Đã tham gia giải. Khi giải chạy, hệ thống sẽ dùng điểm arena để xếp hạng.');
+      setMessage('Đã tham gia giải đấu. Khi giải diễn ra, bảng xếp hạng sẽ cập nhật theo điểm của người chơi.');
       load();
     } catch (error) {
-      setMessage(error.message || 'Could not join tournament.');
+      setMessage(error.message || 'Không thể tham gia giải đấu.');
     } finally {
       setBusyId('');
     }
@@ -44,8 +55,8 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
     return (
       <section className="feature-page empty-feature">
         <Trophy size={44} />
-        <h1>Tournament Arena</h1>
-        <p>Đăng nhập để tham gia giải nhanh toàn hệ thống và theo dõi bảng xếp hạng.</p>
+        <h1>Giải đấu ChessArena</h1>
+        <p>Đăng nhập để tham gia các giải mở toàn hệ thống, tích điểm và tranh top vinh danh.</p>
         <button onClick={onLogin}>Đăng nhập</button>
       </section>
     );
@@ -55,9 +66,9 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
     <section className="feature-page">
       <header className="feature-hero">
         <div>
-          <span>Arena</span>
-          <h1>Tournament Arena</h1>
-          <p>Giải đấu toàn hệ thống, không dùng club. Bản đầu hỗ trợ đăng ký và standings.</p>
+          <span>Giải đấu</span>
+          <h1>Giải đấu ChessArena</h1>
+          <p>Tham gia các giải mở trong thời gian giới hạn, tích điểm và cạnh tranh top 1-2-3.</p>
         </div>
         <button onClick={() => onNavigate('online')}>Chơi online</button>
       </header>
@@ -70,21 +81,30 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
           <article className="tournament-card" key={item.id}>
             <div className="tournament-top">
               <div>
-                <span>{item.status}</span>
+                <span>{statusLabel(item.status)}</span>
                 <h2>{item.title}</h2>
               </div>
               <strong>{item.timeControl}</strong>
             </div>
             <div className="tournament-meta">
               <span><CalendarClock size={16} /> {formatDate(item.startsAt)}</span>
-              <span><Users size={16} /> {item.players.length} người chơi</span>
+              <span><Users size={16} /> {item.players.length} người tham gia</span>
             </div>
+            {item.players.length > 0 && (
+              <div className="tournament-podium">
+                {item.players.slice(0, 3).map((player) => (
+                  <span key={player.userId}>
+                    <Crown size={14} /> Top {player.rank}: {player.displayName}
+                  </span>
+                ))}
+              </div>
+            )}
             <button disabled={item.joined || busyId === item.id} onClick={() => join(item.id)}>
               {item.joined ? 'Đã tham gia' : busyId === item.id ? 'Đang tham gia...' : 'Tham gia giải'}
             </button>
             <div className="standings">
               {item.players.length === 0 ? (
-                <p>Chưa có người chơi. Hãy là người đầu tiên tham gia.</p>
+                <p>Chưa có người tham gia. Hãy là người đầu tiên ghi tên.</p>
               ) : item.players.map((player) => (
                 <div key={player.userId}>
                   <span>{player.rank}</span>
@@ -97,10 +117,6 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
         ))}
       </div>
 
-      <section className="feature-note">
-        <Crown size={20} />
-        <p>Bước tiếp theo có thể nối arena vào matchmaking để tự ghép cặp trong thời gian giải.</p>
-      </section>
     </section>
   );
 }

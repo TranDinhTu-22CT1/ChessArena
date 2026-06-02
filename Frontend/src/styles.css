@@ -241,6 +241,26 @@ body {
   gap: 6px;
 }
 
+.tournament-podium {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+
+.tournament-podium span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #f5e7b8;
+  background: rgba(232, 191, 84, 0.12);
+  border: 1px solid rgba(232, 191, 84, 0.22);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
 .tournament-card button:disabled {
   opacity: 0.55;
   cursor: default;
@@ -3702,6 +3722,33 @@ input {
 
 .admin-match-create button[type="submit"] {
   justify-self: start;
+}
+
+.admin-podium-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.admin-podium-list b,
+.admin-podium-list em {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #17412b;
+  background: #f7efd2;
+  border: 1px solid rgba(179, 137, 31, 0.2);
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.admin-podium-list em {
+  color: #66705f;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(31, 46, 23, 0.12);
 }
 
 .admin-bot-batch-row {
@@ -11733,6 +11780,7 @@ h2 {
 .app-shell[data-color-scheme="light"] .feature-hero span,
 .app-shell[data-color-scheme="light"] .achievement-card span,
 .app-shell[data-color-scheme="light"] .tournament-top span,
+.app-shell[data-color-scheme="light"] .tournament-podium span,
 .app-shell[data-color-scheme="light"] .coach-card-grid span,
 .app-shell[data-color-scheme="light"] .friends-hero span,
 .app-shell[data-color-scheme="light"] .friends-list h2,
@@ -11744,6 +11792,11 @@ h2 {
 .app-shell[data-color-scheme="light"] .history-header span,
 .app-shell[data-color-scheme="light"] .profile-hero span {
   color: #4f7f26 !important;
+}
+
+.app-shell[data-color-scheme="light"] .tournament-podium span {
+  background: #fff7d9 !important;
+  border-color: rgba(155, 111, 19, 0.22) !important;
 }
 
 .app-shell[data-color-scheme="light"] .auth-input,

@@ -23,13 +23,13 @@ export default function OverviewSection({ summary, loading, onLoad, onSectionCha
       <section className="admin-panel">
         <div className="admin-panel-head">
           <div>
-            <span>Điều hành thời gian thực</span>
-            <h2>Bảng điều khiển nhanh</h2>
+            <span>Quản lý nhanh</span>
+            <h2>Các việc admin hay dùng</h2>
           </div>
         </div>
         <div className="admin-ops-grid">
           <button onClick={() => onSectionChange('players')}><Users size={18} /> Quản lý người chơi</button>
-          <button onClick={() => onSectionChange('matches')}><Swords size={18} /> Xem trận đấu</button>
+          <button onClick={() => onSectionChange('matches')}><Swords size={18} /> Trận đấu & giải đấu</button>
           <button onClick={() => onSectionChange('fairplay')}><ShieldAlert size={18} /> Chống gian lận</button>
           <button onClick={() => onSectionChange('payments')}><CreditCard size={18} /> Thanh toán</button>
           <button onClick={() => onSectionChange('audit')}><FileText size={18} /> Nhật ký</button>

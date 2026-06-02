@@ -1,5 +1,5 @@
 import React from 'react';
-import { Copy, ExternalLink } from 'lucide-react';
+import { CalendarClock, Crown, Trophy, Users } from 'lucide-react';
 import { gameModeLabel, gameStatusLabel, resultLabel, time } from './adminUtils';
 
 const TIME_CONTROLS = [
@@ -9,152 +9,161 @@ const TIME_CONTROLS = [
   ['900+10', 'Rapid 15+10']
 ];
 
-function playerLabel(user) {
-  return `${user.display_name || user.username || user.email || 'Player'} (${user.email || user.username || user.id})`;
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString('vi-VN') : 'Mở ngay';
 }
 
-function inviteUrl(code) {
-  return `${window.location.origin}/play/online?invite=${encodeURIComponent(code)}`;
-}
-
-function previewColors(form, primary, opponent) {
-  if (form.blackUserId && form.side === 'white') return { white: primary?.display_name, black: opponent?.display_name };
-  if (form.blackUserId && form.side === 'black') return { white: opponent?.display_name, black: primary?.display_name };
-  if (form.blackUserId) return { white: 'Random', black: 'Random' };
-  if (form.side === 'black') return { white: 'TBD', black: primary?.display_name };
-  return { white: primary?.display_name, black: 'TBD' };
-}
-
-export default function MatchesSection({ matches, users = [], form, onChangeForm, onSubmit }) {
-  const selectedWhite = users.find((user) => user.id === form.whiteUserId);
-  const selectedBlack = users.find((user) => user.id === form.blackUserId);
-  const selectedSamePlayer = form.whiteUserId && form.blackUserId && form.whiteUserId === form.blackUserId;
-  const preview = previewColors(form, selectedWhite, selectedBlack);
-
-  const copyInvite = async (code) => {
-    if (!code) return;
-    await navigator.clipboard?.writeText(inviteUrl(code)).catch(() => {});
+function statusLabel(status) {
+  const labels = {
+    scheduled: 'Sắp diễn ra',
+    open: 'Đang mở đăng ký',
+    running: 'Đang thi đấu',
+    finished: 'Đã kết thúc',
+    cancelled: 'Đã hủy'
   };
+  return labels[status] || status || '--';
+}
 
+function topPlayers(players = []) {
+  return players.slice(0, 3);
+}
+
+export default function MatchesSection({
+  matches,
+  tournaments = [],
+  tournamentForm,
+  onChangeTournamentForm,
+  onSubmitTournament
+}) {
   return (
     <section className="admin-panel">
       <div className="admin-panel-head">
         <div>
-          <span>Match control</span>
-          <h2>Create and manage online matches</h2>
+          <span>Trận đấu và giải đấu</span>
+          <h2>Tạo giải đấu mở cho tất cả người chơi</h2>
         </div>
       </div>
 
-      <form className="admin-editor-card admin-match-create" onSubmit={onSubmit}>
+      <form className="admin-editor-card admin-match-create admin-tournament-create" onSubmit={onSubmitTournament}>
         <div className="admin-editor-title">
           <div>
-            <strong>Create admin match</strong>
-            <small>Use one player to create an invite room, or two players to start the game immediately.</small>
+            <strong>Tạo giải đấu mới</strong>
+            <small>Người chơi sẽ nhận thông báo, tham gia trong thời gian giới hạn và cạnh tranh trên bảng xếp hạng.</small>
           </div>
         </div>
 
         <label>
-          Host / primary player
-          <select
+          Tên giải đấu
+          <input
             required
-            value={form.whiteUserId}
-            onChange={(event) => onChangeForm({ whiteUserId: event.target.value })}
-          >
-            <option value="">Select player</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>{playerLabel(user)}</option>
-            ))}
-          </select>
+            value={tournamentForm.title}
+            onChange={(event) => onChangeTournamentForm({ title: event.target.value })}
+            placeholder="Ví dụ: Giải nhanh tối nay"
+          />
         </label>
 
         <label>
-          Opponent (optional)
+          Thể loại ván
           <select
-            value={form.blackUserId}
-            onChange={(event) => onChangeForm({ blackUserId: event.target.value })}
+            value={tournamentForm.timeControl}
+            onChange={(event) => onChangeTournamentForm({ timeControl: event.target.value })}
           >
-            <option value="">Create invite room</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>{playerLabel(user)}</option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Side for primary player
-          <select value={form.side} onChange={(event) => onChangeForm({ side: event.target.value })}>
-            <option value="random">Random</option>
-            <option value="white">White</option>
-            <option value="black">Black</option>
-          </select>
-        </label>
-
-        <label>
-          Time control
-          <select value={form.timeControl} onChange={(event) => onChangeForm({ timeControl: event.target.value })}>
             {TIME_CONTROLS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
 
         <label>
-          Match type
-          <select value={form.matchType} onChange={(event) => onChangeForm({ matchType: event.target.value })}>
-            <option value="friend">Friend / invite</option>
-            <option value="quick">Quick match</option>
-          </select>
+          Thời lượng giải (phút)
+          <input
+            type="number"
+            min="10"
+            max="240"
+            value={tournamentForm.durationMinutes}
+            onChange={(event) => onChangeTournamentForm({ durationMinutes: event.target.value })}
+          />
         </label>
 
-        <label className="admin-check">
+        <label>
+          Bắt đầu lúc
           <input
-            type="checkbox"
-            checked={form.rated}
-            onChange={(event) => onChangeForm({ rated: event.target.checked })}
+            type="datetime-local"
+            value={tournamentForm.startsAt}
+            onChange={(event) => onChangeTournamentForm({ startsAt: event.target.value })}
           />
-          Rated match
         </label>
 
         <div className="admin-match-preview">
-          <span>White: {preview.white || 'TBD'}</span>
-          <span>Black: {preview.black || 'TBD'}</span>
-          <span>{form.blackUserId ? 'Starts immediately' : 'Creates invite code'}</span>
+          <span><CalendarClock size={14} /> {tournamentForm.startsAt ? formatDate(tournamentForm.startsAt) : 'Mở ngay sau khi tạo'}</span>
+          <span><Users size={14} /> Tất cả người chơi đều có thể tham gia</span>
+          <span><Trophy size={14} /> Vinh danh top 1-2-3</span>
         </div>
 
-        {selectedSamePlayer && <p className="admin-message">Choose two different players.</p>}
-        <button type="submit" disabled={selectedSamePlayer}>Create match</button>
+        <button type="submit">Tạo giải và gửi thông báo</button>
       </form>
 
-      <div className="admin-table-list">
-        {matches.map((match) => (
-          <article className="admin-report-card" key={match.id}>
+      <div className="admin-content-grid">
+        <section className="admin-editor-card">
+          <div className="admin-editor-title">
             <div>
-              <strong>{match.white_name || 'White'} vs {match.black_name || 'Black'}</strong>
-              <span>
-                Status: {gameStatusLabel(match.status)}
-                {' | '}Result: {resultLabel(match.result)}
-                {' | '}Mode: {gameModeLabel(match.mode)}
-                {' | '}Time: {match.time_control || '--'}
-                {' | '}{match.rated ? 'Rated' : 'Casual'}
-                {' | '}Moves: {match.moveCount ?? 0}
-              </span>
-              <small>
-                Game: {match.id}
-                {' | '}Type: {match.match_type || '--'}
-                {' | '}Created: {time(match.created_at)}
-                {' | '}Updated: {time(match.updated_at)}
-              </small>
-              {match.invite_code && (
-                <em className="admin-inline-actions">
-                  Invite: {match.invite_code}
-                  <button type="button" onClick={() => copyInvite(match.invite_code)}><Copy size={14} /> Copy link</button>
-                  <button type="button" onClick={() => window.open(inviteUrl(match.invite_code), '_blank', 'noopener,noreferrer')}>
-                    <ExternalLink size={14} /> Open
-                  </button>
-                </em>
-              )}
-              <em>Last moves: {(match.lastMoves || []).map((move) => move.san).join(' ') || 'No moves yet'}</em>
+              <strong>Giải đấu đang có</strong>
+              <small>Theo dõi đăng ký, thời gian và top đầu của từng giải.</small>
             </div>
-          </article>
-        ))}
+          </div>
+          <div className="admin-table-list">
+            {tournaments.length === 0 ? (
+              <p className="admin-message">Chưa có giải đấu nào.</p>
+            ) : tournaments.map((item) => (
+              <article className="admin-report-card" key={item.id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>
+                    {statusLabel(item.status)}
+                    {' | '}Thể loại: {item.time_control}
+                    {' | '}Bắt đầu: {formatDate(item.starts_at)}
+                    {' | '}Kết thúc: {formatDate(item.ends_at)}
+                  </span>
+                  <small>{item.players?.length || 0} người tham gia</small>
+                  <div className="admin-podium-list">
+                    {topPlayers(item.players).length === 0 ? (
+                      <em>Chưa có người chơi trên bảng xếp hạng.</em>
+                    ) : topPlayers(item.players).map((player, index) => (
+                      <b key={player.user_id}>
+                        <Crown size={14} /> Top {index + 1}: {player.display_name} - {player.score} điểm
+                      </b>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="admin-editor-card">
+          <div className="admin-editor-title">
+            <div>
+              <strong>Trận online gần đây</strong>
+              <small>Dùng để theo dõi hoạt động thi đấu đang diễn ra trên hệ thống.</small>
+            </div>
+          </div>
+          <div className="admin-table-list">
+            {matches.map((match) => (
+              <article className="admin-report-card" key={match.id}>
+                <div>
+                  <strong>{match.white_name || 'Trắng'} vs {match.black_name || 'Đen'}</strong>
+                  <span>
+                    {gameStatusLabel(match.status)}
+                    {' | '}Kết quả: {resultLabel(match.result)}
+                    {' | '}Chế độ: {gameModeLabel(match.mode)}
+                    {' | '}Thời gian: {match.time_control || '--'}
+                    {' | '}Số nước: {match.moveCount ?? 0}
+                  </span>
+                  <small>Tạo lúc: {time(match.created_at)} | Cập nhật: {time(match.updated_at)}</small>
+                  <em>Nước cuối: {(match.lastMoves || []).map((move) => move.san).join(' ') || 'Chưa có nước đi'}</em>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
     </section>
   );

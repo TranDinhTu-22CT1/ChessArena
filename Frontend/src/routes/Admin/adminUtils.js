@@ -1,7 +1,7 @@
 export const NAV_ITEMS = [
   { id: 'overview', label: 'Tổng quan', iconName: 'LayoutDashboard' },
   { id: 'players', label: 'Người chơi', iconName: 'Users' },
-  { id: 'matches', label: 'Trận đấu', iconName: 'Swords' },
+  { id: 'matches', label: 'Trận đấu & giải đấu', iconName: 'Swords' },
   { id: 'fairplay', label: 'Chống gian lận', iconName: 'ShieldAlert' },
   { id: 'moderation', label: 'Báo cáo', iconName: 'Shield' },
   { id: 'payments', label: 'Thanh toán', iconName: 'CreditCard' },
@@ -121,6 +121,7 @@ export function adminActionLabel(action) {
     'event.create': 'Admin tạo sự kiện',
     'event.update': 'Admin cập nhật sự kiện',
     'match.create': 'Admin tạo trận đấu',
+    'tournament.create': 'Admin tạo giải đấu',
     'paypal.diagnostics': 'Admin kiểm tra PayPal',
     'paypal.test_subscription': 'Admin tạo thử đăng ký PayPal'
   };

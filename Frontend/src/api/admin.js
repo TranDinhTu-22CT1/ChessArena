@@ -104,6 +104,21 @@ export async function createAdminMatch(payload) {
   return readJson(response);
 }
 
+export async function fetchAdminTournaments() {
+  const response = await fetch(apiUrl('/api/admin/tournaments'), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function createAdminTournament(payload) {
+  const response = await fetch(apiUrl('/api/admin/tournaments'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return readJson(response);
+}
+
 export async function fetchAdminPayments() {
   const response = await fetch(apiUrl('/api/admin/payments'), { credentials: 'include' });
   return readJson(response);
