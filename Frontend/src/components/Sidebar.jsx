@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import BrandMark from './BrandMark';
 import {
   BarChart3,
@@ -16,6 +16,7 @@ import {
   Swords,
   Trophy,
   UserRound,
+  Users,
   X,
   Zap
 } from 'lucide-react';
@@ -33,6 +34,7 @@ const playMenuItems = [
   { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
   { icon: Trophy, label: 'Leaderboard', route: 'leaderboard' },
+  { icon: Users, label: 'Bạn bè', route: 'friends' },
   { icon: BarChart3, label: 'Profile', route: 'profile' },
   { icon: History, label: 'Game History', route: 'history' }
 ];
@@ -92,7 +94,7 @@ export default function Sidebar({
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.hasFlyout
-            ? ['online', 'bot', 'coach', 'local', 'review', 'history', 'leaderboard'].includes(activeRoute)
+            ? ['online', 'bot', 'coach', 'local', 'review', 'history', 'leaderboard', 'friends'].includes(activeRoute)
             : item.hasPuzzleFlyout
               ? ['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles'].includes(activeRoute)
               : item.route === activeRoute || item.active;
@@ -199,3 +201,4 @@ export default function Sidebar({
     </>
   );
 }
+

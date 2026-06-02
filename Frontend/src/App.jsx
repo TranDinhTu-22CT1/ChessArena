@@ -78,6 +78,7 @@ function lazyWithReload(importer) {
 const AdminPage = lazyWithReload(() => import('./routes/Admin/AdminPage'));
 const HistoryPage = lazyWithReload(() => import('./routes/use/HistoryPage'));
 const HomePage = lazyWithReload(() => import('./routes/use/HomePage'));
+const FriendsPage = lazyWithReload(() => import('./routes/use/FriendsPage'));
 const LeaderboardPage = lazyWithReload(() => import('./routes/use/LeaderboardPage'));
 const MembershipPage = lazyWithReload(() => import('./routes/use/MembershipPage'));
 const NotFoundPage = lazyWithReload(() => import('./routes/use/NotFoundPage'));
@@ -1082,6 +1083,13 @@ export default function App() {
           />
         )}
 
+        {route === 'friends' && (
+          <FriendsPage
+            authUser={authUser}
+            onLogin={() => setAuthMode('login')}
+          />
+        )}
+
         {route === 'leaderboard' && (
           <LeaderboardPage
             authUser={authUser}
@@ -1174,7 +1182,7 @@ export default function App() {
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'history' && route !== 'leaderboard' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <TopHeader
           activeRoute={route}

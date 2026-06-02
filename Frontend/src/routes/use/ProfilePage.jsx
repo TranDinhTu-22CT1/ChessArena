@@ -1,5 +1,7 @@
 ﻿import React from 'react';
-import { Award, CalendarDays, CheckCircle2, Copy, Dumbbell, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserRound } from 'lucide-react';
+import { Award, CalendarDays, CheckCircle2, Copy, Dumbbell, History, ImagePlus, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserMinus, UserPlus, UserRound } from 'lucide-react';
+import { createFriendGame } from '../../api/online';
+import { fetchFriends, removeFriendship, sendFriendRequest } from '../../api/friends';
 import { fetchProfile, fetchPublicProfile, saveProfile } from '../../api/profile';
 
 const MODE_LABELS = {
@@ -112,6 +114,8 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
   const [loading, setLoading] = React.useState(Boolean(authUser || profileUserId));
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [friendship, setFriendship] = React.useState(null);
+  const [socialBusy, setSocialBusy] = React.useState(false);
   const isPublicProfile = Boolean(profileUserId);
 
   React.useEffect(() => {
@@ -139,6 +143,26 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     };
   }, [authUser, profileUserId]);
 
+  React.useEffect(() => {
+    if (!authUser || !isPublicProfile || !profile?.id) {
+      setFriendship(null);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchFriends()
+      .then((data) => {
+        if (cancelled) return;
+        const all = [...(data.friends || []), ...(data.incoming || []), ...(data.outgoing || [])];
+        setFriendship(all.find((item) => item.user?.id === profile.id) || { status: 'none', user: { id: profile.id } });
+      })
+      .catch(() => {
+        if (!cancelled) setFriendship({ status: 'none', user: { id: profile.id } });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser, isPublicProfile, profile?.id]);
+
   const copyProfileLink = async () => {
     if (!profile?.id && !profile?.username) return;
     const shareId = profile.id || profile.username;
@@ -165,6 +189,51 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       setMessage(error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addFriend = async () => {
+    if (!profile?.id) return;
+    setSocialBusy(true);
+    setMessage('');
+    try {
+      await sendFriendRequest(profile.id);
+      setFriendship((current) => ({ ...(current || {}), status: 'outgoing', user: { id: profile.id } }));
+      setMessage('Đã gửi lời mời kết bạn.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSocialBusy(false);
+    }
+  };
+
+  const removeFriend = async () => {
+    if (!profile?.id) return;
+    setSocialBusy(true);
+    setMessage('');
+    try {
+      await removeFriendship({ friendshipId: friendship?.id, userId: profile.id });
+      setFriendship({ status: 'none', user: { id: profile.id } });
+      setMessage('Đã cập nhật quan hệ bạn bè.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSocialBusy(false);
+    }
+  };
+
+  const challengeFriend = async () => {
+    setSocialBusy(true);
+    setMessage('');
+    try {
+      const data = await createFriendGame('600+0', 'random');
+      const link = `${window.location.origin}/play/online?invite=${data.inviteCode}`;
+      await navigator.clipboard.writeText(link).catch(() => {});
+      setMessage(`Đã tạo link thách đấu ${data.inviteCode}. Link đã được copy nếu trình duyệt cho phép.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSocialBusy(false);
     }
   };
 
@@ -232,6 +301,22 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
           <ShieldCheck size={20} />
           {isPublicProfile ? 'Hồ sơ công khai' : profile?.emailVerified ? 'Tài khoản đã xác thực' : 'Chưa xác thực email'}
         </div>
+        {isPublicProfile && authUser && (
+          <div className="profile-social-actions">
+            {friendship?.status === 'friends' ? (
+              <>
+                <button disabled={socialBusy} onClick={challengeFriend} type="button"><Swords size={17} /> Thách đấu</button>
+                <button className="secondary danger" disabled={socialBusy} onClick={removeFriend} type="button"><UserMinus size={17} /> Hủy bạn</button>
+              </>
+            ) : friendship?.status === 'outgoing' ? (
+              <button className="secondary" disabled={socialBusy} onClick={removeFriend} type="button"><UserMinus size={17} /> Hủy lời mời</button>
+            ) : friendship?.status === 'incoming' ? (
+              <button disabled type="button"><UserPlus size={17} /> Đang chờ ở trang Bạn bè</button>
+            ) : (
+              <button disabled={socialBusy} onClick={addFriend} type="button"><UserPlus size={17} /> Kết bạn</button>
+            )}
+          </div>
+        )}
       </header>
 
       <div className="profile-grid">

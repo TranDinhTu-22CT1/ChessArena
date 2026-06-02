@@ -1,5 +1,6 @@
 ﻿import React from 'react';
-import { Crown, LogIn, Medal, RefreshCw, ShieldCheck, Trophy, UserRound } from 'lucide-react';
+import { Crown, LogIn, Medal, RefreshCw, ShieldCheck, Trophy, UserPlus, UserRound } from 'lucide-react';
+import { sendFriendRequest } from '../../api/friends';
 import { fetchLeaderboard } from '../../api/leaderboard';
 
 const MODES = [
@@ -32,12 +33,19 @@ function PlayerAvatar({ player }) {
   );
 }
 
+function openProfile(userId) {
+  if (!userId) return;
+  window.history.pushState(null, '', `/profile/${encodeURIComponent(userId)}`);
+  window.dispatchEvent(new window.PopStateEvent('popstate'));
+}
+
 export default function LeaderboardPage({ authUser, onLogin }) {
   const [mode, setMode] = React.useState('rapid');
   const [entries, setEntries] = React.useState([]);
   const [currentUser, setCurrentUser] = React.useState(null);
   const [loading, setLoading] = React.useState(Boolean(authUser));
   const [message, setMessage] = React.useState('');
+  const [friendBusyId, setFriendBusyId] = React.useState('');
 
   const loadLeaderboard = React.useCallback(async (nextMode = mode) => {
     if (!authUser) return;
@@ -57,6 +65,19 @@ export default function LeaderboardPage({ authUser, onLogin }) {
   React.useEffect(() => {
     loadLeaderboard(mode);
   }, [loadLeaderboard, mode]);
+
+  const addFriend = async (player) => {
+    setFriendBusyId(player.userId);
+    setMessage('');
+    try {
+      await sendFriendRequest(player.userId);
+      setMessage(`Đã gửi lời mời kết bạn tới ${player.displayName}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setFriendBusyId('');
+    }
+  };
 
   if (!authUser) {
     return (
@@ -119,17 +140,24 @@ export default function LeaderboardPage({ authUser, onLogin }) {
         {entries.map((player) => (
           <div className={`leaderboard-row ${player.userId === currentUser?.userId ? 'me' : ''}`} role="row" key={player.userId}>
             <b className={`leaderboard-rank rank-${player.rank}`}>{medalIcon(player.rank)}</b>
-            <span className="leaderboard-player">
+            <button className="leaderboard-player profile-link-button" onClick={() => openProfile(player.userId)} type="button">
               <PlayerAvatar player={player} />
               <span>
                 <strong>{player.displayName}</strong>
                 <small>@{player.username}{player.provisional ? ' - tạm tính' : ''}</small>
               </span>
-            </span>
+            </button>
             <strong>{player.rating}</strong>
             <span>{player.gamesPlayed}</span>
             <span>{player.wins}/{player.losses}/{player.draws}</span>
-            <time>{formatDate(player.updatedAt)}</time>
+            <span className="leaderboard-actions">
+              <time>{formatDate(player.updatedAt)}</time>
+              {player.userId !== currentUser?.userId && (
+                <button disabled={friendBusyId === player.userId} onClick={() => addFriend(player)} type="button">
+                  <UserPlus size={15} /> Kết bạn
+                </button>
+              )}
+            </span>
           </div>
         ))}
       </div>

@@ -89,6 +89,23 @@ create table if not exists public.user_preferences (
   updated_at timestamptz not null default now()
 );
 
+-- USER FRIENDSHIPS
+create table if not exists public.user_friendships (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references public.users(id) on delete cascade,
+  receiver_id uuid not null references public.users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'blocked')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_friendships_not_self check (requester_id <> receiver_id)
+);
+
+create unique index if not exists idx_user_friendships_pair
+on public.user_friendships (
+  least(requester_id, receiver_id),
+  greatest(requester_id, receiver_id)
+);
+
 -- AUTH OTP
 create table if not exists public.auth_otps (
   id uuid primary key default gen_random_uuid(),
@@ -1444,6 +1461,12 @@ on public.games(user_id, saved_at desc);
 create index if not exists idx_game_moves_game_ply
 on public.game_moves(game_id, ply);
 
+create index if not exists idx_user_friendships_requester_status
+on public.user_friendships(requester_id, status, updated_at desc);
+
+create index if not exists idx_user_friendships_receiver_status
+on public.user_friendships(receiver_id, status, updated_at desc);
+
 create index if not exists idx_auth_otps_email_purpose
 on public.auth_otps(email, purpose, created_at desc);
 
@@ -1659,6 +1682,7 @@ alter table public.users enable row level security;
 alter table public.games enable row level security;
 alter table public.game_moves enable row level security;
 alter table public.user_preferences enable row level security;
+alter table public.user_friendships enable row level security;
 alter table public.auth_otps enable row level security;
 alter table public.online_presence enable row level security;
 alter table public.online_match_queue enable row level security;
@@ -1687,6 +1711,7 @@ drop policy if exists "service role manages users" on public.users;
 drop policy if exists "service role manages games" on public.games;
 drop policy if exists "service role manages game moves" on public.game_moves;
 drop policy if exists "service role manages user preferences" on public.user_preferences;
+drop policy if exists "service role manages user friendships" on public.user_friendships;
 drop policy if exists "service role manages auth otps" on public.auth_otps;
 drop policy if exists "service role manages online presence" on public.online_presence;
 drop policy if exists "service role manages online match queue" on public.online_match_queue;
@@ -1731,6 +1756,12 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages user preferences"
 on public.user_preferences
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages user friendships"
+on public.user_friendships
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
