@@ -17,6 +17,7 @@ function formatDate(value) {
 function typeLabel(type) {
   if (type === 'friend_request') return 'Bạn bè';
   if (type === 'friend_accepted' || type === 'friend_declined') return 'Bạn bè';
+  if (type === 'game_invite') return 'Thách đấu';
   if (type?.includes('ban') || type?.includes('mute')) return 'Tài khoản';
   return 'Hệ thống';
 }

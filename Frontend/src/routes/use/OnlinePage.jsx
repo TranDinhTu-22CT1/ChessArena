@@ -298,6 +298,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
   const [targets, setTargets] = React.useState([]);
   const [inviteCode, setInviteCode] = React.useState('');
   const [inviteLink, setInviteLink] = React.useState('');
+  const [inviteExpiresAt, setInviteExpiresAt] = React.useState('');
   const [friendSide, setFriendSide] = React.useState('random');
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -387,6 +388,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       setInviteCode(data.game.inviteCode || inviteCode);
       if (data.game.inviteCode) {
         setInviteLink(`${window.location.origin}/play/online?invite=${data.game.inviteCode}`);
+        setInviteExpiresAt(data.game.inviteExpiresAt || '');
       }
     } catch {
       if (game?.status === 'active') setMessage('Connection interrupted. Reconnecting to your game...');
@@ -461,6 +463,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       .then((data) => {
         setInviteCode(data.inviteCode);
         setInviteLink(`${window.location.origin}/play/online?invite=${data.inviteCode}`);
+        setInviteExpiresAt(data.expiresAt || data.game?.inviteExpiresAt || '');
         setGameId(data.gameId);
         if (data.game) applyGameSnapshot(data.game);
         setMessage('Joined friend game.');
@@ -769,9 +772,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
       const data = await createFriendGame(timeControl, friendSide);
       setInviteCode(data.inviteCode);
       setInviteLink(`${window.location.origin}/play/online?invite=${data.inviteCode}`);
+      setInviteExpiresAt(data.expiresAt || '');
       setGameId(data.gameId);
       if (data.game) applyGameSnapshot(data.game);
-      setMessage('Invite created. Share the link with your friend.');
+      setMessage('Invite created. This link expires after 10 minutes.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -831,6 +835,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
     setPendingAnalysis([]);
     setInviteCode('');
     setInviteLink('');
+    setInviteExpiresAt('');
     setSelected(null);
     setTargets([]);
     setQueueing(false);
@@ -1281,6 +1286,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, membership, o
                   <Copy size={17} /> {copied ? 'Copied' : 'Copy invite link'}
                 </button>
                 <small>{inviteLink}</small>
+                <small>Expires {inviteExpiresAt ? new Date(inviteExpiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'in 10 minutes'}</small>
               </div>
             )}
           </div>

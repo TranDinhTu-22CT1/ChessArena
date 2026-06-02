@@ -226,10 +226,13 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     setSocialBusy(true);
     setMessage('');
     try {
-      const data = await createFriendGame('600+0', 'random');
+      const data = await createFriendGame('600+0', 'random', profile?.id || '');
       const link = `${window.location.origin}/play/online?invite=${data.inviteCode}`;
       await navigator.clipboard.writeText(link).catch(() => {});
-      setMessage(`Đã tạo link thách đấu ${data.inviteCode}. Link đã được copy nếu trình duyệt cho phép.`);
+      const expiresAt = data.expiresAt
+        ? new Date(data.expiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        : '10 phút';
+      setMessage(`Đã tạo link thách đấu ${data.inviteCode}. Link hết hạn lúc ${expiresAt} và đã được copy nếu trình duyệt cho phép.`);
     } catch (error) {
       setMessage(error.message);
     } finally {

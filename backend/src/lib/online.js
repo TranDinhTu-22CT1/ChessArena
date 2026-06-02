@@ -98,7 +98,7 @@ export function requireSupabase() {
   return { supabase };
 }
 
-export async function requireOnlineUser() {
+export async function requireOnlineUser(options = {}) {
   const { supabase, error } = requireSupabase();
   if (error) return { error };
 
@@ -136,19 +136,27 @@ export async function requireOnlineUser() {
 
   if (storedUser) {
     const activeBan = await activeBanForUser(supabase, storedUser.id);
+    const userPayload = {
+      id: storedUser.id,
+      username: storedUser.username,
+      displayName: cleanName(storedUser.display_name, username),
+      firebaseUid: storedUser.firebase_uid,
+      email: storedUser.email,
+      photoURL: storedUser.photo_url
+    };
+    if (activeBan && options.allowBanned) {
+      return {
+        supabase,
+        user: userPayload,
+        activeBan
+      };
+    }
     if (activeBan) {
       return { error: Response.json({ ok: false, error: activeBan.reason || 'This account is banned.' }, { status: 403 }) };
     }
     return {
       supabase,
-      user: {
-        id: storedUser.id,
-        username: storedUser.username,
-        displayName: cleanName(storedUser.display_name, username),
-        firebaseUid: storedUser.firebase_uid,
-        email: storedUser.email,
-        photoURL: storedUser.photo_url
-      }
+      user: userPayload
     };
   }
 
@@ -562,6 +570,7 @@ export function publicGame(game, moves, userId) {
   return {
     id: game.id,
     inviteCode: game.invite_code,
+    inviteExpiresAt: game.invite_expires_at || null,
     status: game.status,
     matchType: game.match_type,
     mode: game.mode || onlineModeFromTimeControl(game.time_control),

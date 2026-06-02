@@ -8,11 +8,11 @@ export async function GET(request) {
   const blocked = rateLimit(request, { scope: 'user-moderation', limit: 60, windowMs: 60_000 });
   if (blocked) return blocked;
 
-  const context = await requireOnlineUser();
+  const context = await requireOnlineUser({ allowBanned: true });
   if (context.error) return context.error;
 
   const [ban, mute] = await Promise.all([
-    activeBanForUser(context.supabase, context.user.id),
+    context.activeBan || activeBanForUser(context.supabase, context.user.id),
     activeMuteForUser(context.supabase, context.user.id)
   ]);
 
@@ -33,4 +33,8 @@ export async function GET(request) {
       } : null
     }
   });
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204 });
 }

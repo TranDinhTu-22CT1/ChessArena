@@ -11244,6 +11244,53 @@ h2 {
   color: rgba(247, 250, 239, 0.75);
 }
 
+.auth-background,
+.auth-board-ghost,
+.auth-chess-piece {
+  display: none !important;
+}
+
+.auth-card {
+  backdrop-filter: none !important;
+}
+
+.auth-card::before {
+  display: none !important;
+}
+
+.admin-user-card {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.admin-user-card > img {
+  flex: 0 0 auto !important;
+}
+
+.admin-user-card > div:not(.admin-user-actions) {
+  flex: 1 1 280px !important;
+  min-width: 220px !important;
+}
+
+.admin-user-card .admin-user-actions {
+  flex: 0 1 auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+}
+
+.admin-user-card .admin-user-actions button {
+  width: auto !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
 @media (max-width: 720px) {
   .admin-user-actions,
   .admin-report-actions,

@@ -112,6 +112,14 @@ function SearchResult({ user, onAdd, busyId }) {
   );
 }
 
+function formatInviteExpiry(value) {
+  if (!value) return '10 phút';
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value));
+}
+
 export default function FriendsPage({ authUser, onLogin }) {
   const [activeTab, setActiveTab] = React.useState('friends');
   const [friends, setFriends] = React.useState([]);
@@ -219,10 +227,10 @@ export default function FriendsPage({ authUser, onLogin }) {
     setBusyId(item.id);
     setMessage('');
     try {
-      const data = await createFriendGame('600+0', 'random');
+      const data = await createFriendGame('600+0', 'random', item.user?.id);
       const link = `${window.location.origin}/play/online?invite=${data.inviteCode}`;
-      setInvite({ code: data.inviteCode, link, name: item.user?.displayName || 'Player' });
-      setMessage(`Đã tạo lời mời thách đấu cho ${item.user?.displayName || 'người chơi'}.`);
+      setInvite({ code: data.inviteCode, link, name: item.user?.displayName || 'Player', expiresAt: data.expiresAt });
+      setMessage(`Đã tạo lời mời thách đấu cho ${item.user?.displayName || 'người chơi'}. Link hết hạn lúc ${formatInviteExpiry(data.expiresAt)}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -279,7 +287,7 @@ export default function FriendsPage({ authUser, onLogin }) {
           <div>
             <span>Invite challenge</span>
             <strong>{invite.code}</strong>
-            <small>Gửi link này cho {invite.name} để vào ván đấu.</small>
+            <small>Gửi link này cho {invite.name}. Link hết hạn lúc {formatInviteExpiry(invite.expiresAt)}.</small>
           </div>
           <button onClick={copyInvite} type="button"><Copy size={17} /> Copy link</button>
         </article>

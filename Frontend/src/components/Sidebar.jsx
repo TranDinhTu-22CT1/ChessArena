@@ -25,6 +25,8 @@ import { membershipPlan } from '../membership/plans';
 
 const menuItems = [
   { icon: Swords, label: 'Play', active: true, hasFlyout: true },
+  { icon: Users, label: 'Bạn bè', route: 'friends' },
+  { icon: Bell, label: 'Thông báo', route: 'notifications', badge: true },
   { icon: Puzzle, label: 'Puzzles', route: 'puzzles', hasPuzzleFlyout: true },
   { icon: Crown, label: 'Premium', route: 'membership' }
 ];
@@ -35,8 +37,6 @@ const playMenuItems = [
   { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
   { icon: Trophy, label: 'Leaderboard', route: 'leaderboard' },
-  { icon: Users, label: 'Bạn bè', route: 'friends' },
-  { icon: Bell, label: 'Thông báo', route: 'notifications' },
   { icon: BarChart3, label: 'Profile', route: 'profile' },
   { icon: History, label: 'Game History', route: 'history' }
 ];
@@ -110,6 +110,7 @@ export default function Sidebar({
               }}>
                 <Icon size={20} />
                 <span>{item.label}</span>
+                {item.badge && notificationCount > 0 && <b className="nav-badge">{Math.min(notificationCount, 99)}</b>}
                 {(item.hasFlyout || item.hasPuzzleFlyout) && <ChevronRight size={17} />}
               </button>
               {item.hasFlyout && (

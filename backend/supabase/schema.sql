@@ -325,6 +325,9 @@ add column if not exists match_region text;
 alter table public.online_games
 add column if not exists matchmaking_correlation_id text;
 
+alter table public.online_games
+add column if not exists invite_expires_at timestamptz;
+
 
 -- ONLINE RATINGS
 create table if not exists public.online_ratings (

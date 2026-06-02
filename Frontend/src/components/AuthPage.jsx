@@ -67,16 +67,6 @@ export default function AuthPage({
 
   return (
     <section className="auth-page">
-      <div className="auth-background" aria-hidden="true">
-        <div className="auth-board-ghost">
-          {Array.from({ length: 64 }, (_, index) => (
-            <span key={index} className={(Math.floor(index / 8) + index) % 2 ? 'dark' : 'light'} />
-          ))}
-        </div>
-        <span className="auth-chess-piece king">{'\u2654'}</span>
-        <span className="auth-chess-piece knight">{'\u265e'}</span>
-      </div>
-
       <div className="auth-copy">
         <div className="auth-brand">
           <BrandMark className="logo-mark-image" />

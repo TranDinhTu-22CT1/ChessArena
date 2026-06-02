@@ -374,7 +374,7 @@ export function useAuthSession() {
     }
   };
 
-  const logout = async () => {
+  const logout = React.useCallback(async () => {
     await fetch(apiUrl('/api/auth/logout'), {
       method: 'POST',
       credentials: 'include'
@@ -386,7 +386,7 @@ export function useAuthSession() {
     setUserName('Player');
     setAuthForm((form) => ({ ...form, password: '', otp: '', newPassword: '', remember: false }));
     clearAuthMessage();
-  };
+  }, [clearAuthMessage]);
 
   const updateSessionProfile = React.useCallback((profile) => {
     setAuthUser((current) => current ? { ...current, ...profile } : current);

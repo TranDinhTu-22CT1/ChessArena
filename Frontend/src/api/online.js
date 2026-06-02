@@ -84,12 +84,12 @@ export async function cancelOnlineQueue() {
   return data;
 }
 
-export async function createFriendGame(timeControl, side = 'random') {
+export async function createFriendGame(timeControl, side = 'random', targetUserId = '') {
   const response = await fetch(apiUrl('/api/online/friend'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'create', timeControl, side })
+    body: JSON.stringify({ action: 'create', timeControl, side, targetUserId })
   });
   return readJson(response);
 }

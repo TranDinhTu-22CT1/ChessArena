@@ -34,7 +34,7 @@ import MatchPanel from './components/MatchPanel';
 import ResultDialog from './components/ResultDialog';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
-import ToastHost from './components/ToastHost';
+import ToastHost, { notify } from './components/ToastHost';
 import {
   buildCoachInsight,
   coachBehaviorFromMode,
@@ -286,12 +286,47 @@ export default function App() {
       .then(([membershipResult, moderationResult]) => {
         if (cancelled) return;
         setMembership(membershipResult.status === 'fulfilled' ? membershipResult.value : null);
-        setModerationStatus(moderationResult.status === 'fulfilled' ? moderationResult.value : null);
+        const nextModeration = moderationResult.status === 'fulfilled' ? moderationResult.value : null;
+        setModerationStatus(nextModeration);
+        if (nextModeration?.banned) {
+          notify(nextModeration.ban?.reason || 'Tài khoản của bạn đã bị cấm.', 'error');
+          logout();
+          navigate('home');
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [authUser]);
+  }, [authUser, logout, navigate]);
+
+  React.useEffect(() => {
+    if (!authUser) return undefined;
+    let cancelled = false;
+    const checkModeration = async () => {
+      try {
+        const nextModeration = await fetchModerationStatus();
+        if (cancelled) return;
+        setModerationStatus(nextModeration);
+        if (nextModeration?.banned) {
+          notify(nextModeration.ban?.reason || 'Tài khoản của bạn đã bị cấm.', 'error');
+          await logout();
+          navigate('home');
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (/ban|banned|cấm|hạn chế|restricted/i.test(error.message || '')) {
+          notify(error.message || 'Tài khoản của bạn đã bị cấm.', 'error');
+          await logout();
+          navigate('home');
+        }
+      }
+    };
+    const timer = window.setInterval(checkModeration, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [authUser, logout, navigate]);
 
   React.useEffect(() => {
     if (!authUser) return undefined;
