@@ -111,8 +111,9 @@ export async function fetchOnlineGame(gameId) {
   return readJson(response);
 }
 
-export async function fetchOnlineHistory() {
-  const response = await fetch(apiUrl('/api/online/history'), {
+export async function fetchOnlineHistory({ page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const response = await fetch(apiUrl(`/api/online/history?${params.toString()}`), {
     credentials: 'include'
   });
   return readJson(response);

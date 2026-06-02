@@ -81,7 +81,25 @@ export async function GET(request) {
     .limit(limit);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  return Response.json({ ok: true, reports });
+
+  const userIds = [...new Set((reports || []).map((report) => report.user_id).filter(Boolean))];
+  const { data: bans = [] } = userIds.length
+    ? await context.supabase
+      .from('user_bans')
+      .select('*')
+      .in('user_id', userIds)
+      .eq('status', 'active')
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false })
+    : { data: [] };
+
+  return Response.json({
+    ok: true,
+    reports: (reports || []).map((report) => ({
+      ...report,
+      activeBan: (bans || []).find((ban) => ban.user_id === report.user_id) || null
+    }))
+  });
 }
 
 export async function PATCH(request) {
@@ -119,4 +137,8 @@ export async function PATCH(request) {
     refund
   });
   return Response.json({ ok: true, report: data, refund });
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204 });
 }

@@ -1,6 +1,7 @@
-﻿import React from 'react';
+import React from 'react';
 import { ArrowRight, Filter, History, LogIn, RefreshCw, ShieldCheck } from 'lucide-react';
 import { fetchOnlineHistory } from '../../api/online';
+import Pagination, { getUrlPage, setUrlPage } from '../../components/Pagination';
 
 function formatDate(value) {
   if (!value) return '-';
@@ -42,28 +43,41 @@ function matchesFilter(game, filters) {
 export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
   const [games, setGames] = React.useState([]);
   const [total, setTotal] = React.useState(0);
+  const [page, setPage] = React.useState(() => getUrlPage('page'));
+  const [totalPages, setTotalPages] = React.useState(1);
   const [loading, setLoading] = React.useState(Boolean(authUser));
   const [message, setMessage] = React.useState('');
   const [filters, setFilters] = React.useState({ result: 'all', mode: 'all', review: 'all' });
 
-  const loadHistory = React.useCallback(async () => {
+  const loadHistory = React.useCallback(async (nextPage = page) => {
     if (!authUser) return;
     setLoading(true);
     setMessage('');
     try {
-      const data = await fetchOnlineHistory();
+      const data = await fetchOnlineHistory({ page: nextPage, limit: 10 });
       setGames(data.games || []);
       setTotal(data.total ?? (data.games || []).length);
+      setTotalPages(data.totalPages || 1);
     } catch (error) {
       setMessage(error.message);
     } finally {
       setLoading(false);
     }
-  }, [authUser]);
+  }, [authUser, page]);
 
   React.useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+    loadHistory(page);
+  }, [loadHistory, page]);
+
+  const changePage = React.useCallback((nextPage) => {
+    setPage(nextPage);
+    setUrlPage(nextPage, 'page');
+  }, []);
+
+  const updateFilters = React.useCallback((patch) => {
+    setFilters((current) => ({ ...current, ...patch }));
+    changePage(1);
+  }, [changePage]);
 
   const visibleGames = React.useMemo(() => games.filter((game) => matchesFilter(game, filters)), [filters, games]);
 
@@ -84,27 +98,27 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
         <div>
           <span><History size={17} /> Lịch sử online</span>
           <h1>Các trận đã chơi</h1>
-          <p>Tổng cộng <strong>{total}</strong> trận có kết quả. Đang hiển thị <strong>{visibleGames.length}</strong> trận.</p>
+          <p>Tổng cộng <strong>{total}</strong> trận có kết quả. Đang hiển thị <strong>{visibleGames.length}</strong> trận ở trang <strong>{page}</strong>.</p>
         </div>
-        <button onClick={loadHistory} disabled={loading}><RefreshCw size={17} /> {loading ? 'Đang tải' : 'Tải lại'}</button>
+        <button onClick={() => loadHistory(page)} disabled={loading}><RefreshCw size={17} /> {loading ? 'Đang tải' : 'Tải lại'}</button>
       </header>
 
       <div className="history-filters" aria-label="Lọc lịch sử online">
         <span><Filter size={16} /> Bộ lọc</span>
-        <select value={filters.result} onChange={(event) => setFilters((current) => ({ ...current, result: event.target.value }))}>
+        <select value={filters.result} onChange={(event) => updateFilters({ result: event.target.value })}>
           <option value="all">Mọi kết quả</option>
           <option value="win">Thắng</option>
           <option value="loss">Thua</option>
           <option value="draw">Hòa</option>
         </select>
-        <select value={filters.mode} onChange={(event) => setFilters((current) => ({ ...current, mode: event.target.value }))}>
+        <select value={filters.mode} onChange={(event) => updateFilters({ mode: event.target.value })}>
           <option value="all">Mọi chế độ</option>
           <option value="bullet">Bullet</option>
           <option value="blitz">Blitz</option>
           <option value="rapid">Rapid</option>
           <option value="classical">Classical</option>
         </select>
-        <select value={filters.review} onChange={(event) => setFilters((current) => ({ ...current, review: event.target.value }))}>
+        <select value={filters.review} onChange={(event) => updateFilters({ review: event.target.value })}>
           <option value="all">Tất cả review</option>
           <option value="reviewed">Đã review</option>
           <option value="unreviewed">Chưa review</option>
@@ -143,6 +157,13 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
           );
         })}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={changePage}
+        label="Phân trang lịch sử trận đấu"
+      />
     </section>
   );
 }

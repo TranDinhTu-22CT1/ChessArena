@@ -44,8 +44,9 @@ function validateAuthForm(mode, form) {
 
 export function useAuthSession() {
   const [userName, setUserName] = React.useState('Player');
-  const [authMode, setAuthMode] = React.useState('login');
+  const [authMode, setAuthMode] = React.useState(null);
   const [authUser, setAuthUser] = React.useState(null);
+  const [authReady, setAuthReady] = React.useState(false);
   const [otpState, setOtpState] = React.useState(null);
   const [otpNow, setOtpNow] = React.useState(Date.now());
   const [authForm, setAuthForm] = React.useState(() => ({
@@ -84,12 +85,16 @@ export function useAuthSession() {
     fetch(apiUrl(`/api/auth/me${adminView ? '?adminView=1' : ''}`), { credentials: 'include' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (!data?.user) return;
+        if (!data?.user) {
+          setAuthMode('login');
+          return;
+        }
         setAuthUser(data.user);
         setUserName(displayNameFromUser(data.user));
         setAuthMode(null);
       })
-      .catch(() => {});
+      .catch(() => setAuthMode('login'))
+      .finally(() => setAuthReady(true));
   }, []);
 
   React.useEffect(() => {
@@ -394,6 +399,7 @@ export function useAuthSession() {
     authMode,
     setAuthMode,
     authUser,
+    authReady,
     otpState,
     setOtpState,
     otpSecondsLeft,

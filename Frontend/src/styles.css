@@ -10894,3 +10894,129 @@ h2 {
     overflow-x: auto;
   }
 }
+
+.admin-user-card {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.admin-user-actions,
+.admin-report-actions,
+.admin-report-card > div:last-child:not(:only-child) {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  max-width: none;
+  overflow: visible;
+}
+
+.admin-user-actions button,
+.admin-report-actions button,
+.admin-report-card > div:last-child:not(:only-child) button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.pagination button,
+.pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgba(190, 232, 176, 0.18);
+  border-radius: 8px;
+  color: #eef8e9;
+  background: rgba(22, 55, 36, 0.72);
+  font-weight: 900;
+}
+
+.pagination button {
+  cursor: pointer;
+}
+
+.pagination button.active {
+  color: #102115;
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.pagination span {
+  border-color: transparent;
+  background: transparent;
+  color: #a9bea3;
+}
+
+.auth-page,
+.auth-card,
+.auth-card h1,
+.auth-card p,
+.auth-card label,
+.auth-card label span,
+.auth-card small {
+  color: #f7faef;
+}
+
+.auth-card {
+  background: rgba(244, 248, 238, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+}
+
+.auth-input,
+.auth-card > label > input {
+  color: #f7faef;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.auth-input input {
+  color: #f7faef;
+}
+
+.auth-input input::placeholder,
+.auth-card > label > input::placeholder {
+  color: rgba(247, 250, 239, 0.6);
+}
+
+.auth-card .remember-row small,
+.auth-card-header p {
+  color: rgba(247, 250, 239, 0.75);
+}
+
+@media (max-width: 720px) {
+  .admin-user-actions,
+  .admin-report-actions,
+  .admin-report-card > div:last-child:not(:only-child) {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .pagination {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+}

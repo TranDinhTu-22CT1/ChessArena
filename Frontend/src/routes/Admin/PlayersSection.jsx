@@ -1,5 +1,6 @@
 import React from 'react';
 import { Ban, CheckCircle2, ExternalLink, Search, Shield, ShieldAlert, UserCog } from 'lucide-react';
+import Pagination from '../../components/Pagination';
 import { activeBan, activeMute, time } from './adminUtils';
 
 export default function PlayersSection({
@@ -14,7 +15,10 @@ export default function PlayersSection({
   onMuteUser,
   onUnmuteUser,
   onUnbanUser,
-  onOpenBan
+  onOpenBan,
+  page,
+  totalPages,
+  onPageChange
 }) {
   return (
     <section className="admin-panel">
@@ -72,6 +76,12 @@ export default function PlayersSection({
           );
         })}
       </div>
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        label="Phân trang người chơi admin"
+      />
     </section>
   );
 }

@@ -30,19 +30,22 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const search = cleanSearch(searchParams.get('search'));
-  const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit')) || 30));
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const limit = Math.max(5, Math.min(50, Math.floor(Number(searchParams.get('limit')) || 10)));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
   let query = context.supabase
     .from('users')
-    .select('id, username, display_name, email, photo_url, email_verified, created_at, updated_at')
+    .select('id, username, display_name, email, photo_url, email_verified, created_at, updated_at', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
   if (search) {
     query = query.or(`username.ilike.%${search}%,display_name.ilike.%${search}%,email.ilike.%${search}%`);
   }
 
-  const { data: users = [], error } = await query;
+  const { data: users = [], error, count } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   const ids = users.map((user) => user.id);
@@ -57,6 +60,10 @@ export async function GET(request) {
 
   return Response.json({
     ok: true,
+    page,
+    limit,
+    total: count ?? users.length,
+    totalPages: Math.max(1, Math.ceil((count ?? users.length) / limit)),
     users: users.map((user) => ({
       ...user,
       ratings: (ratings?.data || []).filter((row) => row.user_id === user.id),
@@ -67,6 +74,10 @@ export async function GET(request) {
       reports: (reports?.data || []).filter((row) => row.user_id === user.id).slice(0, 5)
     }))
   });
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204 });
 }
 
 export async function PATCH(request) {
@@ -84,10 +95,7 @@ export async function PATCH(request) {
   if (!userId) return Response.json({ ok: false, error: 'Missing user id.' }, { status: 400 });
 
   if (action === 'ban') {
-    const banType = cleanBanType(payload?.banType);
-    if ((banType === 'device' || banType === 'account_device') && !deviceFingerprint) {
-      return Response.json({ ok: false, error: 'Device fingerprint is required for this ban type.' }, { status: 400 });
-    }
+    const requestedBanType = cleanBanType(payload?.banType);
     const { data: latestDevice } = await context.supabase
       .from('user_devices')
       .select('*')
@@ -99,8 +107,17 @@ export async function PATCH(request) {
       ...latestDevice,
       device_fingerprint: deviceFingerprint || latestDevice?.device_fingerprint
     });
-    if (banType === 'risk' && (!signals.deviceFingerprint || !signals.ipPrefix || !signals.userAgentHash)) {
-      return Response.json({ ok: false, error: 'Risk ban requires a recent device fingerprint, IP prefix and user-agent signature.' }, { status: 400 });
+    const hasDeviceSignal = Boolean(signals.deviceFingerprint);
+    const hasRiskSignals = Boolean(signals.deviceFingerprint && signals.ipPrefix && signals.userAgentHash);
+    const banType = requestedBanType === 'risk' && !hasRiskSignals
+      ? 'account'
+      : ['device', 'account_device'].includes(requestedBanType) && !hasDeviceSignal
+        ? 'account'
+        : requestedBanType;
+
+    if (requestedBanType !== banType) {
+      signals.fallbackBanType = banType;
+      signals.requestedBanType = requestedBanType;
     }
 
     const { data, error } = await context.supabase
@@ -124,6 +141,7 @@ export async function PATCH(request) {
       targetUserId: userId,
       deviceFingerprint: signals.deviceFingerprint,
       banType,
+      requestedBanType,
       riskSignals: banType === 'risk' ? signals : undefined,
       reason: data.reason
     });

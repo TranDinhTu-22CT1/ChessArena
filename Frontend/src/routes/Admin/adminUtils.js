@@ -23,7 +23,7 @@ export function activeMute(user) {
 }
 
 export function time(value) {
-  return value ? new Date(value).toLocaleString() : '--';
+  return value ? new Date(value).toLocaleString('vi-VN') : '--';
 }
 
 export function defaultBotForm(index = 0) {
@@ -93,6 +93,7 @@ export function tierLabel(tier) {
   const labels = {
     master: 'Master',
     plus: 'Plus',
+    pro: 'Pro',
     free: 'Miễn phí'
   };
   return labels[tier] || tier || '--';

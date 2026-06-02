@@ -24,13 +24,18 @@ export async function GET(request) {
 
   const { supabase, user } = context;
   const userIds = await relatedOnlineUserIds(supabase, user);
+  const url = new URL(request.url);
+  const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+  const limit = Math.max(5, Math.min(30, Math.floor(Number(url.searchParams.get('limit')) || 10)));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
   const { data: games = [], error, count } = await supabase
     .from('online_games')
     .select('*', { count: 'exact' })
     .in('status', COMPLETED_STATUSES)
     .or(participantFilter(userIds))
     .order('finished_at', { ascending: false })
-    .limit(100);
+    .range(from, to);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
@@ -57,7 +62,14 @@ export async function GET(request) {
     };
   }));
 
-  return Response.json({ ok: true, total: count === games.length ? history.length : count ?? history.length, games: history });
+  return Response.json({
+    ok: true,
+    page,
+    limit,
+    total: count ?? history.length,
+    totalPages: Math.max(1, Math.ceil((count ?? history.length) / limit)),
+    games: history
+  });
 }
 
 export function OPTIONS() {

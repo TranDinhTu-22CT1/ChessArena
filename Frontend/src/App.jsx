@@ -199,6 +199,7 @@ export default function App() {
     authMode,
     setAuthMode,
     authUser,
+    authReady,
     otpState,
     setOtpState,
     otpSecondsLeft,
@@ -949,6 +950,10 @@ export default function App() {
         <AdminPage />
       </React.Suspense>
     );
+  }
+
+  if (!authReady) {
+    return <RouteLoading label="Đang kiểm tra phiên đăng nhập..." />;
   }
 
   return (

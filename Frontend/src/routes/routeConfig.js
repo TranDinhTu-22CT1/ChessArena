@@ -41,7 +41,7 @@ export function routeFromPath(pathname) {
   if (pathname.startsWith('/history/review/')) return 'onlineReview';
   if (pathname === '/leaderboard') return 'leaderboard';
   if (pathname === '/membership' || pathname === '/premium') return 'membership';
-  if (pathname === '/admin' || pathname === '/amdin') return 'admin';
+  if (pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/amdin') return 'admin';
   if (pathname === '/review') return 'review';
   if (pathname === '/puzzles/daily') return 'daily-puzzle';
   if (pathname === '/puzzles/rush') return 'puzzle-rush';

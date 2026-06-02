@@ -36,9 +36,11 @@ export async function fetchAdminSummary() {
   return readJson(response);
 }
 
-export async function fetchAdminUsers(search = '') {
+export async function fetchAdminUsers(search = '', { page = 1, limit = 10 } = {}) {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
+  params.set('page', String(page));
+  params.set('limit', String(limit));
   const response = await fetch(apiUrl(`/api/admin/users?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }

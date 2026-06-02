@@ -40,6 +40,7 @@ import {
   updateModerationReport
 } from '../../api/admin';
 import { notify } from '../../components/ToastHost';
+import { getUrlPage, setUrlPage } from '../../components/Pagination';
 import AdminLogin from './AdminLogin';
 import AuditSection from './AuditSection';
 import BanModal from './BanModal';
@@ -67,10 +68,23 @@ const ICONS = {
   Users
 };
 
+const ADMIN_SECTION_IDS = new Set(NAV_ITEMS.map((item) => item.id));
+
+function sectionFromPath() {
+  const sectionId = window.location.pathname.split('/').filter(Boolean)[1];
+  return ADMIN_SECTION_IDS.has(sectionId) ? sectionId : 'overview';
+}
+
+function adminSectionPath(sectionId) {
+  return sectionId === 'overview' ? '/admin' : `/admin/${sectionId}`;
+}
+
 export default function AdminPage() {
   const [admin, setAdmin] = React.useState(null);
   const [summary, setSummary] = React.useState(null);
   const [users, setUsers] = React.useState([]);
+  const [userPage, setUserPage] = React.useState(() => getUrlPage('page'));
+  const [userTotalPages, setUserTotalPages] = React.useState(1);
   const [reports, setReports] = React.useState([]);
   const [moderationReports, setModerationReports] = React.useState([]);
   const [matches, setMatches] = React.useState([]);
@@ -88,12 +102,12 @@ export default function AdminPage() {
   const [botForms, setBotForms] = React.useState(() => Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
   const [eventForm, setEventForm] = React.useState({ title: 'Thử thách bot mùa lễ', eventType: 'bot_challenge', description: 'Đánh bại bot nổi bật và leo bảng sự kiện trong thời gian giới hạn.', rewardLabel: 'Huy hiệu mùa', active: true });
   const [loading, setLoading] = React.useState(false);
-  const [section, setSection] = React.useState('overview');
+  const [section, setSection] = React.useState(() => sectionFromPath());
   const [unlockEmail, setUnlockEmail] = React.useState('');
   const [unlockPassword, setUnlockPassword] = React.useState('');
   const [loginRequired, setLoginRequired] = React.useState(true);
 
-  const load = React.useCallback(async (nextSearch = search) => {
+  const load = React.useCallback(async (nextSearch = search, nextUserPage = userPage) => {
     setLoading(true);
     setMessage('');
     try {
@@ -112,7 +126,7 @@ export default function AdminPage() {
       ] = await Promise.all([
         fetchAdminMe(),
         fetchAdminSummary(),
-        fetchAdminUsers(nextSearch),
+        fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }),
         fetchAntiCheatReports(),
         fetchModerationReports().catch(() => ({ reports: [] })),
         fetchAdminMatches(),
@@ -125,6 +139,7 @@ export default function AdminPage() {
       setAdmin(me.admin);
       setSummary(summaryData.summary);
       setUsers(usersData.users || []);
+      setUserTotalPages(usersData.totalPages || 1);
       setReports(reportsData.reports || []);
       setModerationReports(moderationData.reports || []);
       setMatches(matchesData.matches || []);
@@ -142,7 +157,28 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, userPage]);
+
+  const changeSection = React.useCallback((nextSection) => {
+    const nextPath = adminSectionPath(nextSection);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (current !== nextPath) {
+      window.history.pushState(null, '', nextPath);
+    }
+    setSection(nextSection);
+  }, []);
+
+  const changeUserPage = React.useCallback((nextPage) => {
+    setUserPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, nextPage);
+  }, [load, search]);
+
+  React.useEffect(() => {
+    const syncSection = () => setSection(sectionFromPath());
+    window.addEventListener('popstate', syncSection);
+    return () => window.removeEventListener('popstate', syncSection);
+  }, []);
 
   React.useEffect(() => {
     load('');
@@ -211,10 +247,31 @@ export default function AdminPage() {
       await adminUserAction({ action, userId: user.id, ...extra });
       notify(successMessage, 'success');
       await load();
+      return true;
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
+      return false;
     }
+  };
+
+  const banFromAntiCheat = async (report) => {
+    const targetUser = report.users || { id: report.user_id };
+    if (!targetUser?.id && !report.user_id) return;
+    const reason = `Anti-cheat report ${report.id}: risk ${report.risk_score}/100`;
+    const banned = await runUserAction('ban', { ...targetUser, id: targetUser.id || report.user_id }, 'Đã cấm người chơi từ báo cáo anti-cheat.', {
+      banType: 'account',
+      reason
+    });
+    if (!banned) return;
+    await updateAntiCheatReport(report.id, 'actioned').catch(() => {});
+    await load();
+  };
+
+  const unbanFromAntiCheat = async (report) => {
+    const targetUser = report.users || { id: report.user_id };
+    if (!targetUser?.id && !report.user_id) return;
+    await runUserAction('unban', { ...targetUser, id: targetUser.id || report.user_id }, 'Đã gỡ cấm người chơi.');
   };
 
   const scanUser = async (user) => {
@@ -225,7 +282,7 @@ export default function AdminPage() {
       setMessage(`Đã quét ${scan.gamesScanned ?? data.reports?.length ?? 0} ván. Rủi ro cao nhất ${scan.maxRisk ?? 0}/100, ${scan.recommendation || 'không cần xử lý'}.`);
       notify('Quét chống gian lận hoàn tất.', 'success');
       await load();
-      setSection('fairplay');
+      changeSection('fairplay');
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
@@ -311,6 +368,18 @@ export default function AdminPage() {
     await load();
   };
 
+  const changeAntiCheatStatus = async (reportId, status) => {
+    try {
+      const data = await updateAntiCheatReport(reportId, status);
+      const refund = data.refund?.refundDelta ? ` Refund +${data.refund.refundDelta}.` : '';
+      notify(`Anti-cheat report updated.${refund}`, 'success');
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
   const runPayPalDiagnostics = async () => {
     setMessage('Đang kiểm tra PayPal...');
     try {
@@ -362,7 +431,7 @@ export default function AdminPage() {
           {NAV_ITEMS.map((item) => {
             const Icon = ICONS[item.iconName] || Shield;
             return (
-              <button className={section === item.id ? 'active' : ''} key={item.id} onClick={() => setSection(item.id)}>
+              <button className={section === item.id ? 'active' : ''} key={item.id} onClick={() => changeSection(item.id)}>
                 <Icon size={18} /> {item.label}
               </button>
             );
@@ -382,14 +451,21 @@ export default function AdminPage() {
         </header>
 
         {message && <p className="admin-message">{message}</p>}
-        {section === 'overview' && <OverviewSection summary={summary} loading={loading} onLoad={() => load()} onSectionChange={setSection} />}
+        {section === 'overview' && <OverviewSection summary={summary} loading={loading} onLoad={() => load()} onSectionChange={changeSection} />}
         {section === 'players' && (
           <PlayersSection
             users={users}
             search={search}
             loading={loading}
             onSearchChange={setSearch}
-            onLoad={load}
+            onLoad={(nextSearch) => {
+              setUserPage(1);
+              setUrlPage(1, 'page');
+              load(nextSearch, 1);
+            }}
+            page={userPage}
+            totalPages={userTotalPages}
+            onPageChange={changeUserPage}
             onOpenDetail={openDetail}
             onOpenPublicProfile={openPublicProfile}
             onScanUser={scanUser}
@@ -403,7 +479,14 @@ export default function AdminPage() {
           />
         )}
         {section === 'matches' && <MatchesSection matches={matches} />}
-        {section === 'fairplay' && <FairPlaySection reports={reports} onUpdateReport={(id, status) => updateAntiCheatReport(id, status).then(() => load())} />}
+        {section === 'fairplay' && (
+          <FairPlaySection
+            reports={reports}
+            onUpdateReport={changeAntiCheatStatus}
+            onBanUser={banFromAntiCheat}
+            onUnbanUser={unbanFromAntiCheat}
+          />
+        )}
         {section === 'moderation' && <ModerationSection reports={moderationReports} onChangeStatus={changeModerationStatus} />}
         {section === 'payments' && <PaymentsSection payments={payments} paypalDiagnostics={paypalDiagnostics} onRunDiagnostics={runPayPalDiagnostics} onRunCreateTest={runPayPalCreateTest} />}
         {section === 'bots' && (
