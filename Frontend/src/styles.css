@@ -14,6 +14,14 @@
   text-rendering: optimizeLegibility;
 }
 
+html {
+  color-scheme: dark;
+}
+
+:root[data-color-scheme="light"] {
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -3749,6 +3757,25 @@ input {
   color: #66705f;
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(31, 46, 23, 0.12);
+}
+
+.admin-list-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 2px;
+  color: #d8e9ce;
+}
+
+.admin-list-subhead strong {
+  font-size: 0.95rem;
+}
+
+.admin-list-subhead span {
+  color: #9fb494;
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .admin-bot-batch-row {
@@ -11878,4 +11905,17 @@ h2 {
 .app-shell[data-color-scheme="light"] .friend-actions button,
 .app-shell[data-color-scheme="light"] .friends-invite-card button {
   color: #102115 !important;
+}
+
+.app-shell[data-color-scheme="light"] :where(article, section, div, form, label, li, td, th, p, small, em, b, strong, h1, h2, h3, h4, h5, h6) {
+  text-shadow: none;
+}
+
+.app-shell[data-color-scheme="light"] :where(input, textarea, select) {
+  color: #102416 !important;
+  background-color: #ffffff !important;
+}
+
+.app-shell[data-color-scheme="dark"] {
+  color: #f3f4ee;
 }

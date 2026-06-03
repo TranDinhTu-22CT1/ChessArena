@@ -83,5 +83,5 @@ export const LIGHT_THEME = {
 
 export const DEFAULT_THEME = {
   ...DARK_THEME,
-  appearance: 'system'
+  appearance: 'dark'
 };

@@ -91,7 +91,7 @@ export default function AdminPage() {
   const [userPage, setUserPage] = React.useState(() => getUrlPage('page'));
   const [userTotalPages, setUserTotalPages] = React.useState(1);
   const [reports, setReports] = React.useState([]);
-  const [fairPlayPage, setFairPlayPage] = React.useState(() => getUrlPage('fairplayPage'));
+  const [fairPlayPage, setFairPlayPage] = React.useState(() => getUrlPage('page'));
   const [fairPlayTotalPages, setFairPlayTotalPages] = React.useState(1);
   const [fairPlayFilters, setFairPlayFilters] = React.useState({ status: 'all', minRisk: 0, search: '' });
   const [moderationReports, setModerationReports] = React.useState([]);
@@ -102,9 +102,17 @@ export default function AdminPage() {
   const [tournamentsPage, setTournamentsPage] = React.useState(() => getUrlPage('page'));
   const [tournamentsTotalPages, setTournamentsTotalPages] = React.useState(1);
   const [payments, setPayments] = React.useState([]);
+  const [paymentsPage, setPaymentsPage] = React.useState(() => getUrlPage('page'));
+  const [paymentsTotalPages, setPaymentsTotalPages] = React.useState(1);
   const [bots, setBots] = React.useState([]);
+  const [botsPage, setBotsPage] = React.useState(() => getUrlPage('botPage'));
+  const [botsTotalPages, setBotsTotalPages] = React.useState(1);
   const [events, setEvents] = React.useState([]);
+  const [eventsPage, setEventsPage] = React.useState(() => getUrlPage('eventPage'));
+  const [eventsTotalPages, setEventsTotalPages] = React.useState(1);
   const [auditLogs, setAuditLogs] = React.useState([]);
+  const [auditPage, setAuditPage] = React.useState(() => getUrlPage('page'));
+  const [auditTotalPages, setAuditTotalPages] = React.useState(1);
   const [config, setConfig] = React.useState(null);
   const [paypalDiagnostics, setPaypalDiagnostics] = React.useState(null);
   const [search, setSearch] = React.useState('');
@@ -125,6 +133,8 @@ export default function AdminPage() {
   const [unlockEmail, setUnlockEmail] = React.useState('');
   const [unlockPassword, setUnlockPassword] = React.useState('');
   const [loginRequired, setLoginRequired] = React.useState(true);
+  const [moderationPage, setModerationPage] = React.useState(() => getUrlPage('page'));
+  const [moderationTotalPages, setModerationTotalPages] = React.useState(1);
 
   const load = React.useCallback(async (
     nextSearch = search,
@@ -132,7 +142,12 @@ export default function AdminPage() {
     nextFairPlayPage = fairPlayPage,
     nextFairPlayFilters = fairPlayFilters,
     nextMatchesPage = matchesPage,
-    nextTournamentsPage = tournamentsPage
+    nextTournamentsPage = tournamentsPage,
+    nextModerationPage = moderationPage,
+    nextPaymentsPage = paymentsPage,
+    nextBotsPage = botsPage,
+    nextEventsPage = eventsPage,
+    nextAuditPage = auditPage
   ) => {
     setLoading(true);
     setMessage('');
@@ -157,13 +172,13 @@ export default function AdminPage() {
         fetchAdminSummary(),
         fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }),
         fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }),
-        fetchModerationReports().catch(() => ({ reports: [] })),
+        fetchModerationReports({ page: nextModerationPage, limit: 10 }).catch(() => ({ reports: [], totalPages: 1 })),
         fetchAdminMatches({ page: nextMatchesPage, limit: 10 }),
         fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })),
-        fetchAdminPayments(),
-        fetchAdminBots().catch(() => ({ bots: [] })),
-        fetchAdminEvents().catch(() => ({ events: [] })),
-        fetchAdminAuditLogs(),
+        fetchAdminPayments({ page: nextPaymentsPage, limit: 10 }),
+        fetchAdminBots({ page: nextBotsPage, limit: 10 }).catch(() => ({ bots: [], totalPages: 1 })),
+        fetchAdminEvents({ page: nextEventsPage, limit: 10 }).catch(() => ({ events: [], totalPages: 1 })),
+        fetchAdminAuditLogs({ page: nextAuditPage, limit: 20 }),
         fetchAdminConfig()
       ]);
       setSummary(summaryData.summary);
@@ -172,14 +187,19 @@ export default function AdminPage() {
       setReports(reportsData.reports || []);
       setFairPlayTotalPages(reportsData.totalPages || 1);
       setModerationReports(moderationData.reports || []);
+      setModerationTotalPages(moderationData.totalPages || 1);
       setMatches(matchesData.matches || []);
       setMatchesTotalPages(matchesData.totalPages || 1);
       setTournaments(tournamentsData.tournaments || []);
       setTournamentsTotalPages(tournamentsData.totalPages || 1);
       setPayments(paymentsData.payments || []);
+      setPaymentsTotalPages(paymentsData.totalPages || 1);
       setBots(botsData.bots || []);
+      setBotsTotalPages(botsData.totalPages || 1);
       setEvents(eventsData.events || []);
+      setEventsTotalPages(eventsData.totalPages || 1);
       setAuditLogs(auditData.logs || []);
+      setAuditTotalPages(auditData.totalPages || 1);
       setConfig(configData.config || null);
       setLoginRequired(false);
     } catch (error) {
@@ -190,7 +210,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [fairPlayFilters, fairPlayPage, matchesPage, search, tournamentsPage, userPage]);
+  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
 
   const changeSection = React.useCallback((nextSection) => {
     const nextPath = adminSectionPath(nextSection);
@@ -202,6 +222,13 @@ export default function AdminPage() {
     if (nextSection === 'matches') setMatchesPage(1);
     if (nextSection === 'tournaments') setTournamentsPage(1);
     if (nextSection === 'fairplay') setFairPlayPage(1);
+    if (nextSection === 'moderation') setModerationPage(1);
+    if (nextSection === 'payments') setPaymentsPage(1);
+    if (nextSection === 'bots') {
+      setBotsPage(1);
+      setEventsPage(1);
+    }
+    if (nextSection === 'audit') setAuditPage(1);
     setSection(nextSection);
   }, []);
 
@@ -213,7 +240,7 @@ export default function AdminPage() {
 
   const changeFairPlayPage = React.useCallback((nextPage) => {
     setFairPlayPage(nextPage);
-    setUrlPage(nextPage, 'fairplayPage');
+    setUrlPage(nextPage, 'page');
     load(search, userPage, nextPage, fairPlayFilters);
   }, [fairPlayFilters, load, search, userPage]);
 
@@ -229,11 +256,41 @@ export default function AdminPage() {
     load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, nextPage);
   }, [fairPlayFilters, fairPlayPage, load, matchesPage, search, userPage]);
 
+  const changeModerationPage = React.useCallback((nextPage) => {
+    setModerationPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, nextPage);
+  }, [fairPlayFilters, fairPlayPage, load, matchesPage, search, tournamentsPage, userPage]);
+
+  const changePaymentsPage = React.useCallback((nextPage) => {
+    setPaymentsPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, nextPage);
+  }, [fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, search, tournamentsPage, userPage]);
+
+  const changeBotsPage = React.useCallback((nextPage) => {
+    setBotsPage(nextPage);
+    setUrlPage(nextPage, 'botPage');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, nextPage, eventsPage);
+  }, [eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+
+  const changeEventsPage = React.useCallback((nextPage) => {
+    setEventsPage(nextPage);
+    setUrlPage(nextPage, 'eventPage');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, nextPage);
+  }, [botsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+
+  const changeAuditPage = React.useCallback((nextPage) => {
+    setAuditPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, eventsPage, nextPage);
+  }, [botsPage, eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+
   const changeFairPlayFilters = React.useCallback((patch) => {
     const nextFilters = { ...fairPlayFilters, ...patch };
     setFairPlayFilters(nextFilters);
     setFairPlayPage(1);
-    setUrlPage(1, 'fairplayPage');
+    setUrlPage(1, 'page');
     load(search, userPage, 1, nextFilters);
   }, [fairPlayFilters, load, search, userPage]);
 
@@ -244,7 +301,14 @@ export default function AdminPage() {
       if (nextSection === 'players') setUserPage(getUrlPage('page'));
       if (nextSection === 'matches') setMatchesPage(getUrlPage('page'));
       if (nextSection === 'tournaments') setTournamentsPage(getUrlPage('page'));
-      if (nextSection === 'fairplay') setFairPlayPage(getUrlPage('fairplayPage'));
+      if (nextSection === 'fairplay') setFairPlayPage(getUrlPage('page'));
+      if (nextSection === 'moderation') setModerationPage(getUrlPage('page'));
+      if (nextSection === 'payments') setPaymentsPage(getUrlPage('page'));
+      if (nextSection === 'bots') {
+        setBotsPage(getUrlPage('botPage'));
+        setEventsPage(getUrlPage('eventPage'));
+      }
+      if (nextSection === 'audit') setAuditPage(getUrlPage('page'));
     };
     window.addEventListener('popstate', syncSection);
     return () => window.removeEventListener('popstate', syncSection);
@@ -595,14 +659,38 @@ export default function AdminPage() {
             onUnbanUser={unbanFromAntiCheat}
           />
         )}
-        {section === 'moderation' && <ModerationSection reports={moderationReports} onChangeStatus={changeModerationStatus} />}
-        {section === 'payments' && <PaymentsSection payments={payments} paypalDiagnostics={paypalDiagnostics} onRunDiagnostics={runPayPalDiagnostics} onRunCreateTest={runPayPalCreateTest} />}
+        {section === 'moderation' && (
+          <ModerationSection
+            reports={moderationReports}
+            page={moderationPage}
+            totalPages={moderationTotalPages}
+            onPageChange={changeModerationPage}
+            onChangeStatus={changeModerationStatus}
+          />
+        )}
+        {section === 'payments' && (
+          <PaymentsSection
+            payments={payments}
+            page={paymentsPage}
+            totalPages={paymentsTotalPages}
+            onPageChange={changePaymentsPage}
+            paypalDiagnostics={paypalDiagnostics}
+            onRunDiagnostics={runPayPalDiagnostics}
+            onRunCreateTest={runPayPalCreateTest}
+          />
+        )}
         {section === 'bots' && (
           <BotsSection
             bots={bots}
             events={events}
+            botsPage={botsPage}
+            botsTotalPages={botsTotalPages}
+            eventsPage={eventsPage}
+            eventsTotalPages={eventsTotalPages}
             botForms={botForms}
             eventForm={eventForm}
+            onBotsPageChange={changeBotsPage}
+            onEventsPageChange={changeEventsPage}
             onSubmitBot={submitBot}
             onUpdateBotForm={updateBotForm}
             onSubmitEvent={submitEvent}
@@ -613,7 +701,14 @@ export default function AdminPage() {
             onToggleEvent={(item) => updateAdminEvent(item.id, { ...item, active: !item.active }).then(() => load())}
           />
         )}
-        {section === 'audit' && <AuditSection logs={auditLogs} />}
+        {section === 'audit' && (
+          <AuditSection
+            logs={auditLogs}
+            page={auditPage}
+            totalPages={auditTotalPages}
+            onPageChange={changeAuditPage}
+          />
+        )}
         {section === 'config' && <ConfigSection config={config} />}
       </section>
 

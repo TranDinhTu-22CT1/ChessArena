@@ -29,15 +29,28 @@ export async function GET(request) {
   const context = await requireAdminUser();
   if (context.error) return context.error;
 
-  const { data = [], error } = await context.supabase
+  const { searchParams } = new URL(request.url);
+  const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit')) || 10));
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data = [], count = 0, error } = await context.supabase
     .from('bot_personas')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(from, to);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  return Response.json({ ok: true, bots: data });
+  return Response.json({
+    ok: true,
+    bots: data,
+    page,
+    limit,
+    total: count || 0,
+    totalPages: Math.max(1, Math.ceil((count || 0) / limit))
+  });
 }
 
 export async function POST(request) {

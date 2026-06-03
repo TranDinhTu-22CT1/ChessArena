@@ -6,7 +6,6 @@ import { PIECE_IMAGES } from '../../game/pieces';
 import { squareName } from '../../game/chessLogic';
 import { formatLimit, hasPremium, membershipPlan } from '../../membership/plans';
 
-const STORAGE_KEY = 'chess-arena-puzzle-progress';
 const POOL_VERSION = 'progressive-tactics-v5';
 const ROUTE_MODES = {
   puzzles: 'rated',
@@ -41,29 +40,6 @@ const MODES = [
 ];
 
 function initialProgress() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null');
-    if (saved?.poolVersion === POOL_VERSION) {
-      return {
-        ...saved,
-        dailyPuzzleUsage: saved.dailyPuzzleUsage ?? {}
-      };
-    }
-    if (saved) {
-      return {
-        ...saved,
-        poolVersion: POOL_VERSION,
-        dailyAssignments: {},
-        dailySolved: {},
-        dailyPuzzleUsage: {},
-        dailyStreak: 0,
-        seen: []
-      };
-    }
-  } catch {
-    // Ignore invalid local progress and start cleanly.
-  }
-
   return {
     poolVersion: POOL_VERSION,
     rating: 800,
@@ -126,10 +102,6 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
   const [streakActive, setStreakActive] = React.useState(false);
   const [streakScore, setStreakScore] = React.useState(0);
   const sessionStartedAtRef = React.useRef(null);
-
-  React.useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-  }, [progress]);
 
   const loadPuzzle = React.useCallback(async (nextMode = mode, additionalExcluded = []) => {
     if (nextMode === 'battle') return;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Bot, CalendarDays, Pencil, Save, Search, X } from 'lucide-react';
+import Pagination from '../../components/Pagination';
 
 function botToForm(bot) {
   return {
@@ -27,8 +28,14 @@ function eventToForm(item) {
 export default function BotsSection({
   bots,
   events,
+  botsPage,
+  botsTotalPages,
+  eventsPage,
+  eventsTotalPages,
   botForms,
   eventForm,
+  onBotsPageChange,
+  onEventsPageChange,
   onSubmitBot,
   onUpdateBotForm,
   onSubmitEvent,
@@ -177,6 +184,10 @@ export default function BotsSection({
         </div>
       </div>
       <div className="admin-table-list">
+        <div className="admin-list-subhead">
+          <strong>Danh sách bot</strong>
+          <span>Trang {botsPage} / {botsTotalPages}</span>
+        </div>
         {visibleBots.map((bot) => (
           <article className="admin-report-card admin-bot-card" key={bot.id}>
             <img className="admin-bot-avatar" src={bot.avatar_url || '/chessarena-mark.svg'} alt="" />
@@ -210,6 +221,16 @@ export default function BotsSection({
             )}
           </article>
         ))}
+        <Pagination
+          page={botsPage}
+          totalPages={botsTotalPages}
+          onPageChange={onBotsPageChange}
+          label="Phân trang bot"
+        />
+        <div className="admin-list-subhead">
+          <strong>Sự kiện bot</strong>
+          <span>Trang {eventsPage} / {eventsTotalPages}</span>
+        </div>
         {visibleEvents.map((item) => (
           <article className="admin-report-card" key={item.id}>
             {editingEventId === item.id && editingEventForm ? (
@@ -240,6 +261,12 @@ export default function BotsSection({
           </article>
         ))}
         {visibleBots.length === 0 && visibleEvents.length === 0 && <p className="admin-message">Không tìm thấy bot hoặc sự kiện phù hợp.</p>}
+        <Pagination
+          page={eventsPage}
+          totalPages={eventsTotalPages}
+          onPageChange={onEventsPageChange}
+          label="Phân trang sự kiện bot"
+        />
       </div>
     </section>
   );

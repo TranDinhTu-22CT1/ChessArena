@@ -18,6 +18,7 @@ const ACTION_LABELS = {
   'bot.update': 'Admin cập nhật bot',
   'event.create': 'Admin tạo sự kiện',
   'event.update': 'Admin cập nhật sự kiện',
+  'tournament.create': 'Admin tạo giải đấu',
   'moderation.update': 'Admin cập nhật báo cáo người chơi',
   'moderation.report_status': 'Admin đổi trạng thái báo cáo người chơi',
   'admin.me': 'Admin kiểm tra phiên đăng nhập',
@@ -68,16 +69,19 @@ export async function GET(request) {
   if (context.error) return context.error;
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.max(10, Math.min(200, Number(searchParams.get('limit')) || 80));
+  const limit = Math.max(10, Math.min(200, Number(searchParams.get('limit')) || 20));
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
   const action = String(searchParams.get('action') || '').trim();
   let query = context.supabase
     .from('admin_audit_logs')
-    .select('id, admin_user_id, action, target_user_id, target_device_fingerprint, metadata, created_at')
+    .select('id, admin_user_id, action, target_user_id, target_device_fingerprint, metadata, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(from, to);
   if (action) query = query.ilike('action', `%${action}%`);
 
-  const { data, error } = await query;
+  const { data, count = 0, error } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   const targetIds = [...new Set((data || []).map((log) => log.target_user_id || log.metadata?.targetUserId).filter(Boolean))];
@@ -91,6 +95,10 @@ export async function GET(request) {
 
   return Response.json({
     ok: true,
+    page,
+    limit,
+    total: count || 0,
+    totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
     logs: (data || []).map((log) => ({
       ...log,
       readableAction: readableAction(log),

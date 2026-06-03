@@ -1,9 +1,13 @@
 import React from 'react';
 import { CreditCard, Database } from 'lucide-react';
+import Pagination from '../../components/Pagination';
 import { billingCycleLabel, paymentStatusLabel, tierLabel, time } from './adminUtils';
 
 export default function PaymentsSection({
   payments,
+  page,
+  totalPages,
+  onPageChange,
   paypalDiagnostics,
   onRunDiagnostics,
   onRunCreateTest
@@ -32,6 +36,7 @@ export default function PaymentsSection({
         </div>
       )}
       <div className="admin-table-list">
+        {payments.length === 0 && <p className="admin-message">Chưa có dữ liệu thanh toán ở trang này.</p>}
         {payments.map((payment) => (
           <article className="admin-report-card" key={payment.user_id}>
             <div>
@@ -47,6 +52,12 @@ export default function PaymentsSection({
           </article>
         ))}
       </div>
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        label="Phân trang thanh toán"
+      />
     </section>
   );
 }

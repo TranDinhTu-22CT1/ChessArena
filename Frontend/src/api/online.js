@@ -15,11 +15,21 @@ function matchmakingContext() {
   const clientKey = 'chessArenaClientId';
   const sessionKey = 'chessArenaMatchSessionId';
   const createId = () => window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  let clientId = window.localStorage.getItem(clientKey);
+  const cookieValue = (key) => document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${key}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=');
+  const writeSessionCookie = (key, value) => {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${key}=${encodeURIComponent(value)}; Path=/; SameSite=Lax${secure}`;
+  };
+  let clientId = cookieValue(clientKey);
   let sessionId = window.sessionStorage.getItem(sessionKey);
   if (!clientId) {
     clientId = createId();
-    window.localStorage.setItem(clientKey, clientId);
+    writeSessionCookie(clientKey, clientId);
   }
   if (!sessionId) {
     sessionId = createId();

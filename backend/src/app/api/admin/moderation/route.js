@@ -23,7 +23,10 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const status = cleanStatus(searchParams.get('status'));
-  const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit')) || 40));
+  const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit')) || 10));
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
   let query = context.supabase
     .from('player_reports')
@@ -32,16 +35,23 @@ export async function GET(request) {
       reporter:reporter_user_id(id, username, display_name, email, photo_url),
       reported:reported_user_id(id, username, display_name, email, photo_url),
       game:game_id(id, white_name, black_name, status, result, time_control, created_at, updated_at)
-    `)
+    `, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
   if (status) query = query.eq('status', status);
 
-  const { data: reports = [], error } = await query;
+  const { data: reports = [], count = 0, error } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-  return Response.json({ ok: true, reports });
+  return Response.json({
+    ok: true,
+    reports,
+    page,
+    limit,
+    total: count || 0,
+    totalPages: Math.max(1, Math.ceil((count || 0) / limit))
+  });
 }
 
 export async function PATCH(request) {

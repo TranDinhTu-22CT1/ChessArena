@@ -72,8 +72,10 @@ export async function fetchAntiCheatReports({ page = 1, limit = 10, status = 'al
   return readJson(response);
 }
 
-export async function fetchModerationReports(status = '') {
+export async function fetchModerationReports({ page = 1, limit = 10, status = '' } = {}) {
   const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
   if (status) params.set('status', status);
   const response = await fetch(apiUrl(`/api/admin/moderation?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
@@ -122,13 +124,16 @@ export async function createAdminTournament(payload) {
   return readJson(response);
 }
 
-export async function fetchAdminPayments() {
-  const response = await fetch(apiUrl('/api/admin/payments'), { credentials: 'include' });
+export async function fetchAdminPayments({ page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const response = await fetch(apiUrl(`/api/admin/payments?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 
-export async function fetchAdminAuditLogs() {
-  const response = await fetch(apiUrl('/api/admin/audit'), { credentials: 'include' });
+export async function fetchAdminAuditLogs({ page = 1, limit = 20, action = '' } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (action) params.set('action', action);
+  const response = await fetch(apiUrl(`/api/admin/audit?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 
@@ -172,8 +177,9 @@ export async function updateAntiCheatReport(reportId, status) {
   return readJson(response);
 }
 
-export async function fetchAdminBots() {
-  const response = await fetch(apiUrl('/api/admin/bots'), { credentials: 'include' });
+export async function fetchAdminBots({ page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const response = await fetch(apiUrl(`/api/admin/bots?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 
@@ -197,8 +203,9 @@ export async function updateAdminBot(botId, payload) {
   return readJson(response);
 }
 
-export async function fetchAdminEvents() {
-  const response = await fetch(apiUrl('/api/admin/events'), { credentials: 'include' });
+export async function fetchAdminEvents({ page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const response = await fetch(apiUrl(`/api/admin/events?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 

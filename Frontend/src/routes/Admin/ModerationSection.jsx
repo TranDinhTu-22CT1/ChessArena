@@ -1,7 +1,8 @@
 import React from 'react';
+import Pagination from '../../components/Pagination';
 import { time } from './adminUtils';
 
-export default function ModerationSection({ reports, onChangeStatus }) {
+export default function ModerationSection({ reports, page, totalPages, onPageChange, onChangeStatus }) {
   return (
     <section className="admin-panel">
       <div className="admin-panel-head">
@@ -34,6 +35,12 @@ export default function ModerationSection({ reports, onChangeStatus }) {
           </article>
         ))}
       </div>
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        label="Phân trang báo cáo"
+      />
     </section>
   );
 }

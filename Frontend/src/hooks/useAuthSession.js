@@ -15,9 +15,6 @@ import {
 } from '../firebase';
 import { getDeviceFingerprint } from '../security/deviceFingerprint';
 
-const OAUTH_REDIRECT_PROVIDER_KEY = 'chessArenaOAuthProvider';
-const OAUTH_PENDING_LINK_KEY = 'chessArenaPendingOAuthLink';
-
 function displayNameFromUser(user, fallback = 'Player') {
   const rawName = String(user?.displayName || user?.githubLogin || user?.githubName || '').trim();
   if (rawName && !rawName.includes('@')) return rawName;
@@ -103,11 +100,6 @@ export function useAuthSession() {
     const timer = window.setInterval(() => setOtpNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [otpState]);
-
-  React.useEffect(() => {
-    window.localStorage.removeItem(OAUTH_REDIRECT_PROVIDER_KEY);
-    window.localStorage.removeItem(OAUTH_PENDING_LINK_KEY);
-  }, []);
 
   const createBackendSession = async (firebaseUser, providerProfile = {}) => {
     const token = await firebaseUser.getIdToken();
@@ -355,9 +347,6 @@ export function useAuthSession() {
   const signInProvider = async (provider) => {
     setAuthBusy(true);
     setAuthInfo(`Đang mở ${provider === 'github' ? 'GitHub' : 'Google'} để đăng nhập...`);
-    window.localStorage.removeItem(OAUTH_REDIRECT_PROVIDER_KEY);
-    window.localStorage.removeItem(OAUTH_PENDING_LINK_KEY);
-
     try {
       const credential = await signInWithPopup(auth, providerFromName(provider));
       await finishProviderSession(provider, credential);
