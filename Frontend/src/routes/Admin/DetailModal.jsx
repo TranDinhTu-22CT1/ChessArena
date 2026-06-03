@@ -49,6 +49,16 @@ function DetailContent({ selectedDetail, onClose }) {
             <br />
             <small>Rủi ro cao nhất: {Math.max(0, ...selectedDetail.reports.map((report) => Number(report.risk_score || 0)))}/100</small>
           </p>
+          <p>
+            Báo cáo người chơi: {selectedDetail.playerReports?.length || 0}
+            <br />
+            <small>Đang chờ xử lý: {selectedDetail.diagnostics?.openPlayerReports || 0} | Hoàn điểm: {selectedDetail.diagnostics?.refundEvents || 0}</small>
+          </p>
+          <p>
+            Gói thành viên: {selectedDetail.membership?.tier || 'free'}
+            <br />
+            <small>Trạng thái: {selectedDetail.membership?.status || 'inactive'} | Chu kỳ: {selectedDetail.membership?.billing_cycle || '--'}</small>
+          </p>
         </div>
         <div>
           <strong>Lịch sử thiết bị/IP</strong>
@@ -62,6 +72,20 @@ function DetailContent({ selectedDetail, onClose }) {
           {selectedDetail.bans.length === 0 && <p>Chưa có lệnh cấm.</p>}
           {selectedDetail.bans.map((ban) => (
             <p key={ban.id}>{ban.status} | {ban.ban_type}<br /><small>{ban.reason}</small>{ban.ip_prefix && <><br /><small>Risk: IP {ban.ip_prefix} | UA {ban.user_agent_hash?.slice(0, 18) || '--'}</small></>}</p>
+          ))}
+        </div>
+        <div>
+          <strong>Báo cáo người chơi gần đây</strong>
+          {(selectedDetail.playerReports || []).length === 0 && <p>Chưa có báo cáo người chơi.</p>}
+          {(selectedDetail.playerReports || []).slice(0, 6).map((report) => (
+            <p key={report.id}>{report.category} | {report.severity} | {report.status}<br /><small>{report.description || 'Không có mô tả'} | {time(report.created_at)}</small></p>
+          ))}
+        </div>
+        <div>
+          <strong>Hoàn điểm fair play</strong>
+          {(selectedDetail.ratingRefunds || []).length === 0 && <p>Chưa có hoàn điểm.</p>}
+          {(selectedDetail.ratingRefunds || []).slice(0, 6).map((refund) => (
+            <p key={refund.id}>+{refund.refund_delta} Elo | {refund.mode}<br /><small>{refund.reason} | {time(refund.created_at)}</small></p>
           ))}
         </div>
       </div>

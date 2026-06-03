@@ -1,4 +1,4 @@
-import { requireAdminUser } from '../../../../lib/admin';
+import { requireAdminPermission, requireAdminUser } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,9 @@ const ACTION_LABELS = {
   'bot.update': 'Admin cập nhật bot',
   'event.create': 'Admin tạo sự kiện',
   'event.update': 'Admin cập nhật sự kiện',
+  'match.update_status': 'Admin cập nhật trạng thái trận',
   'tournament.create': 'Admin tạo giải đấu',
+  'tournament.update_status': 'Admin cập nhật trạng thái giải đấu',
   'moderation.update': 'Admin cập nhật báo cáo người chơi',
   'moderation.report_status': 'Admin đổi trạng thái báo cáo người chơi',
   'admin.me': 'Admin kiểm tra phiên đăng nhập',
@@ -67,6 +69,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'audit:view');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const limit = Math.max(10, Math.min(200, Number(searchParams.get('limit')) || 20));

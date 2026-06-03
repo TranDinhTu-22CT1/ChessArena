@@ -35,7 +35,8 @@ export default function TournamentsSection({
   onSubmitTournament,
   page,
   totalPages,
-  onPageChange
+  onPageChange,
+  onChangeStatus
 }) {
   return (
     <section className="admin-panel">
@@ -117,6 +118,7 @@ export default function TournamentsSection({
                 {' | '}Kết thúc: {formatDate(item.ends_at)}
               </span>
               <small>{item.players?.length || 0} người tham gia trong top hiển thị</small>
+              <small>Tổng người tham gia: {item.playerCount ?? item.players?.length ?? 0} | Số ván đã ghi nhận: {item.totalGamesPlayed ?? 0}</small>
               <div className="admin-podium-list">
                 {topPlayers(item.players).length === 0 ? (
                   <em>Chưa có người chơi trên bảng xếp hạng.</em>
@@ -126,6 +128,12 @@ export default function TournamentsSection({
                   </b>
                 ))}
               </div>
+            </div>
+            <div className="admin-report-actions">
+              {item.status === 'scheduled' && <button type="button" onClick={() => onChangeStatus(item, 'open')}>Mở đăng ký</button>}
+              {['scheduled', 'open'].includes(item.status) && <button type="button" onClick={() => onChangeStatus(item, 'running')}>Bắt đầu</button>}
+              {['open', 'running'].includes(item.status) && <button type="button" onClick={() => onChangeStatus(item, 'finished')}>Kết thúc</button>}
+              {item.status !== 'cancelled' && item.status !== 'finished' && <button type="button" className="danger" onClick={() => onChangeStatus(item, 'cancelled')}>Hủy giải</button>}
             </div>
           </article>
         ))}

@@ -122,7 +122,9 @@ export function adminActionLabel(action) {
     'event.create': 'Admin tạo sự kiện',
     'event.update': 'Admin cập nhật sự kiện',
     'match.create': 'Admin tạo trận đấu',
+    'match.update_status': 'Admin cập nhật trạng thái trận',
     'tournament.create': 'Admin tạo giải đấu',
+    'tournament.update_status': 'Admin cập nhật trạng thái giải',
     'paypal.diagnostics': 'Admin kiểm tra PayPal',
     'paypal.test_subscription': 'Admin tạo thử đăng ký PayPal'
   };

@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { ensureAdminAppUser, requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
+import { ensureAdminAppUser, requireAdminCsrf, requireAdminPermission, requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
 import { createUserNotification } from '../../../../lib/notifications';
 
 export const runtime = 'nodejs';
@@ -45,6 +45,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'users:view');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const search = cleanSearch(searchParams.get('search'));
@@ -104,6 +106,10 @@ export async function PATCH(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'users:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
 
   const payload = await request.json().catch(() => null);
   const action = payload?.action;

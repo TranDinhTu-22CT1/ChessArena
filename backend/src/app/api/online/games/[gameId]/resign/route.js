@@ -1,6 +1,7 @@
 import { rateLimit } from '../../../../../../lib/rateLimit';
 import {
   applyOnlineRatingResult,
+  applyTournamentResult,
   abortOnlineGameIfOpeningIdle,
   decorateGameRatings,
   expireOnlineGameOnClock,
@@ -67,6 +68,7 @@ export async function POST(request, { params }) {
 
   publishOnlineGame(updatedGame.id, { game: updatedGame, moves });
   await applyOnlineRatingResult(supabase, updatedGame, result);
+  await applyTournamentResult(supabase, updatedGame, result);
   await touchPresence(supabase, user, { status: 'online' });
   const responseGame = publicGame(await decorateGameRatings(supabase, updatedGame), moves, user.id);
   return Response.json({ ok: true, game: responseGame });

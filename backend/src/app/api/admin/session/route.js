@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { clearAdminSessionCookie, requireAdminUser, requireRootAdminIdentity, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
+import { clearAdminSessionCookie, requireAdminCsrf, requireAdminUser, requireRootAdminIdentity, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -42,7 +42,12 @@ export async function POST(request) {
 
   const session = await setAdminSessionCookie(context.admin);
   await writeAdminAudit(context.supabase, context.admin, 'admin.login');
-  return Response.json({ ok: true, admin: context.admin, expiresAt: session.expiresAt });
+  return Response.json({
+    ok: true,
+    admin: { ...context.admin, csrfToken: session.csrfToken, expiresAt: session.expiresAt },
+    expiresAt: session.expiresAt,
+    csrfToken: session.csrfToken
+  });
 }
 
 export async function DELETE(request) {
@@ -50,7 +55,13 @@ export async function DELETE(request) {
   if (blocked) return blocked;
 
   const context = await requireAdminUser();
-  if (!context.error) await writeAdminAudit(context.supabase, context.admin, 'admin.logout');
+  if (context.error) {
+    await clearAdminSessionCookie();
+    return Response.json({ ok: true });
+  }
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
+  await writeAdminAudit(context.supabase, context.admin, 'admin.logout');
   await clearAdminSessionCookie();
   return Response.json({ ok: true });
 }

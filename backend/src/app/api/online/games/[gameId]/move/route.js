@@ -2,6 +2,7 @@ import { rateLimit } from '../../../../../../lib/rateLimit';
 import { readJsonPayload } from '../../../../../../lib/validation';
 import {
   applyOnlineRatingResult,
+  applyTournamentResult,
   abortOnlineGameIfOpeningIdle,
   chessFromMoves,
   decorateGameRatings,
@@ -161,6 +162,7 @@ export async function POST(request, { params }) {
     updatedGame.status !== 'active'
       ? Promise.all([
           applyOnlineRatingResult(supabase, updatedGame, updatedGame.result),
+          applyTournamentResult(supabase, updatedGame, updatedGame.result),
           createAntiCheatReportsForGame(supabase, updatedGame, nextMoves, { movetime: 80 })
         ])
       : Promise.resolve()

@@ -1712,6 +1712,18 @@ create table if not exists public.arena_tournament_players (
   primary key (tournament_id, user_id)
 );
 
+create table if not exists public.arena_tournament_games (
+  tournament_id uuid not null references public.arena_tournaments(id) on delete cascade,
+  game_id uuid not null references public.online_games(id) on delete cascade,
+  white_user_id uuid references public.users(id) on delete set null,
+  black_user_id uuid references public.users(id) on delete set null,
+  result text not null,
+  score_white integer not null default 0,
+  score_black integer not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (tournament_id, game_id)
+);
+
 create index if not exists idx_game_reviews_user_updated
 on public.game_reviews(user_id, updated_at desc);
 
@@ -1738,6 +1750,9 @@ on public.arena_tournaments(status, starts_at desc);
 
 create index if not exists idx_arena_tournament_players_score
 on public.arena_tournament_players(tournament_id, score desc, updated_at desc);
+
+create index if not exists idx_arena_tournament_games_tournament_created
+on public.arena_tournament_games(tournament_id, created_at desc);
 
 create index if not exists idx_bot_personas_active_window
 on public.bot_personas(active, starts_at, ends_at, sort_order);
@@ -1815,6 +1830,7 @@ alter table public.puzzle_sessions enable row level security;
 alter table public.daily_puzzle_claims enable row level security;
 alter table public.arena_tournaments enable row level security;
 alter table public.arena_tournament_players enable row level security;
+alter table public.arena_tournament_games enable row level security;
 
 -- DROP OLD POLICIES IF EXIST
 drop policy if exists "service role manages users" on public.users;
@@ -1850,6 +1866,7 @@ drop policy if exists "service role manages puzzle sessions" on public.puzzle_se
 drop policy if exists "service role manages daily puzzle claims" on public.daily_puzzle_claims;
 drop policy if exists "service role manages arena tournaments" on public.arena_tournaments;
 drop policy if exists "service role manages arena tournament players" on public.arena_tournament_players;
+drop policy if exists "service role manages arena tournament games" on public.arena_tournament_games;
 
 -- CREATE POLICIES
 create policy "service role manages users"
@@ -2046,6 +2063,12 @@ with check (auth.role() = 'service_role');
 
 create policy "service role manages arena tournament players"
 on public.arena_tournament_players
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages arena tournament games"
+on public.arena_tournament_games
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

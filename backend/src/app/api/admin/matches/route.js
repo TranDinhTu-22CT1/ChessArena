@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
 import { createUserNotification } from '../../../../lib/notifications';
 import { ensureModeRating, normalizeTimeControl, onlineModeFromTimeControl, randomInviteCode } from '../../../../lib/online';
 import { rateLimit } from '../../../../lib/rateLimit';
@@ -58,6 +58,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'matches:view');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const limit = Math.max(5, Math.min(80, Number(searchParams.get('limit')) || 30));
@@ -105,6 +107,10 @@ export async function POST(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'matches:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
 
   const payload = await readJsonPayload(request);
   if (!payload) return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
@@ -210,6 +216,48 @@ export async function POST(request) {
   });
 
   return Response.json({ ok: true, match: game });
+}
+
+export async function PATCH(request) {
+  const blocked = rateLimit(request, { scope: 'admin-matches-update', limit: 30, windowMs: 60_000 });
+  if (blocked) return blocked;
+
+  const context = await requireAdminUser();
+  if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'matches:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
+
+  const payload = await readJsonPayload(request);
+  const gameId = cleanUuid(payload?.gameId);
+  const status = String(payload?.status || '').trim();
+  if (!gameId || !['abandoned', 'draw', 'resigned'].includes(status)) {
+    return Response.json({ ok: false, error: 'Invalid match update.' }, { status: 400 });
+  }
+
+  const result = status === 'draw' ? '1/2-1/2' : '*';
+  const { data, error } = await context.supabase
+    .from('online_games')
+    .update({
+      status,
+      result,
+      finished_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', gameId)
+    .select('id, status, result, white_user_id, black_user_id, white_name, black_name')
+    .single();
+
+  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  await writeAdminAudit(context.supabase, context.admin, 'match.update_status', {
+    gameId,
+    status,
+    result,
+    whiteUserId: data.white_user_id,
+    blackUserId: data.black_user_id
+  });
+  return Response.json({ ok: true, match: data });
 }
 
 export function OPTIONS() {

@@ -1,6 +1,6 @@
 import { assertPayPalPlanVisible, createPayPalSubscription, fetchPayPalPlan, paypalCredentialFingerprint } from '../../../../../lib/paypal';
 import { rateLimit } from '../../../../../lib/rateLimit';
-import { requireAdminUser, writeAdminAudit } from '../../../../../lib/admin';
+import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../../lib/admin';
 
 export const runtime = 'nodejs';
 
@@ -46,6 +46,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'billing:view');
+  if (permissionError) return permissionError;
 
   const diagnostics = [];
   for (const [tier, cycles] of Object.entries(PLAN_IDS)) {
@@ -79,6 +81,10 @@ export async function POST(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'billing:view');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
 
   const payload = await request.json().catch(() => ({}));
   const tier = ['plus', 'pro', 'master'].includes(payload.tier) ? payload.tier : 'master';

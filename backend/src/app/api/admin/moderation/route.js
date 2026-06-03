@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +20,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'moderation:manage');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const status = cleanStatus(searchParams.get('status'));
@@ -43,10 +45,18 @@ export async function GET(request) {
 
   const { data: reports = [], count = 0, error } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const openCounts = new Map();
+  for (const report of reports || []) {
+    const key = report.reported_user_id || 'unknown';
+    openCounts.set(key, (openCounts.get(key) || 0) + 1);
+  }
 
   return Response.json({
     ok: true,
-    reports,
+    reports: reports.map((report) => ({
+      ...report,
+      sameTargetOnPage: openCounts.get(report.reported_user_id || 'unknown') || 1
+    })),
     page,
     limit,
     total: count || 0,
@@ -60,6 +70,10 @@ export async function PATCH(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'moderation:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
 
   const payload = await request.json().catch(() => null);
   const reportId = String(payload?.reportId || '').trim();

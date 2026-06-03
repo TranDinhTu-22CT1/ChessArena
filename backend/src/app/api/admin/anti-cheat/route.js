@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +70,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'fairplay:manage');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
@@ -130,6 +132,10 @@ export async function PATCH(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'fairplay:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
 
   const payload = await request.json().catch(() => null);
   const reportId = String(payload?.reportId || '').trim();

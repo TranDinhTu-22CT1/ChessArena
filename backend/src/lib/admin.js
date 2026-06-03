@@ -13,14 +13,6 @@ function adminEmails() {
     .filter(Boolean);
 }
 
-function adminRoleFor(email) {
-  const assignment = String(process.env.ADMIN_ROLE_ASSIGNMENTS || '')
-    .split(',')
-    .map((item) => item.trim())
-    .find((item) => item.toLowerCase().startsWith(`${email}:`));
-  return assignment?.split(':')[1]?.trim() || 'owner';
-}
-
 function cleanDeviceFingerprint(value) {
   return String(value || '').trim().slice(0, 160);
 }
@@ -60,7 +52,7 @@ function adminIdentityFromEmail(value) {
   return {
     id: null,
     email,
-    role: adminRoleFor(email),
+    role: 'owner',
     permissions: ['*'],
     username: email.split('@')[0],
     displayName: 'Admin',
@@ -85,11 +77,17 @@ function signAdminSession(payload) {
 }
 
 function encodeAdminSession(admin, expiresAt) {
-  const payload = Buffer.from(JSON.stringify({
+  const session = {
     email: admin.email,
-    exp: expiresAt
-  })).toString('base64url');
-  return `${payload}.${signAdminSession(payload)}`;
+    exp: expiresAt,
+    csrf: crypto.randomBytes(24).toString('base64url'),
+    issuedAt: Date.now()
+  };
+  const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
+  return {
+    token: `${payload}.${signAdminSession(payload)}`,
+    session
+  };
 }
 
 function decodeAdminSession(token) {
@@ -140,16 +138,40 @@ export async function requireAdminUser() {
     return { error: Response.json({ ok: false, error: 'Admin login required.' }, { status: 401 }) };
   }
 
-  return context;
+  return {
+    ...context,
+    session: adminSession,
+    admin: {
+      ...context.admin,
+      csrfToken: adminSession.csrf,
+      expiresAt: new Date(Number(adminSession.exp)).toISOString(),
+      issuedAt: adminSession.issuedAt ? new Date(Number(adminSession.issuedAt)).toISOString() : null
+    }
+  };
 }
 
 export async function setAdminSessionCookie(admin) {
   const cookieStore = await cookies();
   const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE * 1000;
-  cookieStore.set(ADMIN_SESSION_COOKIE, encodeAdminSession(admin, expiresAt), authCookieOptions(ADMIN_SESSION_MAX_AGE));
+  const encoded = encodeAdminSession(admin, expiresAt);
+  cookieStore.set(ADMIN_SESSION_COOKIE, encoded.token, authCookieOptions(ADMIN_SESSION_MAX_AGE));
   return {
-    expiresAt: new Date(expiresAt).toISOString()
+    expiresAt: new Date(expiresAt).toISOString(),
+    csrfToken: encoded.session.csrf
   };
+}
+
+export function requireAdminPermission() {
+  return null;
+}
+
+export async function requireAdminCsrf(request, context) {
+  const method = String(request?.method || 'GET').toUpperCase();
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return null;
+  const expected = context?.session?.csrf || context?.admin?.csrfToken || '';
+  const provided = request.headers.get('x-admin-csrf') || '';
+  if (expected && provided === expected) return null;
+  return Response.json({ ok: false, error: 'Phiên admin thiếu mã xác thực thao tác. Hãy tải lại trang và đăng nhập lại nếu cần.' }, { status: 403 });
 }
 
 export async function clearAdminSessionCookie() {

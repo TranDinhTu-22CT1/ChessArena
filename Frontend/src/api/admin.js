@@ -1,11 +1,23 @@
 import { apiUrl } from './config';
 
+let adminCsrfToken = '';
+
 async function readJson(response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || 'Admin request failed.');
   }
+  if (data.csrfToken) adminCsrfToken = data.csrfToken;
+  if (data.admin?.csrfToken) adminCsrfToken = data.admin.csrfToken;
   return data;
+}
+
+function adminWriteHeaders(extra = {}) {
+  return {
+    'Content-Type': 'application/json',
+    ...(adminCsrfToken ? { 'x-admin-csrf': adminCsrfToken } : {}),
+    ...extra
+  };
 }
 
 export async function fetchAdminMe() {
@@ -26,9 +38,12 @@ export async function unlockAdmin(email, password) {
 export async function lockAdmin() {
   const response = await fetch(apiUrl('/api/admin/session'), {
     method: 'DELETE',
+    headers: adminCsrfToken ? { 'x-admin-csrf': adminCsrfToken } : {},
     credentials: 'include'
   });
-  return readJson(response);
+  const data = await readJson(response);
+  adminCsrfToken = '';
+  return data;
 }
 
 export async function fetchAdminSummary() {
@@ -54,7 +69,7 @@ export async function adminUserAction(payload) {
   const response = await fetch(apiUrl('/api/admin/users'), {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify(payload)
   });
   return readJson(response);
@@ -85,7 +100,7 @@ export async function updateModerationReport(reportId, status, resolutionNote = 
   const response = await fetch(apiUrl('/api/admin/moderation'), {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify({ reportId, status, resolutionNote })
   });
   return readJson(response);
@@ -102,8 +117,18 @@ export async function createAdminMatch(payload) {
   const response = await fetch(apiUrl('/api/admin/matches'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify(payload)
+  });
+  return readJson(response);
+}
+
+export async function updateAdminMatchStatus(gameId, status) {
+  const response = await fetch(apiUrl('/api/admin/matches'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify({ gameId, status })
   });
   return readJson(response);
 }
@@ -118,8 +143,18 @@ export async function createAdminTournament(payload) {
   const response = await fetch(apiUrl('/api/admin/tournaments'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify(payload)
+  });
+  return readJson(response);
+}
+
+export async function updateAdminTournamentStatus(tournamentId, status) {
+  const response = await fetch(apiUrl('/api/admin/tournaments'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify({ tournamentId, status })
   });
   return readJson(response);
 }
@@ -151,7 +186,7 @@ export async function testPayPalSubscription(tier = 'master', cycle = 'monthly')
   const response = await fetch(apiUrl('/api/admin/paypal/diagnostics'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify({ tier, cycle })
   });
   return readJson(response);
@@ -161,7 +196,7 @@ export async function scanUserAntiCheat(userId) {
   const response = await fetch(apiUrl('/api/admin/anti-cheat/scan'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify({ userId, limit: 6 })
   });
   return readJson(response);
@@ -171,7 +206,7 @@ export async function updateAntiCheatReport(reportId, status) {
   const response = await fetch(apiUrl('/api/admin/anti-cheat'), {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify({ reportId, status })
   });
   return readJson(response);
@@ -187,7 +222,7 @@ export async function createAdminBot(payload) {
   const response = await fetch(apiUrl('/api/admin/bots'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify(payload)
   });
   return readJson(response);
@@ -197,7 +232,7 @@ export async function updateAdminBot(botId, payload) {
   const response = await fetch(apiUrl('/api/admin/bots'), {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify({ botId, ...payload })
   });
   return readJson(response);
@@ -213,7 +248,7 @@ export async function createAdminEvent(payload) {
   const response = await fetch(apiUrl('/api/admin/events'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify(payload)
   });
   return readJson(response);
@@ -223,7 +258,7 @@ export async function updateAdminEvent(eventId, payload) {
   const response = await fetch(apiUrl('/api/admin/events'), {
     method: 'PATCH',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminWriteHeaders(),
     body: JSON.stringify({ eventId, ...payload })
   });
   return readJson(response);

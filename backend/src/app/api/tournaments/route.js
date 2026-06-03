@@ -13,6 +13,8 @@ function publicTournament(row, players = []) {
     timeControl: row.time_control,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
+    playerCount: row.playerCount ?? players.length,
+    gameCount: row.gameCount ?? 0,
     joined: Boolean(row.joined),
     players: players.map((item, index) => ({
       rank: index + 1,
@@ -49,11 +51,19 @@ async function ensureDefaultTournament(supabase) {
 
 async function loadTournaments(context) {
   await ensureDefaultTournament(context.supabase);
-  const { data: tournaments = [], error } = await context.supabase
+  const url = context.url;
+  const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+  const limit = Math.max(6, Math.min(24, Math.floor(Number(url.searchParams.get('limit')) || 12)));
+  const status = String(url.searchParams.get('status') || 'all');
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+  let query = context.supabase
     .from('arena_tournaments')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('starts_at', { ascending: false })
-    .limit(12);
+    .range(from, to);
+  if (['scheduled', 'open', 'running', 'finished', 'cancelled'].includes(status)) query = query.eq('status', status);
+  const { data: tournaments = [], error, count = 0 } = await query;
   if (error) throw error;
 
   const ids = tournaments.map((item) => item.id);
@@ -65,12 +75,32 @@ async function loadTournaments(context) {
       .order('score', { ascending: false })
       .order('updated_at', { ascending: false })
     : { data: [] };
+  const { data: games = [] } = ids.length
+    ? await context.supabase
+      .from('arena_tournament_games')
+      .select('tournament_id, game_id')
+      .in('tournament_id', ids)
+    : { data: [] };
 
   const joinedIds = new Set(players.filter((item) => item.user_id === context.user.id).map((item) => item.tournament_id));
-  return tournaments.map((item) => publicTournament(
-    { ...item, joined: joinedIds.has(item.id) },
-    players.filter((player) => player.tournament_id === item.id).slice(0, 10)
-  ));
+  return {
+    page,
+    limit,
+    total: count ?? tournaments.length,
+    totalPages: Math.max(1, Math.ceil(((count ?? tournaments.length) || 0) / limit)),
+    tournaments: tournaments.map((item) => {
+      const tournamentPlayers = players.filter((player) => player.tournament_id === item.id);
+      return publicTournament(
+        {
+          ...item,
+          joined: joinedIds.has(item.id),
+          playerCount: tournamentPlayers.length,
+          gameCount: games.filter((game) => game.tournament_id === item.id).length
+        },
+        tournamentPlayers.slice(0, 10)
+      );
+    })
+  };
 }
 
 export async function GET(request) {
@@ -81,8 +111,8 @@ export async function GET(request) {
   if (context.error) return context.error;
 
   try {
-    const tournaments = await loadTournaments(context);
-    return Response.json({ ok: true, tournaments });
+    const result = await loadTournaments({ ...context, url: new URL(request.url) });
+    return Response.json({ ok: true, ...result });
   } catch (error) {
     return Response.json({ ok: false, error: error.message || 'Không tải được danh sách giải đấu.' }, { status: 500 });
   }
@@ -128,6 +158,27 @@ export async function POST(request) {
 
     const achievements = await syncAchievements(context.supabase, context.user.id);
     return Response.json({ ok: true, player: data, achievements });
+  }
+
+  if (action === 'leave') {
+    if (!tournamentId) return Response.json({ ok: false, error: 'Thiếu mã giải đấu.' }, { status: 400 });
+    const { data: tournament, error: tournamentError } = await context.supabase
+      .from('arena_tournaments')
+      .select('id, status')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (tournamentError) return Response.json({ ok: false, error: tournamentError.message }, { status: 500 });
+    if (!tournament) return Response.json({ ok: false, error: 'Không tìm thấy giải đấu.' }, { status: 404 });
+    if (!['scheduled', 'open'].includes(tournament.status)) {
+      return Response.json({ ok: false, error: 'Giải đã bắt đầu nên không thể rời.' }, { status: 409 });
+    }
+    const { error } = await context.supabase
+      .from('arena_tournament_players')
+      .delete()
+      .eq('tournament_id', tournamentId)
+      .eq('user_id', context.user.id);
+    if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
   }
 
   return Response.json({ ok: false, error: 'Thao tác giải đấu không được hỗ trợ.' }, { status: 400 });

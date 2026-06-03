@@ -39,6 +39,8 @@ import {
   unlockAdmin,
   updateAdminBot,
   updateAdminEvent,
+  updateAdminMatchStatus,
+  updateAdminTournamentStatus,
   updateAntiCheatReport,
   updateModerationReport
 } from '../../api/admin';
@@ -149,6 +151,7 @@ export default function AdminPage() {
     nextEventsPage = eventsPage,
     nextAuditPage = auditPage
   ) => {
+    const activeSection = section;
     setLoading(true);
     setMessage('');
     try {
@@ -169,38 +172,56 @@ export default function AdminPage() {
         auditData,
         configData
       ] = await Promise.all([
-        fetchAdminSummary(),
-        fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }),
-        fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }),
-        fetchModerationReports({ page: nextModerationPage, limit: 10 }).catch(() => ({ reports: [], totalPages: 1 })),
-        fetchAdminMatches({ page: nextMatchesPage, limit: 10 }),
-        fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })),
-        fetchAdminPayments({ page: nextPaymentsPage, limit: 10 }),
-        fetchAdminBots({ page: nextBotsPage, limit: 10 }).catch(() => ({ bots: [], totalPages: 1 })),
-        fetchAdminEvents({ page: nextEventsPage, limit: 10 }).catch(() => ({ events: [], totalPages: 1 })),
-        fetchAdminAuditLogs({ page: nextAuditPage, limit: 20 }),
-        fetchAdminConfig()
+        activeSection === 'overview' ? fetchAdminSummary() : Promise.resolve(null),
+        activeSection === 'players' ? fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }) : Promise.resolve(null),
+        activeSection === 'fairplay' ? fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }) : Promise.resolve(null),
+        activeSection === 'moderation' ? fetchModerationReports({ page: nextModerationPage, limit: 10 }).catch(() => ({ reports: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'matches' ? fetchAdminMatches({ page: nextMatchesPage, limit: 10 }) : Promise.resolve(null),
+        activeSection === 'tournaments' ? fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'payments' ? fetchAdminPayments({ page: nextPaymentsPage, limit: 10 }) : Promise.resolve(null),
+        activeSection === 'bots' ? fetchAdminBots({ page: nextBotsPage, limit: 10 }).catch(() => ({ bots: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'bots' ? fetchAdminEvents({ page: nextEventsPage, limit: 10 }).catch(() => ({ events: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'audit' ? fetchAdminAuditLogs({ page: nextAuditPage, limit: 20 }) : Promise.resolve(null),
+        activeSection === 'config' ? fetchAdminConfig() : Promise.resolve(null)
       ]);
-      setSummary(summaryData.summary);
-      setUsers(usersData.users || []);
-      setUserTotalPages(usersData.totalPages || 1);
-      setReports(reportsData.reports || []);
-      setFairPlayTotalPages(reportsData.totalPages || 1);
-      setModerationReports(moderationData.reports || []);
-      setModerationTotalPages(moderationData.totalPages || 1);
-      setMatches(matchesData.matches || []);
-      setMatchesTotalPages(matchesData.totalPages || 1);
-      setTournaments(tournamentsData.tournaments || []);
-      setTournamentsTotalPages(tournamentsData.totalPages || 1);
-      setPayments(paymentsData.payments || []);
-      setPaymentsTotalPages(paymentsData.totalPages || 1);
-      setBots(botsData.bots || []);
-      setBotsTotalPages(botsData.totalPages || 1);
-      setEvents(eventsData.events || []);
-      setEventsTotalPages(eventsData.totalPages || 1);
-      setAuditLogs(auditData.logs || []);
-      setAuditTotalPages(auditData.totalPages || 1);
-      setConfig(configData.config || null);
+      if (summaryData) setSummary(summaryData.summary);
+      if (usersData) {
+        setUsers(usersData.users || []);
+        setUserTotalPages(usersData.totalPages || 1);
+      }
+      if (reportsData) {
+        setReports(reportsData.reports || []);
+        setFairPlayTotalPages(reportsData.totalPages || 1);
+      }
+      if (moderationData) {
+        setModerationReports(moderationData.reports || []);
+        setModerationTotalPages(moderationData.totalPages || 1);
+      }
+      if (matchesData) {
+        setMatches(matchesData.matches || []);
+        setMatchesTotalPages(matchesData.totalPages || 1);
+      }
+      if (tournamentsData) {
+        setTournaments(tournamentsData.tournaments || []);
+        setTournamentsTotalPages(tournamentsData.totalPages || 1);
+      }
+      if (paymentsData) {
+        setPayments(paymentsData.payments || []);
+        setPaymentsTotalPages(paymentsData.totalPages || 1);
+      }
+      if (botsData) {
+        setBots(botsData.bots || []);
+        setBotsTotalPages(botsData.totalPages || 1);
+      }
+      if (eventsData) {
+        setEvents(eventsData.events || []);
+        setEventsTotalPages(eventsData.totalPages || 1);
+      }
+      if (auditData) {
+        setAuditLogs(auditData.logs || []);
+        setAuditTotalPages(auditData.totalPages || 1);
+      }
+      if (configData) setConfig(configData.config || null);
       setLoginRequired(false);
     } catch (error) {
       const text = error.message || 'Không thể tải trang quản trị.';
@@ -210,7 +231,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, matchesPage, moderationPage, paymentsPage, search, section, tournamentsPage, userPage]);
 
   const changeSection = React.useCallback((nextSection) => {
     const nextPath = adminSectionPath(nextSection);
@@ -507,6 +528,32 @@ export default function AdminPage() {
     }
   };
 
+  const changeTournamentStatus = async (tournament, status) => {
+    const labels = { cancelled: 'hủy', open: 'mở đăng ký', running: 'bắt đầu', finished: 'kết thúc' };
+    if (!window.confirm(`Xác nhận ${labels[status] || status} giải "${tournament.title}"?`)) return;
+    try {
+      await updateAdminTournamentStatus(tournament.id, status);
+      notify('Đã cập nhật trạng thái giải đấu.', 'success');
+      await load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage);
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
+  const changeMatchStatus = async (match, status) => {
+    const label = status === 'abandoned' ? 'đánh dấu bỏ ván' : status === 'draw' ? 'kết thúc hòa' : 'đánh dấu đầu hàng';
+    if (!window.confirm(`Xác nhận ${label} trận ${match.white_name || 'Trắng'} vs ${match.black_name || 'Đen'}?`)) return;
+    try {
+      await updateAdminMatchStatus(match.id, status);
+      notify('Đã cập nhật trạng thái trận đấu.', 'success');
+      await load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage);
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
   const changeModerationStatus = async (report, status) => {
     const resolutionNote = ['resolved', 'dismissed', 'escalated'].includes(status)
       ? window.prompt('Ghi chú xử lý', status === 'dismissed' ? 'Không phát hiện vi phạm chính sách.' : 'Đã được đội kiểm duyệt xem xét.')
@@ -600,7 +647,7 @@ export default function AdminPage() {
         </header>
 
         {message && <p className="admin-message">{message}</p>}
-        {section === 'overview' && <OverviewSection summary={summary} loading={loading} onLoad={() => load()} onSectionChange={changeSection} />}
+        {section === 'overview' && <OverviewSection summary={summary} admin={admin} loading={loading} onLoad={() => load()} onSectionChange={changeSection} />}
         {section === 'players' && (
           <PlayersSection
             users={users}
@@ -633,6 +680,7 @@ export default function AdminPage() {
             page={matchesPage}
             totalPages={matchesTotalPages}
             onPageChange={changeMatchesPage}
+            onChangeStatus={changeMatchStatus}
           />
         )}
         {section === 'tournaments' && (
@@ -644,6 +692,7 @@ export default function AdminPage() {
             page={tournamentsPage}
             totalPages={tournamentsTotalPages}
             onPageChange={changeTournamentsPage}
+            onChangeStatus={changeTournamentStatus}
           />
         )}
         {section === 'fairplay' && (

@@ -1,0 +1,125 @@
+BAO CAO NANG CAP CHUC NANG ADMIN - 03/06/2026
+
+Pham vi:
+- Nang cap 10 nhom chuc nang admin da de xuat.
+- Se push len GitHub sau khi kiem tra lint/build theo yeu cau moi.
+
+1. Dang nhap admin owner
+- Project chi co mot nguoi quan tri nen dua ve 1 role duy nhat: owner.
+- Admin session tra ve role owner, expiresAt va csrfToken.
+- Owner co toan quyen quan tri, khong can giai thich nhieu vai tro nhu admin/moderator/support.
+- Trang tong quan hien thong tin phien admin: email, vai tro chu he thong, thoi han phien.
+
+2. Bao mat thao tac admin
+- Them CSRF token rieng cho admin session.
+- Tat ca thao tac ghi quan trong gui header x-admin-csrf.
+- Backend chan POST/PATCH/DELETE neu thieu CSRF hop le.
+- Cac thao tac nguy hiem co xac nhan tren frontend: huy tran, ket thuc tran, huy giai, ket thuc giai.
+
+3. Toi uu tai du lieu admin
+- AdminPage khong con goi hang loat API cua moi tab khi moi vao.
+- Moi tab chi tai API cua chinh tab do, giam loi 401/403/500 hang loat khi phien admin het han.
+- Nut lam moi chi lam moi du lieu cua tab dang mo.
+
+4. Quan ly giai dau
+- Giai dau co thao tac cap nhat trang thai: mo dang ky, bat dau, ket thuc, huy giai.
+- Backend co PATCH /api/admin/tournaments va ghi audit log.
+- Danh sach giai dau hien tong nguoi tham gia, tong so van da ghi nhan, top 1-2-3.
+- Tao giai dau van gui thong bao den nguoi choi nhu truoc.
+
+5. Quan ly tran dau
+- Tran dau co thao tac admin: huy/danh dau bo van, ket thuc hoa.
+- Backend co PATCH /api/admin/matches va ghi audit log.
+- Danh sach tran hien ma moi, trang thai rated, ve ghep tran, so nuoc va canh bao tran treo qua 15 phut.
+
+6. Thong bao nguoi choi
+- Luong tao giai dau tiep tuc tao notification cho nguoi choi.
+- Noi dung thong bao giai dau moi dieu huong ve /tournaments va nhac canh tranh top 1-2-3.
+
+7. Anti-cheat va fair play
+- API anti-cheat duoc bao ve bang quyen fairplay:manage va CSRF cho thao tac cap nhat.
+- Quet anti-cheat cua admin cung yeu cau quyen va CSRF.
+- Trang tong quan hien so nguoi choi rui ro cao va bao cao dang cho xu ly.
+
+8. Bao cao nguoi choi / kiem duyet
+- API moderation duoc bao ve bang quyen moderation:manage va CSRF cho thao tac xu ly.
+- Danh sach bao cao hien canh bao neu trong trang hien tai co nhieu bao cao cung mot nguoi bi report.
+- Tiep tuc ho tro cac trang thai: dang xem, chuyen cap cao hon, da xu ly, bo qua.
+
+9. Ho so nguoi choi cho admin
+- Chi tiet nguoi choi bo sung:
+  + Bao cao nguoi choi lien quan.
+  + Su kien hoan diem fair play.
+  + Trang thai goi thanh vien.
+  + So bao cao dang cho xu ly.
+- Modal chi tiet giu dang tom tat de admin doc nhanh.
+
+10. Nhat ky quan tri
+- Audit log co them nhan de doc cho:
+  + match.update_status
+  + tournament.update_status
+- Trang audit van phan trang theo URL va khong tai danh sach dai mot lan.
+
+11. Light mode / dark mode va localStorage
+- Giu cac sua doi truoc do: mac dinh dark mode de tranh nen sang lam mat chu.
+- Light mode co rule tang do tuong phan cho text/input.
+- Khong con localStorage trong Frontend/src va backend/src.
+
+12. Giai dau cho nguoi choi
+- Tach luong giai dau cong khai thanh danh sach va trang chi tiet theo URL.
+- Nguoi choi co the tham gia, roi giai khi giai chua bat dau, xem top 1-2-3 va bang xep hang day du.
+- Khi 2 nguoi cung tham gia mot giai va choi tran online dung time control trong thoi gian giai, ket qua duoc ghi vao arena_tournament_games va diem BXH tu cap nhat.
+- Moi van trong giai co lich su gan day de mo lai Game Review.
+
+13. Lich su tran dau
+- Lich su online duoc sua lai tieng Viet hien thi cho dung.
+- Bo loc ket qua, che do va trang thai review di theo URL.
+- Phan trang lich su tinh theo API, co the nhap truc tiep page/result/mode/review tren URL.
+
+File da thay doi chinh:
+- backend/src/lib/admin.js
+- backend/src/app/api/admin/session/route.js
+- backend/src/app/api/admin/summary/route.js
+- backend/src/app/api/admin/users/route.js
+- backend/src/app/api/admin/users/[userId]/route.js
+- backend/src/app/api/admin/anti-cheat/route.js
+- backend/src/app/api/admin/anti-cheat/scan/route.js
+- backend/src/app/api/admin/moderation/route.js
+- backend/src/app/api/admin/matches/route.js
+- backend/src/app/api/admin/tournaments/route.js
+- backend/src/app/api/admin/bots/route.js
+- backend/src/app/api/admin/events/route.js
+- backend/src/app/api/admin/payments/route.js
+- backend/src/app/api/admin/audit/route.js
+- backend/src/app/api/admin/config/route.js
+- backend/src/app/api/admin/paypal/diagnostics/route.js
+- backend/src/app/api/tournaments/route.js
+- backend/src/app/api/tournaments/[tournamentId]/route.js
+- backend/src/app/api/online/history/route.js
+- backend/src/lib/online.js
+- backend/supabase/schema.sql
+- Frontend/src/api/admin.js
+- Frontend/src/api/tournaments.js
+- Frontend/src/api/online.js
+- Frontend/src/routes/Admin/AdminPage.jsx
+- Frontend/src/routes/Admin/OverviewSection.jsx
+- Frontend/src/routes/Admin/MatchesSection.jsx
+- Frontend/src/routes/Admin/TournamentsSection.jsx
+- Frontend/src/routes/Admin/ModerationSection.jsx
+- Frontend/src/routes/Admin/DetailModal.jsx
+- Frontend/src/routes/Admin/adminUtils.js
+- Frontend/src/routes/use/TournamentsPage.jsx
+- Frontend/src/routes/use/HistoryPage.jsx
+- Frontend/src/styles.css
+
+Ghi chu trien khai:
+- Can chay schema hien tai tren Supabase neu moi truong production chua co bang arena_tournament_games.
+- ADMIN_ROOT_EMAILS la danh sach email owner duoc vao admin.
+- Khong can ADMIN_ROLE_ASSIGNMENTS vi he thong chi dung 1 role owner.
+
+Kiem tra can lam:
+- npm run lint o Frontend va backend.
+- npm run build o Frontend va backend.
+- Dang nhap admin owner/admin va kiem tra cac tab.
+- Thu tai truc tiep /admin/audit?page=20 va /admin/bots?botPage=2&eventPage=3.
+- Thu het han phien admin de dam bao khong con spam nhieu API 401 cung luc.

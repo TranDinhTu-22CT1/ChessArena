@@ -1,4 +1,4 @@
-import { requireAdminUser } from '../../../../lib/admin';
+import { requireAdminPermission, requireAdminUser } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -9,6 +9,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'billing:view');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit')) || 10));

@@ -18,6 +18,7 @@ export default function ModerationSection({ reports, page, totalPages, onPageCha
             <div>
               <strong>{report.reported?.display_name || report.reported?.email || report.reported_user_id || 'Người chơi không rõ'}</strong>
               <span>{report.category} | {report.severity} | {report.status}</span>
+              {report.sameTargetOnPage > 1 && <b className="admin-ban-note">Có {report.sameTargetOnPage} báo cáo cùng người chơi trong trang này.</b>}
               <small>
                 Người báo cáo: {report.reporter?.display_name || report.reporter?.email || report.reporter_user_id}
                 {' '}| Trận: {report.game?.white_name || 'Trắng'} vs {report.game?.black_name || 'Đen'}

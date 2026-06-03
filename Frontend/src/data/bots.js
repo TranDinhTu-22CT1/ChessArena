@@ -136,8 +136,8 @@ export const BOT_CHAT_LINES = {
     'Đối thủ vừa thoát được một phen.'
   ],
   blunder: [
-    'Ôi không, nước này đau đấy, nhưng đừng bỏ cuộc.',
-    'Cơ hội lớn cho đối thủ rồi, giờ bình tĩnh nào.',
-    'Nước này nguy hiểm thật, tìm cách giảm thiệt hại ngay.'
+    'Ôi không, nước đi tệ, nhưng đừng bỏ cuộc.',
+    'Bạn đang tạo cơ hội lớn cho đối thủ, giờ bình tĩnh nào.',
+    'Nước đi này sai rồi hãy tìm cách thủ tốt hơn để tránh thiệt hại nặng.'
   ]
 };

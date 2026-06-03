@@ -1,4 +1,4 @@
-import { requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
 import { createUserNotification } from '../../../../lib/notifications';
 import { rateLimit } from '../../../../lib/rateLimit';
 import { readJsonPayload } from '../../../../lib/validation';
@@ -54,6 +54,8 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'tournaments:view');
+  if (permissionError) return permissionError;
 
   const { searchParams } = new URL(request.url);
   const limit = Math.max(5, Math.min(50, Number(searchParams.get('limit')) || 10));
@@ -88,6 +90,10 @@ export async function GET(request) {
       totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
       tournaments: tournaments.map((item) => ({
         ...item,
+        playerCount: players.filter((player) => player.tournament_id === item.id).length,
+        totalGamesPlayed: players
+          .filter((player) => player.tournament_id === item.id)
+          .reduce((sum, player) => sum + Number(player.games_played || 0), 0),
         players: players.filter((player) => player.tournament_id === item.id).slice(0, 10)
       }))
     });
@@ -105,6 +111,10 @@ export async function POST(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'tournaments:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
 
   const payload = await readJsonPayload(request);
   if (!payload) return Response.json({ ok: false, error: 'Dữ liệu gửi lên không hợp lệ.' }, { status: 400 });
@@ -141,6 +151,41 @@ export async function POST(request) {
   });
 
   return Response.json({ ok: true, tournament, notifiedPlayers });
+}
+
+export async function PATCH(request) {
+  const blocked = rateLimit(request, { scope: 'admin-tournaments-update', limit: 30, windowMs: 60_000 });
+  if (blocked) return blocked;
+
+  const context = await requireAdminUser();
+  if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'tournaments:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
+
+  const payload = await readJsonPayload(request);
+  const tournamentId = String(payload?.tournamentId || '').trim();
+  const status = String(payload?.status || '').trim();
+  if (!tournamentId || !['scheduled', 'open', 'running', 'finished', 'cancelled'].includes(status)) {
+    return Response.json({ ok: false, error: 'Dữ liệu cập nhật giải đấu không hợp lệ.' }, { status: 400 });
+  }
+
+  const { data, error } = await context.supabase
+    .from('arena_tournaments')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', tournamentId)
+    .select('*')
+    .single();
+  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  await writeAdminAudit(context.supabase, context.admin, 'tournament.update_status', {
+    tournamentId,
+    status,
+    title: data.title
+  });
+
+  return Response.json({ ok: true, tournament: data });
 }
 
 export function OPTIONS() {

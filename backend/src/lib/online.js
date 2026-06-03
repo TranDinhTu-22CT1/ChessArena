@@ -416,6 +416,110 @@ export async function decorateGameRatings(supabase, game) {
   };
 }
 
+function tournamentPoints(result, color) {
+  const score = scoreForResult(result, color);
+  if (score === 1) return 2;
+  if (score === 0.5) return 1;
+  return 0;
+}
+
+export async function applyTournamentResult(supabase, game, result) {
+  if (!['1-0', '0-1', '1/2-1/2'].includes(result) || !game?.white_user_id || !game?.black_user_id) {
+    return null;
+  }
+
+  const finishedAt = game.finished_at || new Date().toISOString();
+  const { data: tournaments = [], error: tournamentError } = await supabase
+    .from('arena_tournaments')
+    .select('id, title, status, time_control, starts_at, ends_at')
+    .in('status', ['open', 'running'])
+    .eq('time_control', game.time_control)
+    .lte('starts_at', finishedAt)
+    .gte('ends_at', finishedAt);
+  if (tournamentError || tournaments.length === 0) return null;
+
+  const updates = [];
+  for (const tournament of tournaments) {
+    const { data: players = [] } = await supabase
+      .from('arena_tournament_players')
+      .select('user_id')
+      .eq('tournament_id', tournament.id)
+      .in('user_id', [game.white_user_id, game.black_user_id]);
+    if ((players || []).length !== 2) continue;
+
+    const whitePoints = tournamentPoints(result, 'w');
+    const blackPoints = tournamentPoints(result, 'b');
+    const { error: eventError } = await supabase.from('arena_tournament_games').insert({
+      tournament_id: tournament.id,
+      game_id: game.id,
+      white_user_id: game.white_user_id,
+      black_user_id: game.black_user_id,
+      result,
+      score_white: whitePoints,
+      score_black: blackPoints
+    });
+    if (eventError) continue;
+
+    const now = new Date().toISOString();
+    await Promise.all([
+      supabase
+        .from('arena_tournament_players')
+        .update({ updated_at: now })
+        .eq('tournament_id', tournament.id)
+        .eq('user_id', game.white_user_id),
+      supabase
+        .from('arena_tournament_players')
+        .update({ updated_at: now })
+        .eq('tournament_id', tournament.id)
+        .eq('user_id', game.black_user_id)
+    ]);
+
+    const { data: whiteRow } = await supabase
+      .from('arena_tournament_players')
+      .select('score, games_played, wins, draws, losses')
+      .eq('tournament_id', tournament.id)
+      .eq('user_id', game.white_user_id)
+      .single();
+    const { data: blackRow } = await supabase
+      .from('arena_tournament_players')
+      .select('score, games_played, wins, draws, losses')
+      .eq('tournament_id', tournament.id)
+      .eq('user_id', game.black_user_id)
+      .single();
+
+    await Promise.all([
+      supabase
+        .from('arena_tournament_players')
+        .update({
+          score: Number(whiteRow?.score || 0) + whitePoints,
+          games_played: Number(whiteRow?.games_played || 0) + 1,
+          wins: Number(whiteRow?.wins || 0) + (whitePoints === 2 ? 1 : 0),
+          draws: Number(whiteRow?.draws || 0) + (whitePoints === 1 ? 1 : 0),
+          losses: Number(whiteRow?.losses || 0) + (whitePoints === 0 ? 1 : 0),
+          updated_at: now
+        })
+        .eq('tournament_id', tournament.id)
+        .eq('user_id', game.white_user_id),
+      supabase
+        .from('arena_tournament_players')
+        .update({
+          score: Number(blackRow?.score || 0) + blackPoints,
+          games_played: Number(blackRow?.games_played || 0) + 1,
+          wins: Number(blackRow?.wins || 0) + (blackPoints === 2 ? 1 : 0),
+          draws: Number(blackRow?.draws || 0) + (blackPoints === 1 ? 1 : 0),
+          losses: Number(blackRow?.losses || 0) + (blackPoints === 0 ? 1 : 0),
+          updated_at: now
+        })
+        .eq('tournament_id', tournament.id)
+        .eq('user_id', game.black_user_id)
+    ]);
+
+    updates.push({ tournamentId: tournament.id, whitePoints, blackPoints });
+  }
+
+  return updates.length ? updates : null;
+}
+
 export async function onlineSummary(supabase) {
   const [{ count: onlineCount }, { count: queueCount }] = await Promise.all([
     supabase
@@ -543,6 +647,7 @@ export async function expireOnlineGameOnClock(supabase, game, moves) {
 
   if (error || !updatedGame) return { game, timedOut: false };
   await applyOnlineRatingResult(supabase, updatedGame, result);
+  await applyTournamentResult(supabase, updatedGame, result);
   return { game: updatedGame, timedOut: true };
 }
 
