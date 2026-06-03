@@ -1,11 +1,12 @@
 import { DEFAULT_PIECE_SET, normalizePieceSet } from './constants';
 
 const PIECE_CODES = ['wk', 'wq', 'wr', 'wb', 'wn', 'wp', 'bk', 'bq', 'br', 'bb', 'bn', 'bp'];
+const PIECE_ASSETS = import.meta.glob('../assets/chesscom/pieces/**/*.png', { eager: true, import: 'default', query: '?url' });
 
 function chesscomSet(folder) {
   return PIECE_CODES.reduce((images, code) => ({
     ...images,
-    [code]: new URL(`../assets/chesscom/pieces/${folder}/${code}.png`, import.meta.url).href
+    [code]: PIECE_ASSETS[`../assets/chesscom/pieces/${folder}/${code}.png`]
   }), {});
 }
 

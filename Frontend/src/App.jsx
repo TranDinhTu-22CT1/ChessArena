@@ -862,6 +862,12 @@ export default function App() {
 
     if (!move) return false;
 
+    if (usesAiOpponent && !botGameStarted) {
+      ensureAudioContext();
+      playUiSound('start');
+      setBotGameStarted(true);
+    }
+
     setSelected(null);
     setLegalTargets([]);
     setPromotionRequest(null);
@@ -1224,6 +1230,7 @@ export default function App() {
               notificationCount={notificationCount}
               onOpenNotifications={() => navigate('notifications')}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
+              onCloseSettings={() => setSettingsOpen(false)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
               onSetAppearance={setAppearance}
@@ -1256,6 +1263,7 @@ export default function App() {
               notificationCount={notificationCount}
               onOpenNotifications={() => navigate('notifications')}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
+              onCloseSettings={() => setSettingsOpen(false)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
               onSetAppearance={setAppearance}
@@ -1279,6 +1287,7 @@ export default function App() {
               notificationCount={notificationCount}
               onOpenNotifications={() => navigate('notifications')}
               onToggleSettings={() => setSettingsOpen((value) => !value)}
+              onCloseSettings={() => setSettingsOpen(false)}
               onResetTheme={resetTheme}
               onUpdateTheme={updateTheme}
               onSetAppearance={setAppearance}
@@ -1302,6 +1311,7 @@ export default function App() {
           notificationCount={notificationCount}
           onOpenNotifications={() => navigate('notifications')}
           onToggleSettings={() => setSettingsOpen((value) => !value)}
+          onCloseSettings={() => setSettingsOpen(false)}
           onResetTheme={resetTheme}
           onUpdateTheme={updateTheme}
           onSetAppearance={setAppearance}

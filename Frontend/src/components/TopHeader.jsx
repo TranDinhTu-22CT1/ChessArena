@@ -1,6 +1,7 @@
 import React from 'react';
-import { Bell, Brain, Flame, Settings, Sparkles, Target, Wifi, WifiOff } from 'lucide-react';
+import { Bell, Brain, Flame, Settings, Sparkles, Target, Wifi, WifiOff, X } from 'lucide-react';
 import { BOARD_PRESETS, PIECE_SETS } from '../game/constants';
+import { getPieceImage } from '../game/pieces';
 
 const puzzleRoutes = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles']);
 const playRoutes = new Set(['online', 'bot', 'player', 'coach', 'custom']);
@@ -67,6 +68,7 @@ export default function TopHeader({
   notificationCount = 0,
   onOpenNotifications,
   onToggleSettings,
+  onCloseSettings,
   onResetTheme,
   onUpdateTheme,
   onSetAppearance,
@@ -74,6 +76,29 @@ export default function TopHeader({
   onSetPieceSet
 }) {
   const insights = headerInsights(activeRoute);
+  const panelRef = React.useRef(null);
+  const settingsButtonRef = React.useRef(null);
+  const selectedPieceSet = PIECE_SETS.find((set) => set.id === pieceSet) ?? PIECE_SETS[0];
+
+  React.useEffect(() => {
+    if (!settingsOpen) return undefined;
+
+    const closeOnOutsidePointer = (event) => {
+      if (panelRef.current?.contains(event.target) || settingsButtonRef.current?.contains(event.target)) return;
+      onCloseSettings?.();
+    };
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') onCloseSettings?.();
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [onCloseSettings, settingsOpen]);
 
   return (
     <header className="top-header">
@@ -100,15 +125,20 @@ export default function TopHeader({
           <Bell size={19} />
           {notificationCount > 0 && <b>{Math.min(notificationCount, 99)}</b>}
         </button>
-        <button aria-label="Settings" onClick={onToggleSettings}>
+        <button aria-label="Settings" onClick={onToggleSettings} ref={settingsButtonRef}>
           <Settings size={19} />
         </button>
       </div>
       {settingsOpen && (
-        <div className="theme-panel">
+        <div className="theme-panel" ref={panelRef}>
           <div className="theme-panel-head">
             <strong>Cá nhân hóa giao diện</strong>
-            <button onClick={onResetTheme}>Đặt lại</button>
+            <span className="theme-panel-actions">
+              <button onClick={onResetTheme}>Đặt lại</button>
+              <button className="theme-panel-close" onClick={onCloseSettings} aria-label="Tắt cài đặt" type="button">
+                <X size={18} />
+              </button>
+            </span>
           </div>
           <label>
             <span>Che do giao dien</span>
@@ -156,6 +186,13 @@ export default function TopHeader({
               ))}
             </select>
           </label>
+          <div className="piece-set-preview" aria-label={`Bộ quân đang chọn: ${selectedPieceSet?.label}`}>
+            <span>{selectedPieceSet?.label}</span>
+            <img src={getPieceImage(pieceSet, 'wk')} alt="" draggable="false" />
+            <img src={getPieceImage(pieceSet, 'wq')} alt="" draggable="false" />
+            <img src={getPieceImage(pieceSet, 'bn')} alt="" draggable="false" />
+            <img src={getPieceImage(pieceSet, 'br')} alt="" draggable="false" />
+          </div>
           <small className="theme-note">Board colors are private. Piece style appears on your own pieces in online games.</small>
           <strong className="chesscom-asset-credit">
             Chess piece sets and board themes are the intellectual property of Chess.com and are used with permission for academic purposes.

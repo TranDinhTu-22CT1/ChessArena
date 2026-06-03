@@ -529,6 +529,17 @@ body {
   border-color: rgba(31, 46, 23, 0.15);
 }
 
+.app-shell[data-color-scheme="light"] .theme-panel .theme-panel-close {
+  color: #1d261a;
+  background: rgba(31, 46, 23, 0.08);
+}
+
+.app-shell[data-color-scheme="light"] .piece-set-preview {
+  color: #1d261a;
+  background: rgba(31, 46, 23, 0.06);
+  border-color: rgba(31, 46, 23, 0.12);
+}
+
 .app-shell[data-color-scheme="light"] .chesscom-asset-credit {
   color: #3b2b00;
   background: rgba(184, 130, 12, 0.14);
@@ -4834,7 +4845,7 @@ input {
   z-index: 30;
   display: grid;
   gap: 10px;
-  width: min(320px, calc(100vw - 28px));
+  width: min(360px, calc(100vw - 28px));
   padding: 14px;
   background: color-mix(in srgb, var(--surface) 92%, #000);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -4864,6 +4875,21 @@ input {
   font-weight: 850;
 }
 
+.theme-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-panel .theme-panel-close {
+  width: 34px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: #f5f6ee;
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .theme-panel label {
   display: grid;
   grid-template-columns: 1fr minmax(52px, 128px);
@@ -4883,6 +4909,28 @@ input {
   color: #bfc2b6;
   font-size: 0.82rem;
   line-height: 1.45;
+}
+
+.piece-set-preview {
+  display: grid;
+  grid-template-columns: 1fr repeat(4, 34px);
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 8px 10px;
+  color: #f5f6ee;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.piece-set-preview img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.32));
 }
 
 .chesscom-asset-credit {
