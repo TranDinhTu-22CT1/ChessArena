@@ -11,6 +11,7 @@ import {
   Shield,
   ShieldAlert,
   Swords,
+  Trophy,
   Users
 } from 'lucide-react';
 import {
@@ -55,6 +56,7 @@ import ModerationSection from './ModerationSection';
 import OverviewSection from './OverviewSection';
 import PaymentsSection from './PaymentsSection';
 import PlayersSection from './PlayersSection';
+import TournamentsSection from './TournamentsSection';
 import { defaultBotForm, NAV_ITEMS } from './adminUtils';
 
 const ICONS = {
@@ -67,6 +69,7 @@ const ICONS = {
   Shield,
   ShieldAlert,
   Swords,
+  Trophy,
   Users
 };
 
@@ -93,7 +96,11 @@ export default function AdminPage() {
   const [fairPlayFilters, setFairPlayFilters] = React.useState({ status: 'all', minRisk: 0, search: '' });
   const [moderationReports, setModerationReports] = React.useState([]);
   const [matches, setMatches] = React.useState([]);
+  const [matchesPage, setMatchesPage] = React.useState(() => getUrlPage('page'));
+  const [matchesTotalPages, setMatchesTotalPages] = React.useState(1);
   const [tournaments, setTournaments] = React.useState([]);
+  const [tournamentsPage, setTournamentsPage] = React.useState(() => getUrlPage('page'));
+  const [tournamentsTotalPages, setTournamentsTotalPages] = React.useState(1);
   const [payments, setPayments] = React.useState([]);
   const [bots, setBots] = React.useState([]);
   const [events, setEvents] = React.useState([]);
@@ -123,13 +130,18 @@ export default function AdminPage() {
     nextSearch = search,
     nextUserPage = userPage,
     nextFairPlayPage = fairPlayPage,
-    nextFairPlayFilters = fairPlayFilters
+    nextFairPlayFilters = fairPlayFilters,
+    nextMatchesPage = matchesPage,
+    nextTournamentsPage = tournamentsPage
   ) => {
     setLoading(true);
     setMessage('');
     try {
+      const me = await fetchAdminMe();
+      setAdmin(me.admin);
+      setLoginRequired(false);
+
       const [
-        me,
         summaryData,
         usersData,
         reportsData,
@@ -142,20 +154,18 @@ export default function AdminPage() {
         auditData,
         configData
       ] = await Promise.all([
-        fetchAdminMe(),
         fetchAdminSummary(),
         fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }),
         fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }),
         fetchModerationReports().catch(() => ({ reports: [] })),
-        fetchAdminMatches(),
-        fetchAdminTournaments().catch(() => ({ tournaments: [] })),
+        fetchAdminMatches({ page: nextMatchesPage, limit: 10 }),
+        fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })),
         fetchAdminPayments(),
         fetchAdminBots().catch(() => ({ bots: [] })),
         fetchAdminEvents().catch(() => ({ events: [] })),
         fetchAdminAuditLogs(),
         fetchAdminConfig()
       ]);
-      setAdmin(me.admin);
       setSummary(summaryData.summary);
       setUsers(usersData.users || []);
       setUserTotalPages(usersData.totalPages || 1);
@@ -163,7 +173,9 @@ export default function AdminPage() {
       setFairPlayTotalPages(reportsData.totalPages || 1);
       setModerationReports(moderationData.reports || []);
       setMatches(matchesData.matches || []);
+      setMatchesTotalPages(matchesData.totalPages || 1);
       setTournaments(tournamentsData.tournaments || []);
+      setTournamentsTotalPages(tournamentsData.totalPages || 1);
       setPayments(paymentsData.payments || []);
       setBots(botsData.bots || []);
       setEvents(eventsData.events || []);
@@ -178,7 +190,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [fairPlayFilters, fairPlayPage, search, userPage]);
+  }, [fairPlayFilters, fairPlayPage, matchesPage, search, tournamentsPage, userPage]);
 
   const changeSection = React.useCallback((nextSection) => {
     const nextPath = adminSectionPath(nextSection);
@@ -186,6 +198,10 @@ export default function AdminPage() {
     if (current !== nextPath) {
       window.history.pushState(null, '', nextPath);
     }
+    if (nextSection === 'players') setUserPage(1);
+    if (nextSection === 'matches') setMatchesPage(1);
+    if (nextSection === 'tournaments') setTournamentsPage(1);
+    if (nextSection === 'fairplay') setFairPlayPage(1);
     setSection(nextSection);
   }, []);
 
@@ -201,6 +217,18 @@ export default function AdminPage() {
     load(search, userPage, nextPage, fairPlayFilters);
   }, [fairPlayFilters, load, search, userPage]);
 
+  const changeMatchesPage = React.useCallback((nextPage) => {
+    setMatchesPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, nextPage, tournamentsPage);
+  }, [fairPlayFilters, fairPlayPage, load, search, tournamentsPage, userPage]);
+
+  const changeTournamentsPage = React.useCallback((nextPage) => {
+    setTournamentsPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, nextPage);
+  }, [fairPlayFilters, fairPlayPage, load, matchesPage, search, userPage]);
+
   const changeFairPlayFilters = React.useCallback((patch) => {
     const nextFilters = { ...fairPlayFilters, ...patch };
     setFairPlayFilters(nextFilters);
@@ -210,7 +238,14 @@ export default function AdminPage() {
   }, [fairPlayFilters, load, search, userPage]);
 
   React.useEffect(() => {
-    const syncSection = () => setSection(sectionFromPath());
+    const syncSection = () => {
+      const nextSection = sectionFromPath();
+      setSection(nextSection);
+      if (nextSection === 'players') setUserPage(getUrlPage('page'));
+      if (nextSection === 'matches') setMatchesPage(getUrlPage('page'));
+      if (nextSection === 'tournaments') setTournamentsPage(getUrlPage('page'));
+      if (nextSection === 'fairplay') setFairPlayPage(getUrlPage('fairplayPage'));
+    };
     window.addEventListener('popstate', syncSection);
     return () => window.removeEventListener('popstate', syncSection);
   }, []);
@@ -399,7 +434,9 @@ export default function AdminPage() {
       const data = await createAdminTournament(tournamentForm);
       notify(`Đã tạo giải đấu và thông báo cho ${data.notifiedPlayers || 0} người chơi.`, 'success');
       setTournamentForm((form) => ({ ...form, title: 'Giải nhanh ChessArena', startsAt: '' }));
-      await load();
+      setTournamentsPage(1);
+      if (section === 'tournaments') setUrlPage(1, 'page');
+      await load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, 1);
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
@@ -529,10 +566,20 @@ export default function AdminPage() {
         {section === 'matches' && (
           <MatchesSection
             matches={matches}
+            page={matchesPage}
+            totalPages={matchesTotalPages}
+            onPageChange={changeMatchesPage}
+          />
+        )}
+        {section === 'tournaments' && (
+          <TournamentsSection
             tournaments={tournaments}
             tournamentForm={tournamentForm}
             onChangeTournamentForm={(patch) => setTournamentForm((form) => ({ ...form, ...patch }))}
             onSubmitTournament={submitTournament}
+            page={tournamentsPage}
+            totalPages={tournamentsTotalPages}
+            onPageChange={changeTournamentsPage}
           />
         )}
         {section === 'fairplay' && (

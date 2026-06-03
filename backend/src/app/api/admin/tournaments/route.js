@@ -23,13 +23,14 @@ function cleanStartsAt(value) {
 }
 
 async function notifyPlayers(supabase, tournament) {
-  const { data: users = [] } = await supabase
+  const { data: users = [], error } = await supabase
     .from('users')
     .select('id')
     .order('created_at', { ascending: false })
     .limit(500);
+  if (error || !Array.isArray(users)) return 0;
 
-  await Promise.all((users || []).map((user) => createUserNotification(supabase, {
+  await Promise.all(users.map((user) => createUserNotification(supabase, {
     recipientUserId: user.id,
     type: 'arena_tournament_created',
     title: 'Có giải đấu mới',
@@ -54,30 +55,48 @@ export async function GET(request) {
   const context = await requireAdminUser();
   if (context.error) return context.error;
 
-  const { data: tournaments = [], error } = await context.supabase
-    .from('arena_tournaments')
-    .select('*')
-    .order('starts_at', { ascending: false })
-    .limit(20);
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const { searchParams } = new URL(request.url);
+  const limit = Math.max(5, Math.min(50, Number(searchParams.get('limit')) || 10));
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
-  const ids = tournaments.map((item) => item.id);
-  const { data: players = [] } = ids.length
-    ? await context.supabase
-      .from('arena_tournament_players')
-      .select('*')
-      .in('tournament_id', ids)
-      .order('score', { ascending: false })
-      .order('updated_at', { ascending: false })
-    : { data: [] };
+  try {
+    const { data: tournaments = [], count = 0, error } = await context.supabase
+      .from('arena_tournaments')
+      .select('*', { count: 'exact' })
+      .order('starts_at', { ascending: false })
+      .range(from, to);
+    if (error) throw error;
 
-  return Response.json({
-    ok: true,
-    tournaments: tournaments.map((item) => ({
-      ...item,
-      players: players.filter((player) => player.tournament_id === item.id).slice(0, 10)
-    }))
-  });
+    const ids = tournaments.map((item) => item.id);
+    const { data: players = [], error: playersError } = ids.length
+      ? await context.supabase
+        .from('arena_tournament_players')
+        .select('*')
+        .in('tournament_id', ids)
+        .order('score', { ascending: false })
+        .order('updated_at', { ascending: false })
+      : { data: [] };
+    if (playersError) throw playersError;
+
+    return Response.json({
+      ok: true,
+      page,
+      limit,
+      total: count || 0,
+      totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
+      tournaments: tournaments.map((item) => ({
+        ...item,
+        players: players.filter((player) => player.tournament_id === item.id).slice(0, 10)
+      }))
+    });
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message || 'Không tải được danh sách giải đấu.'
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request) {

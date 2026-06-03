@@ -89,8 +89,10 @@ export async function updateModerationReport(reportId, status, resolutionNote = 
   return readJson(response);
 }
 
-export async function fetchAdminMatches() {
-  const response = await fetch(apiUrl('/api/admin/matches'), { credentials: 'include' });
+export async function fetchAdminMatches({ page = 1, limit = 10, status = '' } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  const response = await fetch(apiUrl(`/api/admin/matches?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 
@@ -104,8 +106,9 @@ export async function createAdminMatch(payload) {
   return readJson(response);
 }
 
-export async function fetchAdminTournaments() {
-  const response = await fetch(apiUrl('/api/admin/tournaments'), { credentials: 'include' });
+export async function fetchAdminTournaments({ page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const response = await fetch(apiUrl(`/api/admin/tournaments?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 

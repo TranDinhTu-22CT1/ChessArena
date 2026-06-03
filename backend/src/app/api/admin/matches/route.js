@@ -61,16 +61,19 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const limit = Math.max(5, Math.min(80, Number(searchParams.get('limit')) || 30));
+  const page = Math.max(1, Math.floor(Number(searchParams.get('page')) || 1));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
   const status = String(searchParams.get('status') || '').trim();
 
   let query = context.supabase
     .from('online_games')
-    .select('id, invite_code, invite_expires_at, match_type, white_user_id, black_user_id, white_name, black_name, result, status, mode, rated, time_control, white_rating_before, black_rating_before, white_rating_after, black_rating_after, created_at, started_at, finished_at, updated_at')
+    .select('id, invite_code, invite_expires_at, match_type, white_user_id, black_user_id, white_name, black_name, result, status, mode, rated, time_control, white_rating_before, black_rating_before, white_rating_after, black_rating_after, created_at, started_at, finished_at, updated_at', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(from, to);
   if (status) query = query.eq('status', status);
 
-  const { data: games = [], error } = await query;
+  const { data: games = [], count = 0, error } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   const ids = games.map((game) => game.id);
@@ -84,6 +87,10 @@ export async function GET(request) {
 
   return Response.json({
     ok: true,
+    page,
+    limit,
+    total: count || 0,
+    totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
     matches: games.map((game) => ({
       ...game,
       moveCount: (moves || []).filter((move) => move.game_id === game.id).length,

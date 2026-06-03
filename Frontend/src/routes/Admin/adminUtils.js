@@ -1,7 +1,8 @@
 export const NAV_ITEMS = [
   { id: 'overview', label: 'Tổng quan', iconName: 'LayoutDashboard' },
   { id: 'players', label: 'Người chơi', iconName: 'Users' },
-  { id: 'matches', label: 'Trận đấu & giải đấu', iconName: 'Swords' },
+  { id: 'matches', label: 'Trận đấu', iconName: 'Swords' },
+  { id: 'tournaments', label: 'Giải đấu', iconName: 'Trophy' },
   { id: 'fairplay', label: 'Chống gian lận', iconName: 'ShieldAlert' },
   { id: 'moderation', label: 'Báo cáo', iconName: 'Shield' },
   { id: 'payments', label: 'Thanh toán', iconName: 'CreditCard' },

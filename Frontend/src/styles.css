@@ -11292,6 +11292,45 @@ h2 {
   color: #a9bea3;
 }
 
+.pagination-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid rgba(190, 232, 176, 0.18);
+  border-radius: 8px;
+  background: rgba(22, 55, 36, 0.72);
+}
+
+.pagination .pagination-jump span {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  color: #d5e6cf;
+  background: transparent;
+  border: 0;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.pagination-jump input {
+  width: 72px;
+  height: 30px;
+  border: 1px solid rgba(190, 232, 176, 0.22);
+  border-radius: 7px;
+  color: #102115;
+  background: #f8fff4;
+  font-weight: 900;
+  text-align: center;
+}
+
+.pagination .pagination-jump button {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 9px;
+}
+
 .admin-filter-bar {
   display: flex;
   flex-wrap: wrap;
