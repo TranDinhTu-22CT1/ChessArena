@@ -5,6 +5,10 @@ export function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+export function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 export async function readJsonPayload(request) {
   try {
     return await request.json();

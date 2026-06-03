@@ -3,7 +3,9 @@ import { apiUrl } from './config';
 let adminCsrfToken = '';
 
 async function readJson(response) {
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(() => ({
+    error: response.ok ? '' : `Admin request failed with HTTP ${response.status}.`
+  }));
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || 'Admin request failed.');
   }

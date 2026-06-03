@@ -1,7 +1,7 @@
 import { rateLimit } from '../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../lib/online';
 import { createUserNotification } from '../../../lib/notifications';
-import { readJsonPayload } from '../../../lib/validation';
+import { readJsonPayload, safeArray } from '../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -39,13 +39,13 @@ function publicUser(profile, presence = null) {
 }
 
 async function loadFriendRows(supabase, userId) {
-  const { data = [], error } = await supabase
+  const { data, error } = await supabase
     .from('user_friendships')
     .select('*')
     .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`)
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return safeArray(data);
 }
 
 async function decorateFriendRows(supabase, rows, userId) {
@@ -64,8 +64,8 @@ async function decorateFriendRows(supabase, rows, userId) {
       .select('user_id, status, current_game_id, last_seen')
       .in('user_id', userIds)
   ]);
-  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
-  const presenceById = new Map(presences.map((presence) => [presence.user_id, presence]));
+  const profileById = new Map(safeArray(profiles).map((profile) => [profile.id, profile]));
+  const presenceById = new Map(safeArray(presences).map((presence) => [presence.user_id, presence]));
   const payload = { friends: [], incoming: [], outgoing: [], blocked: [] };
 
   for (const row of rows) {

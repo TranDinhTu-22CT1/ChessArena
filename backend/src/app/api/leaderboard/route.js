@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../lib/online';
+import { safeArray } from '../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -48,7 +49,7 @@ export async function GET(request) {
   const limit = cleanLimit(url.searchParams.get('limit'));
   const { supabase, user } = context;
 
-  const { data: ratings = [], error } = await supabase
+  const { data: ratingRows, error } = await supabase
     .from('user_ratings')
     .select('user_id, mode, rating, deviation, games_played, wins, losses, draws, provisional, updated_at')
     .eq('mode', mode)
@@ -59,16 +60,18 @@ export async function GET(request) {
     .limit(limit);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const ratings = safeArray(ratingRows);
 
   const userIds = [...new Set(ratings.map((rating) => rating.user_id).filter(Boolean))];
   if (!userIds.includes(user.id)) userIds.push(user.id);
 
-  const { data: profiles = [] } = userIds.length
+  const { data: profileRows } = userIds.length
     ? await supabase
       .from('users')
       .select('id, username, display_name, photo_url')
       .in('id', userIds)
     : { data: [] };
+  const profiles = safeArray(profileRows);
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
 
   const entries = ratings.map((rating, index) => publicPlayer(rating, profilesById.get(rating.user_id), index + 1));

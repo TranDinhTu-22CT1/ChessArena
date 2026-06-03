@@ -14,3 +14,5 @@ backend/logs/
 backend/stockfish/*.exe
 *.log
 *.docx
+bao_cao_*.txt
+bao-cao-*.txt

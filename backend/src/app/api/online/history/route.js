@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { decorateGameRatings, gameParticipantUserId, publicGame, relatedOnlineUserIds, requireOnlineUser } from '../../../../lib/online';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -54,7 +55,7 @@ export async function GET(request) {
       .in('user_id', userIds);
   if (reviewError) return Response.json({ ok: false, error: reviewError.message }, { status: 500 });
 
-  const reviewedGameIds = [...new Set(reviewRows.map((row) => row.game_id).filter(Boolean))];
+  const reviewedGameIds = [...new Set(safeArray(reviewRows).map((row) => row.game_id).filter(Boolean))];
   if (review === 'reviewed' && reviewedGameIds.length === 0) {
     return Response.json({ ok: true, page, limit, total: 0, totalPages: 1, games: [] });
   }
@@ -77,7 +78,7 @@ export async function GET(request) {
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-  const completedGames = games.filter(gameHasResult);
+  const completedGames = safeArray(games).filter(gameHasResult);
   const history = await Promise.all(completedGames.map(async (game) => {
     const [{ data: moves = [] }, { data: review = null }] = await Promise.all([
       supabase
@@ -95,7 +96,7 @@ export async function GET(request) {
     ]);
     const participantUserId = gameParticipantUserId(game, userIds, user.id);
     return {
-      ...publicGame(await decorateGameRatings(supabase, game), moves, participantUserId),
+      ...publicGame(await decorateGameRatings(supabase, game), safeArray(moves), participantUserId),
       review
     };
   }));

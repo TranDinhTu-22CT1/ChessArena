@@ -1,3 +1,5 @@
+import { safeArray } from './validation';
+
 export const ACHIEVEMENTS = [
   {
     key: 'first_online_win',
@@ -117,16 +119,21 @@ export async function computeAchievementProgress(supabase, userId) {
       .eq('user_id', userId)
   ]);
 
-  const onlineWins = games.filter((game) => (
+  const ratingRows = safeArray(ratings);
+  const gameRows = safeArray(games);
+  const puzzleRows = safeArray(puzzleTotals);
+  const dailyRows = safeArray(dailyClaims);
+
+  const onlineWins = gameRows.filter((game) => (
     (game.result === '1-0' && game.white_user_id === userId)
     || (game.result === '0-1' && game.black_user_id === userId)
   )).length;
-  const finishedGames = games.filter((game) => game.result && game.result !== '*').length;
-  const maxRating = Math.max(0, ...ratings.map((item) => Number(item.rating) || 0));
-  const correctPuzzles = puzzleTotals.reduce((total, item) => total + (Number(item.correct) || 0), 0);
-  const bestRush = Math.max(0, ...puzzleTotals.filter((item) => item.mode === 'rush').map((item) => Number(item.score) || 0));
-  const bestStreak = Math.max(0, ...puzzleTotals.map((item) => Number(item.best_streak) || 0));
-  const dailyStreak = Number(dailyClaims[0]?.streak) || 0;
+  const finishedGames = gameRows.filter((game) => game.result && game.result !== '*').length;
+  const maxRating = Math.max(0, ...ratingRows.map((item) => Number(item.rating) || 0));
+  const correctPuzzles = puzzleRows.reduce((total, item) => total + (Number(item.correct) || 0), 0);
+  const bestRush = Math.max(0, ...puzzleRows.filter((item) => item.mode === 'rush').map((item) => Number(item.score) || 0));
+  const bestStreak = Math.max(0, ...puzzleRows.map((item) => Number(item.best_streak) || 0));
+  const dailyStreak = Number(dailyRows[0]?.streak) || 0;
 
   return [
     progressPayload('first_online_win', onlineWins),

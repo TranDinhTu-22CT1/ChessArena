@@ -1,6 +1,6 @@
 import { rateLimit } from '../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../lib/online';
-import { readJsonPayload } from '../../../lib/validation';
+import { readJsonPayload, safeArray } from '../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -41,7 +41,7 @@ export async function GET(request) {
 
   if (unreadOnly) query = query.is('read_at', null);
 
-  const [{ data: notifications = [], error, count }, { count: unreadCount }] = await Promise.all([
+  const [{ data: notificationRows = [], error, count }, { count: unreadCount }] = await Promise.all([
     query,
     context.supabase
       .from('user_notifications')
@@ -51,6 +51,8 @@ export async function GET(request) {
   ]);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  const notifications = safeArray(notificationRows);
 
   return Response.json({
     ok: true,

@@ -48,6 +48,15 @@ function resultLabel(game) {
   return game.status || '--';
 }
 
+function InlineLoading({ label = 'Đang tải dữ liệu' }) {
+  return (
+    <div className="inline-data-loading" role="status" aria-live="polite">
+      <span aria-hidden="true" />
+      <small>{label}</small>
+    </div>
+  );
+}
+
 export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
   const [tournaments, setTournaments] = React.useState([]);
   const [detail, setDetail] = React.useState(null);
@@ -78,7 +87,7 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
     setMessage('');
     try {
       const data = await fetchTournaments({ page: nextPage, limit: 12, status: nextStatus });
-      setTournaments(data.tournaments || []);
+      setTournaments(Array.isArray(data.tournaments) ? data.tournaments : []);
       setTotalPages(data.totalPages || 1);
     } catch (error) {
       setMessage(error.message || 'Không tải được danh sách giải đấu.');
@@ -96,7 +105,11 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
     setMessage('');
     try {
       const data = await fetchTournamentDetail(id);
-      setDetail(data);
+      setDetail({
+        ...data,
+        standings: Array.isArray(data?.standings) ? data.standings : [],
+        recentGames: Array.isArray(data?.recentGames) ? data.recentGames : []
+      });
     } catch (error) {
       setMessage(error.message || 'Không tải được chi tiết giải đấu.');
       setDetail(null);
@@ -206,8 +219,16 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
 
       {message && <p className="feature-message">{message}</p>}
 
+      {selectedId && detailLoading && !selectedTournament && (
+        <article className="tournament-detail-card">
+          <button type="button" className="text-link" onClick={closeDetail}><ArrowLeft size={16} /> Quay lại danh sách</button>
+          <InlineLoading label="Đang tải chi tiết giải đấu" />
+        </article>
+      )}
+
       {selectedTournament && (
         <article className="tournament-detail-card">
+          {detailLoading && <InlineLoading label="Đang tải chi tiết giải đấu" />}
           <button type="button" className="text-link" onClick={closeDetail}><ArrowLeft size={16} /> Quay lại danh sách</button>
           <div className="tournament-detail-head">
             <div>
@@ -270,11 +291,13 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
         </article>
       )}
 
-      {detailLoading && <p className="feature-message">Đang tải chi tiết giải đấu...</p>}
-      {!selectedTournament && (
+      {!selectedId && !selectedTournament && (
         <>
           <div className="tournament-list">
-            {tournaments.map((item) => (
+            {loading && <InlineLoading label="Đang tải danh sách giải đấu" />}
+            {tournaments.map((item) => {
+              const players = Array.isArray(item.players) ? item.players : [];
+              return (
               <article className="tournament-card" key={item.id}>
                 <div className="tournament-top">
                   <div>
@@ -285,11 +308,11 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
                 </div>
                 <div className="tournament-meta">
                   <span><CalendarClock size={16} /> {formatDate(item.startsAt)}</span>
-                  <span><Users size={16} /> {item.playerCount ?? item.players.length} người tham gia</span>
+                  <span><Users size={16} /> {item.playerCount ?? players.length} người tham gia</span>
                 </div>
-                {item.players.length > 0 && (
+                {players.length > 0 && (
                   <div className="tournament-podium">
-                    {item.players.slice(0, 3).map((player) => (
+                    {players.slice(0, 3).map((player) => (
                       <span key={player.userId}>
                         <Crown size={14} /> Top {player.rank}: {player.displayName}
                       </span>
@@ -303,9 +326,9 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
                   </button>
                 </div>
                 <div className="standings">
-                  {item.players.length === 0 ? (
+                  {players.length === 0 ? (
                     <p>Chưa có người tham gia. Hãy là người đầu tiên ghi tên.</p>
-                  ) : item.players.map((player) => (
+                  ) : players.map((player) => (
                     <div key={player.userId}>
                       <span>{player.rank}</span>
                       <b>{player.displayName}</b>
@@ -314,7 +337,7 @@ export default function TournamentsPage({ authUser, onLogin, onNavigate }) {
                   ))}
                 </div>
               </article>
-            ))}
+            );})}
           </div>
           <Pagination page={page} totalPages={totalPages} onPageChange={changePage} label="Phân trang giải đấu" />
         </>

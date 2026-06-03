@@ -63,11 +63,12 @@ async function loadTournaments(context) {
     .order('starts_at', { ascending: false })
     .range(from, to);
   if (['scheduled', 'open', 'running', 'finished', 'cancelled'].includes(status)) query = query.eq('status', status);
-  const { data: tournaments = [], error, count = 0 } = await query;
+  const { data: tournamentRows, error, count = 0 } = await query;
   if (error) throw error;
+  const tournaments = Array.isArray(tournamentRows) ? tournamentRows : [];
 
   const ids = tournaments.map((item) => item.id);
-  const { data: players = [] } = ids.length
+  const { data: playerRows } = ids.length
     ? await context.supabase
       .from('arena_tournament_players')
       .select('*')
@@ -75,12 +76,14 @@ async function loadTournaments(context) {
       .order('score', { ascending: false })
       .order('updated_at', { ascending: false })
     : { data: [] };
-  const { data: games = [] } = ids.length
+  const players = Array.isArray(playerRows) ? playerRows : [];
+  const { data: gameRows } = ids.length
     ? await context.supabase
       .from('arena_tournament_games')
       .select('tournament_id, game_id')
       .in('tournament_id', ids)
     : { data: [] };
+  const games = Array.isArray(gameRows) ? gameRows : [];
 
   const joinedIds = new Set(players.filter((item) => item.user_id === context.user.id).map((item) => item.tournament_id));
   return {

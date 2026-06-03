@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -98,12 +99,13 @@ export async function GET(request) {
     query = query.or(`status.ilike.%${search}%,details->>band.ilike.%${search}%`);
   }
 
-  const { data: reports = [], error, count } = await query;
+  const { data: reportRows, error, count } = await query;
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const reports = safeArray(reportRows);
 
-  const userIds = [...new Set((reports || []).map((report) => report.user_id).filter(Boolean))];
-  const { data: bans = [] } = userIds.length
+  const userIds = [...new Set(reports.map((report) => report.user_id).filter(Boolean))];
+  const { data: banRows } = userIds.length
     ? await context.supabase
       .from('user_bans')
       .select('*')
@@ -112,6 +114,7 @@ export async function GET(request) {
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
     : { data: [] };
+  const bans = safeArray(banRows);
 
   return Response.json({
     ok: true,
@@ -119,9 +122,9 @@ export async function GET(request) {
     limit,
     total: count ?? reports.length,
     totalPages: Math.max(1, Math.ceil((count ?? reports.length) / limit)),
-    reports: (reports || []).map((report) => ({
+    reports: reports.map((report) => ({
       ...report,
-      activeBan: (bans || []).find((ban) => ban.user_id === report.user_id) || null
+      activeBan: bans.find((ban) => ban.user_id === report.user_id) || null
     }))
   });
 }

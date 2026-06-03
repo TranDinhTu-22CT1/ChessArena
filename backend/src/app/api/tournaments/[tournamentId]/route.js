@@ -33,7 +33,7 @@ export async function GET(request, { params }) {
   if (tournamentError) return Response.json({ ok: false, error: tournamentError.message }, { status: 500 });
   if (!tournament) return Response.json({ ok: false, error: 'Không tìm thấy giải đấu.' }, { status: 404 });
 
-  const [{ data: players = [] }, { data: gameLinks = [] }] = await Promise.all([
+  const [{ data: playerRows }, { data: gameLinkRows }] = await Promise.all([
     supabase
       .from('arena_tournament_players')
       .select('*')
@@ -48,21 +48,25 @@ export async function GET(request, { params }) {
       .order('created_at', { ascending: false })
       .limit(20)
   ]);
+  const players = Array.isArray(playerRows) ? playerRows : [];
+  const gameLinks = Array.isArray(gameLinkRows) ? gameLinkRows : [];
 
   const gameIds = gameLinks.map((item) => item.game_id);
-  const { data: games = [] } = gameIds.length
+  const { data: gameRows } = gameIds.length
     ? await supabase
       .from('online_games')
       .select('*')
       .in('id', gameIds)
     : { data: [] };
-  const { data: moves = [] } = gameIds.length
+  const games = Array.isArray(gameRows) ? gameRows : [];
+  const { data: moveRows } = gameIds.length
     ? await supabase
       .from('online_game_moves')
       .select('*')
       .in('game_id', gameIds)
       .order('ply', { ascending: true })
     : { data: [] };
+  const moves = Array.isArray(moveRows) ? moveRows : [];
 
   const standings = players.map(publicStanding);
   const myStanding = standings.find((item) => item.userId === user.id) || null;

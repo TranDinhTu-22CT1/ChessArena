@@ -1,6 +1,7 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { ensureAdminAppUser, requireAdminCsrf, requireAdminPermission, requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
 import { createUserNotification } from '../../../../lib/notifications';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -65,8 +66,9 @@ export async function GET(request) {
     query = query.or(`username.ilike.%${search}%,display_name.ilike.%${search}%,email.ilike.%${search}%`);
   }
 
-  const { data: users = [], error, count } = await query;
+  const { data: userRows, error, count } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const users = safeArray(userRows);
 
   const ids = users.map((user) => user.id);
   const [ratings, bans, mutes, devices, trustScores, reports] = ids.length ? await Promise.all([
@@ -86,12 +88,12 @@ export async function GET(request) {
     totalPages: Math.max(1, Math.ceil((count ?? users.length) / limit)),
     users: users.map((user) => ({
       ...user,
-      ratings: (ratings?.data || []).filter((row) => row.user_id === user.id),
-      bans: (bans?.data || []).filter((row) => row.user_id === user.id),
-      mutes: (mutes?.data || []).filter((row) => row.user_id === user.id),
-      devices: (devices?.data || []).filter((row) => row.user_id === user.id).slice(0, 5),
-      trust: (trustScores?.data || []).find((row) => row.user_id === user.id) || null,
-      reports: (reports?.data || []).filter((row) => row.user_id === user.id).slice(0, 5)
+      ratings: safeArray(ratings?.data).filter((row) => row.user_id === user.id),
+      bans: safeArray(bans?.data).filter((row) => row.user_id === user.id),
+      mutes: safeArray(mutes?.data).filter((row) => row.user_id === user.id),
+      devices: safeArray(devices?.data).filter((row) => row.user_id === user.id).slice(0, 5),
+      trust: safeArray(trustScores?.data).find((row) => row.user_id === user.id) || null,
+      reports: safeArray(reports?.data).filter((row) => row.user_id === user.id).slice(0, 5)
     }))
   });
 }

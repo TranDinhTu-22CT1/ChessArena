@@ -29,7 +29,7 @@ export default function BanModal({
             <span>{banTypeLabel(banForm.banType)}</span>
             <h2>{targetName}</h2>
           </div>
-          <button type="button" onClick={onClose}>Đóng</button>
+          <button type="button" className="admin-button-secondary" onClick={onClose}>Đóng</button>
         </div>
 
         <div className="admin-ban-preview">
@@ -70,7 +70,7 @@ export default function BanModal({
         <label>Hết hạn lúc (không bắt buộc)
           <input type="datetime-local" value={banForm.expiresAt} onChange={(event) => onChange({ expiresAt: event.target.value })} />
         </label>
-        <button className="danger"><Ban size={16} /> Xác nhận cấm</button>
+        <button className="danger admin-button-danger"><Ban size={16} /> Xác nhận cấm</button>
       </form>
     </div>
   );

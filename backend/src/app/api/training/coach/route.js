@@ -1,5 +1,6 @@
 import { requireOnlineUser } from '../../../../lib/online';
 import { rateLimit } from '../../../../lib/rateLimit';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -8,18 +9,22 @@ function pct(value) {
 }
 
 function buildInsights({ ratings, games, reviewMoves, puzzleSessions }) {
-  const finishedGames = games.filter((game) => game.result && game.result !== '*');
+  const ratingRows = safeArray(ratings);
+  const gameRows = safeArray(games);
+  const reviewMoveRows = safeArray(reviewMoves);
+  const puzzleSessionRows = safeArray(puzzleSessions);
+  const finishedGames = gameRows.filter((game) => game.result && game.result !== '*');
   const losses = finishedGames.filter((game) => game.outcome === 'loss').length;
   const wins = finishedGames.filter((game) => game.outcome === 'win').length;
   const draws = finishedGames.filter((game) => game.outcome === 'draw').length;
   const total = finishedGames.length || 1;
-  const mistakeCount = reviewMoves.filter((move) => ['mistake', 'blunder', 'miss'].includes(move.tone)).length;
-  const blunderCount = reviewMoves.filter((move) => move.tone === 'blunder').length;
-  const puzzleCorrect = puzzleSessions.reduce((sum, item) => sum + (Number(item.correct) || 0), 0);
-  const puzzleAttempted = puzzleSessions.reduce((sum, item) => sum + (Number(item.attempted) || 0), 0);
-  const bestRush = Math.max(0, ...puzzleSessions.filter((item) => item.mode === 'rush').map((item) => Number(item.score) || 0));
-  const bestStreak = Math.max(0, ...puzzleSessions.map((item) => Number(item.best_streak) || 0));
-  const bestRating = Math.max(0, ...ratings.map((item) => Number(item.rating) || 0));
+  const mistakeCount = reviewMoveRows.filter((move) => ['mistake', 'blunder', 'miss'].includes(move.tone)).length;
+  const blunderCount = reviewMoveRows.filter((move) => move.tone === 'blunder').length;
+  const puzzleCorrect = puzzleSessionRows.reduce((sum, item) => sum + (Number(item.correct) || 0), 0);
+  const puzzleAttempted = puzzleSessionRows.reduce((sum, item) => sum + (Number(item.attempted) || 0), 0);
+  const bestRush = Math.max(0, ...puzzleSessionRows.filter((item) => item.mode === 'rush').map((item) => Number(item.score) || 0));
+  const bestStreak = Math.max(0, ...puzzleSessionRows.map((item) => Number(item.best_streak) || 0));
+  const bestRating = Math.max(0, ...ratingRows.map((item) => Number(item.rating) || 0));
   const puzzleAccuracy = puzzleAttempted ? puzzleCorrect / puzzleAttempted : 0;
 
   const cards = [
@@ -102,7 +107,7 @@ export async function GET(request) {
       .limit(40)
   ]);
 
-  const games = rawGames.map((game) => {
+  const games = safeArray(rawGames).map((game) => {
     const isWhite = game.white_user_id === context.user.id;
     const outcome = game.result === '1/2-1/2'
       ? 'draw'

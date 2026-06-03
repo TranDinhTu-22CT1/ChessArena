@@ -64,15 +64,16 @@ export async function GET(request) {
   const to = from + limit - 1;
 
   try {
-    const { data: tournaments = [], count = 0, error } = await context.supabase
+    const { data: tournamentRows, count = 0, error } = await context.supabase
       .from('arena_tournaments')
       .select('*', { count: 'exact' })
       .order('starts_at', { ascending: false })
       .range(from, to);
     if (error) throw error;
+    const tournaments = Array.isArray(tournamentRows) ? tournamentRows : [];
 
     const ids = tournaments.map((item) => item.id);
-    const { data: players = [], error: playersError } = ids.length
+    const { data: playerRows, error: playersError } = ids.length
       ? await context.supabase
         .from('arena_tournament_players')
         .select('*')
@@ -81,6 +82,7 @@ export async function GET(request) {
         .order('updated_at', { ascending: false })
       : { data: [] };
     if (playersError) throw playersError;
+    const players = Array.isArray(playerRows) ? playerRows : [];
 
     return Response.json({
       ok: true,

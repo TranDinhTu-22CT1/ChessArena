@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { readJsonPayload } from '../../../../lib/validation';
+import { readJsonPayload, safeArray } from '../../../../lib/validation';
 import {
   DEFAULT_ONLINE_RATING,
   decorateGameRatings,
@@ -142,7 +142,7 @@ async function rescueWaitingMatch(supabase, user, timeControl, mode) {
   }
 
   await touchPresence(supabase, user, { status: 'queue', currentGameId: null });
-  const { data: opponents = [], error: opponentError } = await supabase
+  const { data: opponentRows = [], error: opponentError } = await supabase
     .from('online_match_queue')
     .select('id, user_id, display_name, rating, joined_at')
     .neq('user_id', user.id)
@@ -153,6 +153,8 @@ async function rescueWaitingMatch(supabase, user, timeControl, mode) {
     .order('joined_at', { ascending: true })
     .limit(3);
   if (opponentError) throw opponentError;
+
+  const opponents = safeArray(opponentRows);
 
   for (const opponent of opponents) {
     const { data: claimed } = await supabase
@@ -223,7 +225,7 @@ async function rescueWaitingMatch(supabase, user, timeControl, mode) {
 }
 
 async function matchedResponse(supabase, result, userId) {
-  const [{ data: game, error }, { data: moves = [] }] = await Promise.all([
+  const [{ data: game, error }, { data: moveRows = [] }] = await Promise.all([
     supabase.from('online_games').select('*').eq('id', result.game_id).single(),
     supabase.from('online_game_moves').select('*').eq('game_id', result.game_id).order('ply', { ascending: true })
   ]);
@@ -238,7 +240,7 @@ async function matchedResponse(supabase, result, userId) {
     ratingGap: result.rating_gap ?? null,
     mode: result.mode ?? game.mode,
     pool: result.pool ?? game.matchmaking_pool,
-    game: publicGame(await decorateGameRatings(supabase, game), moves, userId),
+    game: publicGame(await decorateGameRatings(supabase, game), safeArray(moveRows), userId),
     ...(await onlineSummary(supabase))
   });
 }

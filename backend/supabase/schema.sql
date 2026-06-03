@@ -27,6 +27,23 @@ add column if not exists email_verified boolean not null default false;
 
 do $$
 begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'users'
+      and column_name = 'id'
+      and udt_name <> 'uuid'
+  ) then
+    alter table public.users
+      alter column id drop default,
+      alter column id type uuid using gen_random_uuid(),
+      alter column id set default gen_random_uuid();
+  end if;
+end $$;
+
+do $$
+begin
   if not exists (
     select 1
     from pg_constraint

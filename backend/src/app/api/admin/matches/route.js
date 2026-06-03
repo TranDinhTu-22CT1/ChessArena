@@ -3,7 +3,7 @@ import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminA
 import { createUserNotification } from '../../../../lib/notifications';
 import { ensureModeRating, normalizeTimeControl, onlineModeFromTimeControl, randomInviteCode } from '../../../../lib/online';
 import { rateLimit } from '../../../../lib/rateLimit';
-import { readJsonPayload } from '../../../../lib/validation';
+import { readJsonPayload, safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 const ADMIN_INVITE_TTL_MS = 30 * 60 * 1000;
@@ -75,17 +75,19 @@ export async function GET(request) {
     .range(from, to);
   if (status) query = query.eq('status', status);
 
-  const { data: games = [], count = 0, error } = await query;
+  const { data: gameRows, count = 0, error } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const games = safeArray(gameRows);
 
   const ids = games.map((game) => game.id);
-  const { data: moves = [] } = ids.length
+  const { data: moveRows } = ids.length
     ? await context.supabase
       .from('online_game_moves')
       .select('game_id, ply, san, created_at')
       .in('game_id', ids)
       .order('ply', { ascending: true })
     : { data: [] };
+  const moves = safeArray(moveRows);
 
   return Response.json({
     ok: true,
@@ -95,8 +97,8 @@ export async function GET(request) {
     totalPages: Math.max(1, Math.ceil((count || 0) / limit)),
     matches: games.map((game) => ({
       ...game,
-      moveCount: (moves || []).filter((move) => move.game_id === game.id).length,
-      lastMoves: (moves || []).filter((move) => move.game_id === game.id).slice(-8)
+      moveCount: moves.filter((move) => move.game_id === game.id).length,
+      lastMoves: moves.filter((move) => move.game_id === game.id).slice(-8)
     }))
   });
 }

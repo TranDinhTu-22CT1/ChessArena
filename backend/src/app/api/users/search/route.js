@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -58,7 +59,7 @@ export async function GET(request) {
 
   const { supabase, user } = context;
   const pattern = `%${q}%`;
-  const { data: profiles = [], error } = await supabase
+  const { data: profileRows, error } = await supabase
     .from('users')
     .select('id, username, display_name, photo_url')
     .or(`username.ilike.${pattern},display_name.ilike.${pattern}`)
@@ -66,11 +67,12 @@ export async function GET(request) {
     .limit(20);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const profiles = safeArray(profileRows);
 
   const userIds = profiles.map((profile) => profile.id);
   if (userIds.length === 0) return Response.json({ ok: true, users: [] });
 
-  const [{ data: friendships = [] }, { data: presences = [] }] = await Promise.all([
+  const [{ data: friendshipRows }, { data: presenceRows }] = await Promise.all([
     supabase
       .from('user_friendships')
       .select('*')
@@ -80,6 +82,8 @@ export async function GET(request) {
       .select('user_id, status, current_game_id, last_seen')
       .in('user_id', userIds)
   ]);
+  const friendships = safeArray(friendshipRows);
+  const presences = safeArray(presenceRows);
 
   const friendshipByOtherId = new Map();
   for (const friendship of friendships) {

@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -43,10 +44,11 @@ export async function GET(request) {
 
   if (status) query = query.eq('status', status);
 
-  const { data: reports = [], count = 0, error } = await query;
+  const { data: reportRows, count = 0, error } = await query;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const reports = safeArray(reportRows);
   const openCounts = new Map();
-  for (const report of reports || []) {
+  for (const report of reports) {
     const key = report.reported_user_id || 'unknown';
     openCounts.set(key, (openCounts.get(key) || 0) + 1);
   }

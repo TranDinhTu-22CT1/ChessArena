@@ -17,7 +17,7 @@ function DetailContent({ selectedDetail, onClose }) {
           <span>Chi tiết người chơi</span>
           <h2>{selectedDetail.user.display_name}</h2>
         </div>
-        <button onClick={onClose}>Đóng</button>
+        <button className="admin-button-secondary" onClick={onClose}>Đóng</button>
       </div>
       <div className="admin-detail-grid">
         <div className={selectedDetail.diagnostics?.splitAccount ? 'admin-diagnostic-card danger' : 'admin-diagnostic-card ok'}>
