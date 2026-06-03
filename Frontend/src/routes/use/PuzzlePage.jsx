@@ -2,7 +2,7 @@
 import { Chess } from 'chess.js';
 import { CalendarDays, Check, Crown, Flame, Lock, Puzzle, Swords, Timer, Trophy, X, Zap } from 'lucide-react';
 import { checkPuzzleMove, recordPuzzleSession, requestPuzzle } from '../../api/puzzles';
-import { PIECE_IMAGES } from '../../game/pieces';
+import { getPieceImage } from '../../game/pieces';
 import { squareName } from '../../game/chessLogic';
 import { formatLimit, hasPremium, membershipPlan } from '../../membership/plans';
 
@@ -516,7 +516,7 @@ function PuzzleBoard({ position, flipped, pieceSet, selected, targets, onSelectS
               onClick={() => onSelectSquare(square)}
               aria-label={square}
             >
-              {piece && <img className={`piece ${piece.color} piece-set-${pieceSet}`} src={PIECE_IMAGES[`${piece.color}${piece.type}`]} alt="" draggable="false" />}
+              {piece && <img className={`piece ${piece.color} piece-set-${pieceSet}`} src={getPieceImage(pieceSet, `${piece.color}${piece.type}`)} alt="" draggable="false" />}
               {(row === 7 || col === 0) && <span className="coord">{row === 7 ? square[0] : square[1]}</span>}
             </button>
           );

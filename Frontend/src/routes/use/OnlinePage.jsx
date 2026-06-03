@@ -16,7 +16,7 @@ import {
 } from '../../api/online';
 import { apiUrl } from '../../api/config';
 import { REVIEW_LEGEND, reviewIcon } from '../../data/review';
-import { PIECE_IMAGES } from '../../game/pieces';
+import { getPieceImage } from '../../game/pieces';
 import { normalizePieceSet } from '../../game/constants';
 import { squareName } from '../../game/chessLogic';
 import { hasPremium, membershipPlan } from '../../membership/plans';
@@ -1460,7 +1460,7 @@ function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, l
               {piece && (
                 <img
                   className={`piece ${piece.color} piece-set-${normalizePieceSet(pieceSets?.[piece.color] || pieceSet)}`}
-                  src={PIECE_IMAGES[`${piece.color}${piece.type}`]}
+                  src={getPieceImage(pieceSets?.[piece.color] || pieceSet, `${piece.color}${piece.type}`)}
                   alt=""
                   draggable="false"
                 />

@@ -1,6 +1,6 @@
 import React from 'react';
 import PlayerCard from './PlayerCard';
-import { PIECE_IMAGES } from '../game/pieces';
+import { getPieceImage } from '../game/pieces';
 import { PIECE_NAMES, PROMOTION_PIECES } from '../game/constants';
 import { squareName } from '../game/chessLogic';
 import { REVIEW_LEGEND, reviewIcon } from '../data/review';
@@ -122,7 +122,7 @@ export default function GameBoard({
                   {piece && (
                     <img
                       className={`piece ${piece.color} piece-set-${pieceSet} ${lastMove?.to === square ? 'piece-just-moved' : ''} ${isAiThinking && piece.color !== playerColor ? 'piece-thinking' : ''}`}
-                      src={PIECE_IMAGES[`${piece.color}${piece.type}`]}
+                      src={getPieceImage(pieceSet, `${piece.color}${piece.type}`)}
                       alt={`${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`}
                       draggable="false"
                     />
@@ -168,7 +168,7 @@ export default function GameBoard({
                 >
                   <img
                     className={`piece-set-${pieceSet}`}
-                    src={PIECE_IMAGES[`${promotionRequest.color}${pieceType}`]}
+                    src={getPieceImage(pieceSet, `${promotionRequest.color}${pieceType}`)}
                     alt={PIECE_NAMES[pieceType]}
                     draggable="false"
                   />

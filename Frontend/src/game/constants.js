@@ -45,21 +45,26 @@ export const BOARD_PRESETS = [
   { id: 'arctic', label: 'Arctic frost', lightSquare: '#eef6f7', darkSquare: '#8fb1bd' },
   { id: 'graphite', label: 'Graphite', lightSquare: '#d6d9d4', darkSquare: '#4e5b55' },
   { id: 'rose', label: 'Rose court', lightSquare: '#f5e3e6', darkSquare: '#a85f70' },
-  { id: 'mint', label: 'Mint focus', lightSquare: '#edf6ea', darkSquare: '#76a98a' }
+  { id: 'mint', label: 'Mint focus', lightSquare: '#edf6ea', darkSquare: '#76a98a' },
+  { id: 'chesscom_green', label: 'Chess.com green', lightSquare: '#ebecd0', darkSquare: '#739552' },
+  { id: 'chesscom_brown', label: 'Chess.com brown', lightSquare: '#f0d9b5', darkSquare: '#b58863' },
+  { id: 'chesscom_blue', label: 'Chess.com blue', lightSquare: '#dee3e6', darkSquare: '#8ca2ad' },
+  { id: 'chesscom_gray', label: 'Chess.com gray', lightSquare: '#d8d8d8', darkSquare: '#a9a9a9' }
 ];
 
 export const PIECE_SETS = [
-  { id: 'classic', label: 'Classic' },
-  { id: 'glass', label: 'Glass' },
-  { id: 'bold', label: 'Bold' },
   { id: 'neo', label: 'Neo' },
-  { id: 'marble', label: 'Marble' },
-  { id: 'shadow', label: 'Shadow' },
-  { id: 'royal', label: 'Royal' },
-  { id: 'minimal', label: 'Minimal' }
+  { id: 'gothic', label: 'Gothic' },
+  { id: 'glass', label: 'Glass' },
+  { id: 'metal', label: 'Metal' },
+  { id: 'space', label: 'Space' },
+  { id: 'eightBit', label: '8-Bit' },
+  { id: 'tournament', label: 'Tournament' },
+  { id: 'staunton', label: 'Staunton' },
+  { id: 'wood3d', label: '3D Wood' }
 ];
 
-export const DEFAULT_PIECE_SET = 'classic';
+export const DEFAULT_PIECE_SET = 'neo';
 
 export function normalizePieceSet(value) {
   return PIECE_SETS.some((set) => set.id === value) ? value : DEFAULT_PIECE_SET;

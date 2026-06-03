@@ -529,6 +529,12 @@ body {
   border-color: rgba(31, 46, 23, 0.15);
 }
 
+.app-shell[data-color-scheme="light"] .chesscom-asset-credit {
+  color: #3b2b00;
+  background: rgba(184, 130, 12, 0.14);
+  border-color: rgba(151, 102, 0, 0.28);
+}
+
 .runtime-error {
   display: grid;
   place-content: center;
@@ -4879,6 +4885,17 @@ input {
   line-height: 1.45;
 }
 
+.chesscom-asset-credit {
+  display: block;
+  padding: 10px 11px;
+  color: #fff7d7;
+  background: rgba(255, 207, 91, 0.12);
+  border: 1px solid rgba(255, 207, 91, 0.35);
+  border-radius: 7px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .theme-panel input[type="color"] {
   width: 52px;
   height: 28px;
@@ -5500,11 +5517,6 @@ h2 {
   background: #e04f4f;
 }
 
-.piece-set-glass .piece,
-.piece.piece-set-glass {
-  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.3)) saturate(1.12) contrast(1.08);
-}
-
 .piece-set-bold .piece,
 .piece.piece-set-bold {
   filter: drop-shadow(0 5px 3px rgba(0, 0, 0, 0.34)) contrast(1.22);
@@ -5529,11 +5541,6 @@ h2 {
 
 .piece.w {
   filter: drop-shadow(0 7px 4px rgba(0, 0, 0, 0.26));
-}
-
-.piece-set-neo .piece,
-.piece.piece-set-neo {
-  filter: drop-shadow(0 7px 4px rgba(0, 0, 0, 0.28)) saturate(1.28) contrast(1.12);
 }
 
 .piece-set-marble .piece,

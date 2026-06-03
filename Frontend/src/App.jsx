@@ -6,7 +6,7 @@ import { fetchMembership } from './api/membership';
 import { fetchModerationStatus } from './api/moderation';
 import { fetchNotifications } from './api/notifications';
 import { requestStockfishMove } from './api/stockfish';
-import { PIECE_IMAGES } from './game/pieces';
+import { getPieceImage } from './game/pieces';
 import {
   AI_LEVELS,
   TIME_CONTROLS
@@ -407,10 +407,10 @@ export default function App() {
   }, [gameMode, isActiveGameRoute, outcome]);
   const capturedWhite = displayHistory
     .filter((move) => move.captured && move.color === 'w')
-    .map((move) => ({ type: move.captured, src: PIECE_IMAGES[`b${move.captured}`], alt: `Captured black ${move.captured}` }));
+    .map((move) => ({ type: move.captured, src: getPieceImage(pieceSet, `b${move.captured}`), alt: `Captured black ${move.captured}` }));
   const capturedBlack = displayHistory
     .filter((move) => move.captured && move.color === 'b')
-    .map((move) => ({ type: move.captured, src: PIECE_IMAGES[`w${move.captured}`], alt: `Captured white ${move.captured}` }));
+    .map((move) => ({ type: move.captured, src: getPieceImage(pieceSet, `w${move.captured}`), alt: `Captured white ${move.captured}` }));
   const whiteCapturePoints = capturedPoints(capturedWhite);
   const blackCapturePoints = capturedPoints(capturedBlack);
   const materialScore = boardMaterialScore(displayGame);

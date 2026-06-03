@@ -157,6 +157,9 @@ export default function TopHeader({
             </select>
           </label>
           <small className="theme-note">Board colors are private. Piece style appears on your own pieces in online games.</small>
+          <strong className="chesscom-asset-credit">
+            Chess piece sets and board themes are the intellectual property of Chess.com and are used with permission for academic purposes.
+          </strong>
           <p className="theme-note">
             {authUser ? 'Màu sẽ được lưu theo tài khoản của bạn.' : 'Đăng nhập để đồng bộ màu trên tài khoản.'}
           </p>

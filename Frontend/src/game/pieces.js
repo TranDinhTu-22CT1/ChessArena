@@ -1,27 +1,27 @@
-import bB from '../assets/pieces/bB.png';
-import bK from '../assets/pieces/bK.png';
-import bN from '../assets/pieces/bN.png';
-import bP from '../assets/pieces/bP.png';
-import bQ from '../assets/pieces/bQ.png';
-import bR from '../assets/pieces/bR.png';
-import wB from '../assets/pieces/wB.png';
-import wK from '../assets/pieces/wK.png';
-import wN from '../assets/pieces/wN.png';
-import wP from '../assets/pieces/wP.png';
-import wQ from '../assets/pieces/wQ.png';
-import wR from '../assets/pieces/wR.png';
+import { DEFAULT_PIECE_SET, normalizePieceSet } from './constants';
+
+const PIECE_CODES = ['wk', 'wq', 'wr', 'wb', 'wn', 'wp', 'bk', 'bq', 'br', 'bb', 'bn', 'bp'];
+
+function chesscomSet(folder) {
+  return PIECE_CODES.reduce((images, code) => ({
+    ...images,
+    [code]: new URL(`../assets/chesscom/pieces/${folder}/${code}.png`, import.meta.url).href
+  }), {});
+}
 
 export const PIECE_IMAGES = {
-  wk: wK,
-  wq: wQ,
-  wr: wR,
-  wb: wB,
-  wn: wN,
-  wp: wP,
-  bk: bK,
-  bq: bQ,
-  br: bR,
-  bb: bB,
-  bn: bN,
-  bp: bP
+  neo: chesscomSet('neo'),
+  gothic: chesscomSet('gothic'),
+  glass: chesscomSet('glass'),
+  metal: chesscomSet('metal'),
+  space: chesscomSet('space'),
+  eightBit: chesscomSet('8_bit'),
+  tournament: chesscomSet('tournament'),
+  staunton: chesscomSet('3d_staunton'),
+  wood3d: chesscomSet('3d_wood')
 };
+
+export function getPieceImage(pieceSet, code) {
+  const normalizedSet = normalizePieceSet(pieceSet);
+  return PIECE_IMAGES[normalizedSet]?.[code] ?? PIECE_IMAGES[DEFAULT_PIECE_SET][code];
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "chesscom_green",
+    "name": "Chess.com green",
+    "lightSquare": "#ebecd0",
+    "darkSquare": "#739552",
+    "sourceCredit": "Chess.com board themes are the intellectual property of Chess.com and are used with permission for academic purposes."
+  },
+  {
+    "id": "chesscom_brown",
+    "name": "Chess.com brown",
+    "lightSquare": "#f0d9b5",
+    "darkSquare": "#b58863",
+    "sourceCredit": "Chess.com board themes are the intellectual property of Chess.com and are used with permission for academic purposes."
+  },
+  {
+    "id": "chesscom_blue",
+    "name": "Chess.com blue",
+    "lightSquare": "#dee3e6",
+    "darkSquare": "#8ca2ad",
+    "sourceCredit": "Chess.com board themes are the intellectual property of Chess.com and are used with permission for academic purposes."
+  },
+  {
+    "id": "chesscom_gray",
+    "name": "Chess.com gray",
+    "lightSquare": "#d8d8d8",
+    "darkSquare": "#a9a9a9",
+    "sourceCredit": "Chess.com board themes are the intellectual property of Chess.com and are used with permission for academic purposes."
+  }
+]
