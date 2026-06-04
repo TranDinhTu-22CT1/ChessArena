@@ -8,6 +8,9 @@ export default function ConfigSection({
   onRevokeTestAdmin
 }) {
   const canManageTestAdmin = !admin?.isTestAdmin;
+  const expiresLabel = testAdmin?.expiresAt
+    ? new Date(testAdmin.expiresAt).toLocaleString('vi-VN')
+    : '';
 
   return (
     <section className="admin-panel">
@@ -32,12 +35,13 @@ export default function ConfigSection({
           <p>
             Trang thai: {testAdmin?.granted ? 'da duoc cap quyen' : 'dang khoa'}
             {testAdmin?.enabled ? '' : ' | test accounts dang tat'}
+            {testAdmin?.granted && expiresLabel ? ` | het han: ${expiresLabel}` : ''}
           </p>
         </div>
         {canManageTestAdmin && (
           <div className="admin-actions">
             <button type="button" onClick={onGrantTestAdmin} disabled={!testAdmin?.enabled || testAdmin?.granted}>
-              Cap quyen
+              Cap quyen 24h
             </button>
             <button type="button" onClick={onRevokeTestAdmin} disabled={!testAdmin?.enabled || !testAdmin?.granted}>
               Thu hoi

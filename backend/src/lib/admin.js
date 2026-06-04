@@ -6,15 +6,7 @@ import { authCookieOptions } from './cookies';
 const ADMIN_SESSION_COOKIE = 'admin_session_token';
 const ADMIN_SESSION_MAX_AGE = 60 * 60;
 const TEST_ADMIN_EMAIL = 'admintest@gmail.com';
-
-function testAdminStore() {
-  if (!globalThis.__chessTestAdminAccess) {
-    globalThis.__chessTestAdminAccess = {
-      granted: process.env.ADMIN_TEST_ACCESS_GRANTED === 'true'
-    };
-  }
-  return globalThis.__chessTestAdminAccess;
-}
+const TEST_ADMIN_GRANT_MS = 24 * 60 * 60 * 1000;
 
 function testAdminEnabled() {
   if (process.env.NODE_ENV === 'production') return process.env.ENABLE_TEST_ACCOUNTS === 'true';
@@ -60,21 +52,8 @@ function activeBanFilter(query) {
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
 }
 
-function adminIdentityFromEmail(value) {
+function rootAdminIdentityFromEmail(value) {
   const email = String(value || '').trim().toLowerCase();
-  if (email === TEST_ADMIN_EMAIL && testAdminEnabled() && testAdminStore().granted) {
-    return {
-      id: null,
-      email,
-      role: 'owner',
-      permissions: ['*'],
-      username: 'admintest',
-      displayName: 'Admin Test',
-      photoURL: null,
-      isTestAdmin: true
-    };
-  }
-
   const roots = adminEmails();
   if (!email || !roots.includes(email)) return null;
   return {
@@ -86,6 +65,19 @@ function adminIdentityFromEmail(value) {
     displayName: 'Admin',
     photoURL: null,
     isTestAdmin: false
+  };
+}
+
+function testAdminIdentity() {
+  return {
+    id: null,
+    email: TEST_ADMIN_EMAIL,
+    role: 'owner',
+    permissions: ['*'],
+    username: 'admintest',
+    displayName: 'Admin Test',
+    photoURL: null,
+    isTestAdmin: true
   };
 }
 
@@ -143,7 +135,13 @@ export async function requireRootAdminIdentity(email) {
     return { error: Response.json({ ok: false, error: 'Supabase service role is required.' }, { status: 503 }) };
   }
 
-  const admin = adminIdentityFromEmail(email);
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail === TEST_ADMIN_EMAIL) {
+    const status = await adminTestAccessStatus(supabase);
+    if (status.granted) return { supabase, admin: testAdminIdentity() };
+  }
+
+  const admin = rootAdminIdentityFromEmail(normalizedEmail);
   if (!admin) {
     return { error: Response.json({ ok: false, error: 'Admin access denied.' }, { status: 403 }) };
   }
@@ -208,24 +206,73 @@ export async function clearAdminSessionCookie() {
   cookieStore.set(ADMIN_SESSION_COOKIE, '', authCookieOptions(0));
 }
 
-export function adminTestAccessStatus() {
-  return {
+export async function adminTestAccessStatus(supabase) {
+  const base = {
     email: TEST_ADMIN_EMAIL,
     enabled: testAdminEnabled(),
-    granted: testAdminEnabled() && testAdminStore().granted
+    granted: false,
+    expiresAt: null,
+    grantedAt: null,
+    remainingSeconds: 0
+  };
+  if (!base.enabled || !supabase) return base;
+
+  const { data, error } = await supabase
+    .from('admin_audit_logs')
+    .select('action, metadata, created_at')
+    .in('action', ['admin.test_access.grant', 'admin.test_access.revoke'])
+    .order('created_at', { ascending: false })
+    .limit(25);
+
+  if (error) {
+    console.warn('Admin test access status skipped:', error.message);
+    return base;
+  }
+
+  const latest = (data || []).find((log) => String(log.metadata?.targetEmail || '').toLowerCase() === TEST_ADMIN_EMAIL);
+  if (!latest) {
+    if (process.env.ADMIN_TEST_ACCESS_GRANTED !== 'true') return base;
+    const expiresAt = new Date(Date.now() + TEST_ADMIN_GRANT_MS).toISOString();
+    return {
+      ...base,
+      granted: true,
+      expiresAt,
+      grantedAt: null,
+      remainingSeconds: Math.ceil(TEST_ADMIN_GRANT_MS / 1000)
+    };
+  }
+
+  if (latest.action === 'admin.test_access.revoke') return base;
+
+  const grantedAtMs = new Date(latest.created_at).getTime();
+  const expiresAt = latest.metadata?.expiresAt || new Date(grantedAtMs + TEST_ADMIN_GRANT_MS).toISOString();
+  const remainingSeconds = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000));
+
+  return {
+    ...base,
+    granted: remainingSeconds > 0,
+    expiresAt,
+    grantedAt: latest.created_at,
+    remainingSeconds
   };
 }
 
-export function grantTestAdminAccess() {
-  const store = testAdminStore();
-  store.granted = true;
-  return adminTestAccessStatus();
+export async function grantTestAdminAccess(supabase, admin) {
+  const expiresAt = new Date(Date.now() + TEST_ADMIN_GRANT_MS).toISOString();
+  await writeAdminAudit(supabase, admin, 'admin.test_access.grant', {
+    targetEmail: TEST_ADMIN_EMAIL,
+    expiresAt,
+    durationHours: 24
+  });
+  return adminTestAccessStatus(supabase);
 }
 
-export function revokeTestAdminAccess() {
-  const store = testAdminStore();
-  store.granted = false;
-  return adminTestAccessStatus();
+export async function revokeTestAdminAccess(supabase, admin, metadata = {}) {
+  await writeAdminAudit(supabase, admin, 'admin.test_access.revoke', {
+    targetEmail: TEST_ADMIN_EMAIL,
+    ...metadata
+  });
+  return adminTestAccessStatus(supabase);
 }
 
 export async function writeAdminAudit(supabase, admin, action, metadata = {}) {

@@ -1,4 +1,4 @@
-import { adminTestAccessStatus, grantTestAdminAccess, requireAdminCsrf, requireAdminUser, revokeTestAdminAccess, writeAdminAudit } from '../../../../lib/admin';
+import { adminTestAccessStatus, grantTestAdminAccess, requireAdminCsrf, requireAdminUser, revokeTestAdminAccess } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -9,7 +9,7 @@ export async function GET(request) {
 
   const context = await requireAdminUser();
   if (context.error) return context.error;
-  return Response.json({ ok: true, testAdmin: adminTestAccessStatus() });
+  return Response.json({ ok: true, testAdmin: await adminTestAccessStatus(context.supabase) });
 }
 
 export async function POST(request) {
@@ -26,11 +26,9 @@ export async function POST(request) {
 
   const payload = await request.json().catch(() => ({}));
   const granted = payload?.granted !== false;
-  const status = granted ? grantTestAdminAccess() : revokeTestAdminAccess();
-
-  await writeAdminAudit(context.supabase, context.admin, granted ? 'admin.test_access.grant' : 'admin.test_access.revoke', {
-    targetEmail: status.email
-  });
+  const status = granted
+    ? await grantTestAdminAccess(context.supabase, context.admin)
+    : await revokeTestAdminAccess(context.supabase, context.admin);
 
   return Response.json({ ok: true, testAdmin: status });
 }

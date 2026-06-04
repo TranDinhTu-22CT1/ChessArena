@@ -608,7 +608,7 @@ export default function AdminPage() {
     try {
       const data = await updateTestAdminAccess(granted);
       setTestAdmin(data.testAdmin || null);
-      notify(granted ? 'Da cap quyen admin test.' : 'Da thu hoi quyen admin test.', 'success');
+      notify(granted ? 'Da cap quyen admin test trong 24h.' : 'Da thu hoi quyen admin test.', 'success');
       await load();
     } catch (error) {
       setMessage(error.message);

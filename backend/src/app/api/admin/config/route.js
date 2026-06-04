@@ -11,6 +11,7 @@ export async function GET(request) {
   if (context.error) return context.error;
   const permissionError = requireAdminPermission(context, 'config:view');
   if (permissionError) return permissionError;
+  const testAdmin = await adminTestAccessStatus(context.supabase);
 
   return Response.json({
     ok: true,
@@ -22,11 +23,11 @@ export async function GET(request) {
       cookieSecure: process.env.COOKIE_SECURE === 'true',
       firebaseConfigured: Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL),
       supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
-      testAccountsEnabled: adminTestAccessStatus().enabled,
+      testAccountsEnabled: testAdmin.enabled,
       adminSessionTtlSeconds: 3600,
       rateLimit: 'in-memory per deployment instance',
       realtimeTables: ['online_games', 'online_game_moves']
     },
-    testAdmin: adminTestAccessStatus()
+    testAdmin
   });
 }

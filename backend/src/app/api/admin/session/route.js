@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { clearAdminSessionCookie, requireAdminCsrf, requireAdminUser, requireRootAdminIdentity, revokeTestAdminAccess, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
+import { clearAdminSessionCookie, requireAdminCsrf, requireAdminUser, requireRootAdminIdentity, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -64,7 +64,6 @@ export async function DELETE(request) {
   const csrfError = await requireAdminCsrf(request, context);
   if (csrfError) return csrfError;
   await writeAdminAudit(context.supabase, context.admin, 'admin.logout');
-  if (context.admin?.isTestAdmin) revokeTestAdminAccess();
   await clearAdminSessionCookie();
   return Response.json({ ok: true });
 }
