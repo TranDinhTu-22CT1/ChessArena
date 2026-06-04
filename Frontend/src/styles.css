@@ -10633,7 +10633,7 @@ h2 {
 
 .guide-action-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -10670,8 +10670,23 @@ h2 {
   line-height: 1.45;
 }
 
-.guide-real-board-wrap {
+.guide-real-board-wrap,
+.guide-standard-board-wrap {
   justify-items: center;
+}
+
+.guide-standard-board-wrap {
+  display: grid;
+  place-items: center;
+  padding: clamp(10px, 3vw, 24px);
+  background: rgba(16, 28, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+}
+
+.guide-standard-board {
+  width: min(100%, 680px);
 }
 
 .guide-real-board {

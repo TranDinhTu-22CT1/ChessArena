@@ -180,13 +180,16 @@ export async function clearAdminSessionCookie() {
 }
 
 export async function writeAdminAudit(supabase, admin, action, metadata = {}) {
-  await supabase.from('admin_audit_logs').insert({
+  const { error } = await supabase.from('admin_audit_logs').insert({
     admin_user_id: admin?.id ?? null,
     action,
     target_user_id: metadata.targetUserId ?? null,
     target_device_fingerprint: metadata.deviceFingerprint ?? null,
     metadata
   });
+  if (error) {
+    console.warn('Admin audit skipped:', error.message);
+  }
 }
 
 export async function ensureAdminAppUser(supabase, admin) {
