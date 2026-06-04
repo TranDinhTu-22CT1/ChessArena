@@ -18,10 +18,11 @@ const allowedOrigins = new Set([
 
 function corsHeaders(request) {
   const origin = request.headers.get('origin');
+  const requestedHeaders = request.headers.get('access-control-request-headers');
   const headers = {
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': requestedHeaders || 'Content-Type, Authorization, X-Admin-CSRF',
     Vary: 'Origin'
   };
 

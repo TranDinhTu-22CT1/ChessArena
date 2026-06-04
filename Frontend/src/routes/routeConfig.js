@@ -13,6 +13,7 @@ export const ROUTES = {
   achievements: '/achievements',
   tournaments: '/tournaments',
   coachLab: '/training/coach',
+  beginnerGuide: '/learn',
   membership: '/membership',
   admin: '/admin',
   notFound: '/404',
@@ -49,6 +50,7 @@ export function routeFromPath(pathname) {
   if (pathname === '/achievements') return 'achievements';
   if (pathname === '/tournaments') return 'tournaments';
   if (pathname === '/training/coach' || pathname === '/coach-lab') return 'coachLab';
+  if (pathname === '/learn' || pathname === '/guide' || pathname === '/how-to-play') return 'beginnerGuide';
   if (pathname === '/membership' || pathname === '/premium') return 'membership';
   if (pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/amdin') return 'admin';
   if (pathname === '/review') return 'review';

@@ -1,6 +1,7 @@
 ﻿import React from 'react';
 import { ArrowLeft, Brain, CheckCircle2, CreditCard, Crown, Gem, LogIn, Puzzle, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
-import { activateMembership } from '../../api/membership';
+import { activateMembership, fetchMembership } from '../../api/membership';
+import { confirmMomoMembershipPayment, createMomoMembershipPayment } from '../../api/momo';
 import { createPayPalSubscriptionCheckout, fetchPayPalPlan, fetchPayPalPlanPrices } from '../../api/paypalPlans';
 import { notify } from '../../components/ToastHost';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../../membership/plans';
@@ -56,6 +57,12 @@ const FREE_LIMITS = [
   'Không có Explain Pro'
 ];
 
+const MOMO_PRICES = {
+  plus: { monthly: 50000, yearly: 500000 },
+  pro: { monthly: 100000, yearly: 1000000 },
+  master: { monthly: 150000, yearly: 1500000 }
+};
+
 function currency(price) {
   if (!price?.value || !price?.currency) return 'Đang lấy giá PayPal';
   const value = Number(price?.value ?? 0);
@@ -66,6 +73,14 @@ function currency(price) {
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2
   }).format(value);
+}
+
+function vnd(value) {
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
 }
 
 function planIdFor(tier, cycle) {
@@ -105,6 +120,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const [prices, setPrices] = React.useState(EMPTY_PRICES);
   const [planHealth, setPlanHealth] = React.useState(null);
   const [checkoutLoading, setCheckoutLoading] = React.useState(false);
+  const [momoLoading, setMomoLoading] = React.useState(false);
   const currentTier = activeTier(membership);
 
   React.useEffect(() => {
@@ -126,6 +142,17 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
     if (params.get('paypal') === 'cancelled') {
       setMessage('Bạn đã hủy thanh toán PayPal.');
       window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+    if (params.get('momo') === 'return') {
+      confirmMomoMembershipPayment(params)
+        .then(() => {
+          notify('Gói MoMo đã được kích hoạt.', 'success');
+          return fetchMembership();
+        })
+        .then((nextMembership) => onMembershipUpdated(nextMembership))
+        .catch((error) => setMessage(error.message))
+        .finally(() => window.history.replaceState({}, '', window.location.pathname));
       return;
     }
     if (params.get('paypal') !== 'approved') return;
@@ -174,6 +201,24 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
       notify(text, 'error');
     } finally {
       setCheckoutLoading(false);
+    }
+  };
+
+  const startMomoCheckout = async () => {
+    setMomoLoading(true);
+    setMessage('');
+    try {
+      const data = await createMomoMembershipPayment({
+        tier: checkoutTier,
+        billingCycle: cycle
+      });
+      window.location.assign(data.payUrl);
+    } catch (error) {
+      const text = error.message || 'MoMo Sandbox chưa tạo được thanh toán.';
+      setMessage(text);
+      notify(text, 'error');
+    } finally {
+      setMomoLoading(false);
     }
   };
 
@@ -246,6 +291,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
               <span>Plan ID: <b>{checkoutPlanId || 'Chưa cấu hình'}</b></span>
               <span>Currency: <b>{checkoutPrice?.currency || PAYPAL_CURRENCY}</b></span>
               <span>Status: <b>{planHealth?.plan?.status || checkoutPrice?.status || 'Đang kiểm tra'}</b></span>
+              <span>MoMo: <b>{vnd(MOMO_PRICES[checkoutTier]?.[cycle])}</b></span>
             </div>
             {planHealthNote && <p className="membership-config-note">{planHealthNote}</p>}
             {!checkoutPrice?.value && <p className="membership-config-note">Không hiển thị giá fallback để tránh sai tiền. Backend phải đọc được giá thật từ PayPal plan trước khi thanh toán.</p>}
@@ -268,6 +314,15 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
               <CreditCard size={18} />
               {checkoutLoading ? 'Đang mở PayPal...' : 'Sang trang thanh toán PayPal'}
             </button>
+            <button
+              className="membership-momo-primary"
+              onClick={startMomoCheckout}
+              disabled={momoLoading}
+            >
+              <CreditCard size={18} />
+              {momoLoading ? 'Đang mở MoMo...' : `Thanh toán MoMo ${vnd(MOMO_PRICES[checkoutTier]?.[cycle])}`}
+            </button>
+            <p className="membership-config-note">MoMo dùng môi trường test và sẽ tự kích hoạt gói khi MoMo trả `resultCode=0` với chữ ký hợp lệ.</p>
             {message && <p className="membership-message">{message}</p>}
           </div>
         </section>

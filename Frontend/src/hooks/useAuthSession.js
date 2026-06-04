@@ -79,7 +79,18 @@ export function useAuthSession() {
 
   React.useEffect(() => {
     const adminView = new URLSearchParams(window.location.search).get('adminView') === '1';
-    fetch(apiUrl(`/api/auth/me${adminView ? '?adminView=1' : ''}`), { credentials: 'include' })
+    const clearUserSession = adminView
+      ? Promise.all([
+        fetch(apiUrl('/api/auth/logout'), {
+          method: 'POST',
+          credentials: 'include'
+        }).catch(() => {}),
+        signOut(auth).catch(() => {})
+      ])
+      : Promise.resolve();
+
+    clearUserSession
+      .then(() => fetch(apiUrl(`/api/auth/me${adminView ? '?adminView=1' : ''}`), { credentials: 'include' }))
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!data?.user) {

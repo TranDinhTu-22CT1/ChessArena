@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Brain, Flame, Settings, Sparkles, Target, Wifi, WifiOff, X } from 'lucide-react';
+import { Bell, Brain, Flame, Info, Settings, Sparkles, Target, Wifi, WifiOff, X } from 'lucide-react';
 import { BOARD_PRESETS, PIECE_SETS } from '../game/constants';
 import { getPieceImage } from '../game/pieces';
 
@@ -66,6 +66,7 @@ export default function TopHeader({
   pieceSet,
   authUser,
   notificationCount = 0,
+  onOpenAcademicNotice,
   onOpenNotifications,
   onToggleSettings,
   onCloseSettings,
@@ -124,6 +125,9 @@ export default function TopHeader({
         <button className="notification-bell" aria-label="Notifications" onClick={onOpenNotifications}>
           <Bell size={19} />
           {notificationCount > 0 && <b>{Math.min(notificationCount, 99)}</b>}
+        </button>
+        <button aria-label="Academic and copyright notice" onClick={onOpenAcademicNotice}>
+          <Info size={19} />
         </button>
         <button aria-label="Settings" onClick={onToggleSettings} ref={settingsButtonRef}>
           <Settings size={19} />

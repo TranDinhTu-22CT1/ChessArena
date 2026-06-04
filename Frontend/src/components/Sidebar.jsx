@@ -5,6 +5,7 @@ import {
   Bell,
   Bot,
   Brain,
+  BookOpen,
   CalendarDays,
   ChevronRight,
   Crown,
@@ -29,6 +30,7 @@ const menuItems = [
   { icon: Swords, label: 'Play', active: true, hasFlyout: true },
   { icon: Users, label: 'Bạn bè', route: 'friends' },
   { icon: Bell, label: 'Thông báo', route: 'notifications', badge: true },
+  { icon: BookOpen, label: 'Hướng dẫn', route: 'beginnerGuide' },
   { icon: Trophy, label: 'Giải đấu', route: 'tournaments' },
   { icon: Puzzle, label: 'Puzzles', route: 'puzzles', hasPuzzleFlyout: true },
   { icon: Crown, label: 'Premium', route: 'membership' }

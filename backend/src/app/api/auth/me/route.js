@@ -30,6 +30,26 @@ export async function GET(request) {
   const adminView = new URL(request.url).searchParams.get('adminView') === '1';
   const supabase = getSupabaseAdmin();
 
+  if (adminView) {
+    const adminContext = await requireAdminUser();
+    if (!adminContext.error) {
+      const adminUser = supabase ? await ensureAdminAppUser(supabase, adminContext.admin) : null;
+      return Response.json({
+        ok: true,
+        adminView,
+        user: {
+          uid: adminUser?.firebaseUid || `admin:${adminContext.admin.email}`,
+          email: adminContext.admin.email,
+          displayName: 'ADMIN',
+          username: adminUser?.username || 'admin',
+          isAdmin: true,
+          emailVerified: true,
+          photoURL: adminUser?.photoURL || null
+        }
+      });
+    }
+  }
+
   if (!token) {
     const adminContext = await requireAdminUser();
     if (!adminContext.error) {

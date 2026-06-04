@@ -55,6 +55,7 @@ import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
 const FINISHED_GAME_KEY = 'chess-arena-finished-game';
 const ROUTE_CHUNK_RELOAD_KEY = 'chess-arena-route-chunk-reload';
+const ACADEMIC_NOTICE_KEY = 'chess-arena-academic-notice-seen';
 
 function lazyWithReload(importer) {
   return React.lazy(async () => {
@@ -78,6 +79,7 @@ function lazyWithReload(importer) {
 
 const AdminPage = lazyWithReload(() => import('./routes/Admin/AdminPage'));
 const AchievementsPage = lazyWithReload(() => import('./routes/use/AchievementsPage'));
+const BeginnerGuidePage = lazyWithReload(() => import('./routes/use/BeginnerGuidePage'));
 const CoachLabPage = lazyWithReload(() => import('./routes/use/CoachLabPage'));
 const HistoryPage = lazyWithReload(() => import('./routes/use/HistoryPage'));
 const HomePage = lazyWithReload(() => import('./routes/use/HomePage'));
@@ -155,6 +157,38 @@ function ModerationBanner({ status }) {
   );
 }
 
+function AcademicNoticeModal({ visible, onClose }) {
+  if (!visible) return null;
+
+  return (
+    <div className="academic-notice-layer" role="presentation">
+      <section className="academic-notice-modal" role="dialog" aria-modal="true" aria-labelledby="academic-notice-title">
+        <button className="academic-notice-close" type="button" onClick={onClose} aria-label="Đóng thông báo">
+          ×
+        </button>
+        <span>Thông báo học thuật</span>
+        <h2 id="academic-notice-title">ChessArena là website dùng cho đồ án học thuật</h2>
+        <p>
+          Website này được xây dựng để phục vụ học tập, thực tập và trình bày đồ án. Các chức năng, dữ liệu và thanh toán
+          đang dùng cho môi trường thử nghiệm, không phải dịch vụ thương mại chính thức.
+        </p>
+        <p>
+          Một số bộ quân, giao diện bàn cờ hoặc tài sản liên quan đến Chess.com thuộc quyền sở hữu trí tuệ của Chess.com.
+          Nội dung được sử dụng trong phạm vi minh họa học thuật; ChessArena không đại diện, không liên kết và không thay thế Chess.com.
+        </p>
+        <div className="academic-paypal-box">
+          <strong>Tài khoản PayPal Sandbox người mua</strong>
+          <code>sb-go9aa51399356@personal.example.com</code>
+          <code>L$U!*w@0</code>
+        </div>
+        <button className="academic-notice-primary" type="button" onClick={onClose}>
+          Tôi đã hiểu
+        </button>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const [gameState, setGameState] = React.useState(() => createGameState());
   const [selected, setSelected] = React.useState(null);
@@ -199,6 +233,13 @@ export default function App() {
   const [promotionRequest, setPromotionRequest] = React.useState(null);
   const [resultDismissed, setResultDismissed] = React.useState(false);
   const [appSettling, setAppSettling] = React.useState(false);
+  const [academicNoticeOpen, setAcademicNoticeOpen] = React.useState(() => {
+    try {
+      return window.localStorage.getItem(ACADEMIC_NOTICE_KEY) !== '1';
+    } catch {
+      return true;
+    }
+  });
   const [isOffline, setIsOffline] = React.useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
   const {
     userName,
@@ -245,6 +286,15 @@ export default function App() {
   const aiTimerRef = React.useRef(null);
   const premoveRef = React.useRef([]);
   const { ensureAudioContext, playMoveSound, playUiSound, speakCoachText, stopSpeech } = useGameAudio();
+
+  const closeAcademicNotice = React.useCallback(() => {
+    try {
+      window.localStorage.setItem(ACADEMIC_NOTICE_KEY, '1');
+    } catch {
+      // localStorage can be unavailable in locked-down browsers.
+    }
+    setAcademicNoticeOpen(false);
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1029,6 +1079,7 @@ export default function App() {
       <ToastHost />
       <OfflineOverlay visible={isOffline} />
       <ModerationBanner status={moderationStatus} />
+      <AcademicNoticeModal visible={academicNoticeOpen} onClose={closeAcademicNotice} />
       {appSettling && <RouteLoading label={authBusy ? 'Đang xác thực tài khoản...' : 'Đang chuyển trang...'} />}
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
       <Sidebar
@@ -1073,6 +1124,26 @@ export default function App() {
       />
 
       <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute ? 'game-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
+        <TopHeader
+          activeRoute={route === 'onlineReview' ? 'history' : route}
+          apiOnline={apiOnline}
+          settingsOpen={settingsOpen}
+          theme={theme}
+          appearance={appearance}
+          pieceSet={pieceSet}
+          authUser={authUser}
+          notificationCount={notificationCount}
+          onOpenAcademicNotice={() => setAcademicNoticeOpen(true)}
+          onOpenNotifications={() => navigate('notifications')}
+          onToggleSettings={() => setSettingsOpen((value) => !value)}
+          onCloseSettings={() => setSettingsOpen(false)}
+          onResetTheme={resetTheme}
+          onUpdateTheme={updateTheme}
+          onSetAppearance={setAppearance}
+          onApplyBoardPreset={applyBoardPreset}
+          onSetPieceSet={setPieceSet}
+        />
+
         {authMode && !authUser && !isPublicProfileRoute && (
           <AuthPage
             authMode={authMode}
@@ -1204,6 +1275,10 @@ export default function App() {
           />
         )}
 
+        {route === 'beginnerGuide' && (
+          <BeginnerGuidePage onNavigate={navigate} />
+        )}
+
         {route === 'membership' && (
           <MembershipPage
             authUser={authUser}
@@ -1219,24 +1294,6 @@ export default function App() {
 
         {route === 'onlineReview' && (
           <>
-            <TopHeader
-              activeRoute="history"
-              apiOnline={apiOnline}
-              settingsOpen={settingsOpen}
-              theme={theme}
-              appearance={appearance}
-              pieceSet={pieceSet}
-              authUser={authUser}
-              notificationCount={notificationCount}
-              onOpenNotifications={() => navigate('notifications')}
-              onToggleSettings={() => setSettingsOpen((value) => !value)}
-              onCloseSettings={() => setSettingsOpen(false)}
-              onResetTheme={resetTheme}
-              onUpdateTheme={updateTheme}
-              onSetAppearance={setAppearance}
-              onApplyBoardPreset={applyBoardPreset}
-              onSetPieceSet={setPieceSet}
-            />
             <OnlinePage
               authUser={authUser}
               userName={userName}
@@ -1252,73 +1309,18 @@ export default function App() {
 
         {isActiveOnlineRoute && (
           <>
-            <TopHeader
-              activeRoute={route}
-              apiOnline={apiOnline}
-              settingsOpen={settingsOpen}
-              theme={theme}
-              appearance={appearance}
-              pieceSet={pieceSet}
-              authUser={authUser}
-              notificationCount={notificationCount}
-              onOpenNotifications={() => navigate('notifications')}
-              onToggleSettings={() => setSettingsOpen((value) => !value)}
-              onCloseSettings={() => setSettingsOpen(false)}
-              onResetTheme={resetTheme}
-              onUpdateTheme={updateTheme}
-              onSetAppearance={setAppearance}
-              onApplyBoardPreset={applyBoardPreset}
-              onSetPieceSet={setPieceSet}
-            />
             <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} membership={membership} onLogin={() => setAuthMode('login')} onNavigate={navigate} />
           </>
         )}
 
         {isActivePuzzleRoute && (
           <>
-            <TopHeader
-              activeRoute={route}
-              apiOnline={apiOnline}
-              settingsOpen={settingsOpen}
-              theme={theme}
-              appearance={appearance}
-              pieceSet={pieceSet}
-              authUser={authUser}
-              notificationCount={notificationCount}
-              onOpenNotifications={() => navigate('notifications')}
-              onToggleSettings={() => setSettingsOpen((value) => !value)}
-              onCloseSettings={() => setSettingsOpen(false)}
-              onResetTheme={resetTheme}
-              onUpdateTheme={updateTheme}
-              onSetAppearance={setAppearance}
-              onApplyBoardPreset={applyBoardPreset}
-              onSetPieceSet={setPieceSet}
-            />
             <PuzzlePage activeRoute={route} pieceSet={pieceSet} membership={membership} onNavigate={navigate} />
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'achievements' && route !== 'tournaments' && route !== 'coachLab' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'achievements' && route !== 'tournaments' && route !== 'coachLab' && route !== 'beginnerGuide' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
-        <TopHeader
-          activeRoute={route}
-          apiOnline={apiOnline}
-          settingsOpen={settingsOpen}
-          theme={theme}
-          appearance={appearance}
-          pieceSet={pieceSet}
-          authUser={authUser}
-          notificationCount={notificationCount}
-          onOpenNotifications={() => navigate('notifications')}
-          onToggleSettings={() => setSettingsOpen((value) => !value)}
-          onCloseSettings={() => setSettingsOpen(false)}
-          onResetTheme={resetTheme}
-          onUpdateTheme={updateTheme}
-          onSetAppearance={setAppearance}
-          onApplyBoardPreset={applyBoardPreset}
-          onSetPieceSet={setPieceSet}
-        />
-
         <section className={`game-layout ${reviewMode ? 'review-page-layout' : ''}`}>
           <GameBoard
             blackName={blackName}
