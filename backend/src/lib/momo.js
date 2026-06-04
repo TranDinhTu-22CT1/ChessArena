@@ -11,8 +11,8 @@ export const MOMO_AMOUNTS = {
 
 function momoConfig() {
   return {
-    accessKey: process.env.MOMO_ACCESS_KEY || '',
-    secretKey: process.env.MOMO_SECRET_KEY || '',
+    accessKey: process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85',
+    secretKey: process.env.MOMO_SECRET_KEY || 'K951B6PE1waDMi640xX08PD3vg6EkVlz',
     partnerCode: process.env.MOMO_PARTNER_CODE || 'MOMO',
     partnerName: process.env.MOMO_PARTNER_NAME || 'ChessArena',
     storeId: process.env.MOMO_STORE_ID || 'ChessArenaStore',

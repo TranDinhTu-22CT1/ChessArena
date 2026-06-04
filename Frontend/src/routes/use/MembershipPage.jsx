@@ -121,6 +121,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const [planHealth, setPlanHealth] = React.useState(null);
   const [checkoutLoading, setCheckoutLoading] = React.useState(false);
   const [momoLoading, setMomoLoading] = React.useState(false);
+  const [paymentMethod, setPaymentMethod] = React.useState('momo');
   const currentTier = activeTier(membership);
 
   React.useEffect(() => {
@@ -178,6 +179,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
 
   const checkoutPlan = checkoutTier ? PLAN_COPY[checkoutTier] : null;
   const checkoutPrice = checkoutTier ? prices[checkoutTier][cycle] : null;
+  const checkoutMomoPrice = checkoutTier ? MOMO_PRICES[checkoutTier]?.[cycle] : 0;
   const checkoutPlanId = checkoutTier ? planIdFor(checkoutTier, cycle) : '';
   const planHealthNote = checkoutTier ? planHealthMessage(checkoutPlanId, planHealth, checkoutPrice?.currency || PAYPAL_CURRENCY) : '';
   const checkoutBlocked = !checkoutPlanId
@@ -275,7 +277,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
 
         <section className="membership-payment-shell">
           <div className="membership-payment-summary">
-            <span><CreditCard size={18} /> Thanh toán PayPal Sandbox</span>
+            <span><CreditCard size={18} /> Thanh toán Sandbox</span>
             <div className="membership-payment-title">
               <Icon size={34} />
               <div>
@@ -284,14 +286,14 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
               </div>
             </div>
             <strong className="membership-price payment-price">
-              {currency(checkoutPrice)}
-              <small>{checkoutPrice?.value ? `/${cycle === 'monthly' ? 'tháng' : 'năm'}` : ''}</small>
+              {paymentMethod === 'momo' ? vnd(checkoutMomoPrice) : currency(checkoutPrice)}
+              <small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small>
             </strong>
             <div className="membership-payment-meta">
               <span>Plan ID: <b>{checkoutPlanId || 'Chưa cấu hình'}</b></span>
               <span>Currency: <b>{checkoutPrice?.currency || PAYPAL_CURRENCY}</b></span>
               <span>Status: <b>{planHealth?.plan?.status || checkoutPrice?.status || 'Đang kiểm tra'}</b></span>
-              <span>MoMo: <b>{vnd(MOMO_PRICES[checkoutTier]?.[cycle])}</b></span>
+              <span>MoMo: <b>{vnd(checkoutMomoPrice)}</b></span>
             </div>
             {planHealthNote && <p className="membership-config-note">{planHealthNote}</p>}
             {!checkoutPrice?.value && <p className="membership-config-note">Không hiển thị giá fallback để tránh sai tiền. Backend phải đọc được giá thật từ PayPal plan trước khi thanh toán.</p>}
@@ -305,7 +307,12 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           <div className="membership-payment-card">
             <span>Hoàn tất đăng ký</span>
             <h2>{checkoutPlan.title} - {cycle === 'monthly' ? 'theo tháng' : 'theo năm'}</h2>
-            <p>Nút này tạo subscription từ backend bằng server credential rồi chuyển sang trang approve của PayPal. Nếu lỗi, backend sẽ trả đúng lý do PayPal từ chối.</p>
+            <p>Chọn MoMo hoặc PayPal Sandbox. Backend sẽ tạo phiên thanh toán, ký bảo mật ở server và chuyển bạn sang trang thanh toán tương ứng.</p>
+            <div className="membership-payment-methods" aria-label="Phương thức thanh toán">
+              <button className={paymentMethod === 'momo' ? 'active' : ''} type="button" onClick={() => setPaymentMethod('momo')}>MoMo</button>
+              <button className={paymentMethod === 'paypal' ? 'active' : ''} type="button" onClick={() => setPaymentMethod('paypal')}>PayPal</button>
+            </div>
+            {paymentMethod === 'paypal' && (
             <button
               className="membership-paypal-primary"
               onClick={startServerCheckout}
@@ -314,14 +321,17 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
               <CreditCard size={18} />
               {checkoutLoading ? 'Đang mở PayPal...' : 'Sang trang thanh toán PayPal'}
             </button>
+            )}
+            {paymentMethod === 'momo' && (
             <button
               className="membership-momo-primary"
               onClick={startMomoCheckout}
               disabled={momoLoading}
             >
               <CreditCard size={18} />
-              {momoLoading ? 'Đang mở MoMo...' : `Thanh toán MoMo ${vnd(MOMO_PRICES[checkoutTier]?.[cycle])}`}
+              {momoLoading ? 'Đang mở MoMo...' : `Thanh toán MoMo ${vnd(checkoutMomoPrice)}`}
             </button>
+            )}
             <p className="membership-config-note">MoMo dùng môi trường test và sẽ tự kích hoạt gói khi MoMo trả `resultCode=0` với chữ ký hợp lệ.</p>
             {message && <p className="membership-message">{message}</p>}
           </div>

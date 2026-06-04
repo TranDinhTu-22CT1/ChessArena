@@ -1,114 +1,189 @@
 import React from 'react';
-import { BookOpen, CheckCircle2, Crown, Flag, Shield, Sparkles, Target } from 'lucide-react';
+import { Chess } from 'chess.js';
+import { BookOpen, Brain, CheckCircle2, RotateCcw, Sparkles, Target } from 'lucide-react';
+import { requestStockfishMove } from '../../api/stockfish';
+import { getPieceImage } from '../../game/pieces';
 
-const PIECES = [
-  { piece: '♔', name: 'Vua', move: 'Đi 1 ô theo mọi hướng.', note: 'Phải luôn được bảo vệ. Nếu vua bị chiếu hết thì thua.' },
-  { piece: '♕', name: 'Hậu', move: 'Đi ngang, dọc, chéo tùy số ô.', note: 'Quân mạnh nhất, thường dùng để tấn công và phối hợp chiếu hết.' },
-  { piece: '♖', name: 'Xe', move: 'Đi ngang hoặc dọc tùy số ô.', note: 'Mạnh ở cột mở, hàng ngang và cuối ván.' },
-  { piece: '♗', name: 'Tượng', move: 'Đi chéo tùy số ô.', note: 'Tượng chỉ ở cùng màu ô từ đầu đến cuối ván.' },
-  { piece: '♘', name: 'Mã', move: 'Đi hình chữ L: 2 ô một hướng rồi 1 ô vuông góc.', note: 'Có thể nhảy qua quân khác.' },
-  { piece: '♙', name: 'Tốt', move: 'Đi thẳng 1 ô, nước đầu có thể đi 2 ô; ăn chéo 1 ô.', note: 'Tốt tới hàng cuối sẽ được phong cấp thành hậu/xe/tượng/mã.' }
+const LESSONS = [
+  {
+    id: 'opening',
+    title: 'Ván đầu tiên',
+    fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    text: 'Mục tiêu đầu ván là chiếm trung tâm, phát triển mã/tượng và nhập thành sớm.'
+  },
+  {
+    id: 'knight',
+    title: 'Mã đi chữ L',
+    fen: '8/8/8/8/3N4/8/8/4K3 w - - 0 1',
+    text: 'Mã nhảy qua quân khác. Bấm quân mã ở d4 để xem toàn bộ ô nó có thể tới.'
+  },
+  {
+    id: 'pawn',
+    title: 'Tốt đi và ăn quân',
+    fen: '8/8/8/3pP3/8/8/8/4K3 w - d6 0 1',
+    text: 'Tốt đi thẳng nhưng ăn chéo. Ở thế này tốt trắng còn có thể bắt tốt qua đường nếu hợp lệ.'
+  },
+  {
+    id: 'castle',
+    title: 'Nhập thành',
+    fen: 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1',
+    text: 'Nhập thành giúp vua an toàn và đưa xe vào cuộc. Bấm vua để thấy ô nhập thành.'
+  }
 ];
 
-const MOVE_RULES = [
-  'Mỗi lượt chỉ đi một quân, trừ nhập thành.',
-  'Không được đi nước khiến vua của mình bị chiếu.',
-  'Ăn quân bằng cách đi tới ô quân đối phương đang đứng, riêng tốt ăn chéo.',
-  'Chiếu là khi vua bị tấn công; người bị chiếu phải hóa giải ngay.',
-  'Chiếu hết là khi vua bị chiếu và không còn nước hợp lệ để thoát.',
-  'Hòa có thể xảy ra khi hết nước hợp lệ nhưng không bị chiếu, lặp lại thế cờ, hoặc thiếu lực chiếu hết.'
-];
+const PIECE_NAMES = {
+  k: 'Vua',
+  q: 'Hậu',
+  r: 'Xe',
+  b: 'Tượng',
+  n: 'Mã',
+  p: 'Tốt'
+};
 
-const FIRST_GAME_STEPS = [
-  'Đưa tốt trung tâm lên để mở đường cho quân.',
-  'Phát triển mã và tượng ra khỏi hàng cuối.',
-  'Nhập thành sớm để vua an toàn.',
-  'Không đưa hậu ra quá sớm nếu chưa có kế hoạch rõ.',
-  'Trước khi đi, tự hỏi: quân của mình có đang bị ăn không và nước này có tạo đe dọa không.'
-];
+function squareAt(row, col) {
+  return `${'abcdefgh'[col]}${8 - row}`;
+}
 
-function MiniBoard({ type }) {
-  const marks = {
-    king: [3, 4, 5, 11, 13, 19, 20, 21],
-    queen: [3, 11, 19, 24, 25, 26, 27, 28, 29, 30, 31, 35, 43, 51, 59],
-    knight: [9, 11, 18, 22, 34, 38, 45, 47],
-    pawn: [20, 27, 29]
-  }[type] || [];
-
-  return (
-    <div className="guide-mini-board" aria-hidden="true">
-      {Array.from({ length: 64 }).map((_, index) => (
-        <span className={marks.includes(index) ? 'marked' : ''} key={index}>
-          {index === 28 ? '♙' : ''}
-        </span>
-      ))}
-    </div>
-  );
+function moveLabel(move) {
+  if (!move) return '';
+  return `${move.from}-${move.to}${move.promotion ? `=${move.promotion.toUpperCase()}` : ''}`;
 }
 
 export default function BeginnerGuidePage({ onNavigate }) {
+  const [lessonId, setLessonId] = React.useState('opening');
+  const lesson = LESSONS.find((item) => item.id === lessonId) || LESSONS[0];
+  const [game, setGame] = React.useState(() => new Chess(lesson.fen));
+  const [selected, setSelected] = React.useState('');
+  const [legalTargets, setLegalTargets] = React.useState([]);
+  const [lastMove, setLastMove] = React.useState(null);
+  const [engineMove, setEngineMove] = React.useState(null);
+  const [engineStatus, setEngineStatus] = React.useState('');
+
+  React.useEffect(() => {
+    setGame(new Chess(lesson.fen));
+    setSelected('');
+    setLegalTargets([]);
+    setLastMove(null);
+    setEngineMove(null);
+    setEngineStatus('');
+  }, [lesson.fen]);
+
+  const selectSquare = (square) => {
+    const piece = game.get(square);
+    if (selected && legalTargets.includes(square)) {
+      const next = new Chess(game.fen());
+      const played = next.move({ from: selected, to: square, promotion: 'q' });
+      if (played) {
+        setGame(next);
+        setLastMove({ from: played.from, to: played.to, san: played.san });
+        setSelected('');
+        setLegalTargets([]);
+        setEngineMove(null);
+        setEngineStatus(`${played.san}: nước đi hợp lệ.`);
+        return;
+      }
+    }
+
+    if (!piece || piece.color !== game.turn()) {
+      setSelected('');
+      setLegalTargets([]);
+      return;
+    }
+
+    const moves = game.moves({ square, verbose: true });
+    setSelected(square);
+    setLegalTargets(moves.map((move) => move.to));
+    setEngineStatus(`${PIECE_NAMES[piece.type]} ở ${square} có ${moves.length} nước hợp lệ.`);
+  };
+
+  const resetLesson = () => {
+    setGame(new Chess(lesson.fen));
+    setSelected('');
+    setLegalTargets([]);
+    setLastMove(null);
+    setEngineMove(null);
+    setEngineStatus('');
+  };
+
+  const askStockfish = async () => {
+    setEngineStatus('Stockfish đang phân tích thế cờ...');
+    setEngineMove(null);
+    try {
+      const move = await requestStockfishMove(game.fen(), 1600, { variant: 'standard' }, 7000);
+      setEngineMove(move);
+      setEngineStatus(`Stockfish gợi ý: ${moveLabel(move)}. Bấm quân ở ${move.from} rồi đi tới ${move.to} để thử.`);
+    } catch (error) {
+      setEngineStatus(error.message || 'Không lấy được gợi ý Stockfish.');
+    }
+  };
+
   return (
     <section className="beginner-guide-page">
       <header className="beginner-guide-hero">
         <div>
           <span><BookOpen size={18} /> Hướng dẫn người mới</span>
-          <h1>Học cách đi quân trước khi vào ván</h1>
-          <p>Nắm luật cơ bản, cách từng quân di chuyển và các bước khai cuộc đơn giản để chơi ván đầu tiên tự tin hơn.</p>
+          <h1>Học trên bàn cờ thật</h1>
+          <p>Chọn bài học, bấm quân trên bàn để xem nước hợp lệ, đi thử nước và dùng Stockfish để nhận gợi ý như một huấn luyện viên cơ bản.</p>
         </div>
         <button onClick={() => onNavigate?.('bot')}><Sparkles size={18} /> Luyện với bot</button>
       </header>
 
-      <section className="guide-section">
-        <div className="guide-section-title">
-          <Crown size={22} />
-          <h2>Từng quân đi như thế nào</h2>
-        </div>
-        <div className="guide-piece-grid">
-          {PIECES.map((item) => (
-            <article className="guide-piece-card" key={item.name}>
-              <b>{item.piece}</b>
-              <div>
-                <h3>{item.name}</h3>
-                <strong>{item.move}</strong>
-                <p>{item.note}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="guide-section guide-board-patterns">
-        <div className="guide-section-title">
-          <Target size={22} />
-          <h2>Nhìn mẫu nước đi</h2>
-        </div>
-        <div className="guide-board-grid">
-          <article><MiniBoard type="king" /><strong>Vua</strong><span>Đi quanh 8 ô liền kề nếu ô đó an toàn.</span></article>
-          <article><MiniBoard type="queen" /><strong>Hậu</strong><span>Kết hợp sức mạnh của xe và tượng.</span></article>
-          <article><MiniBoard type="knight" /><strong>Mã</strong><span>Nhảy chữ L, rất mạnh khi đứng gần trung tâm.</span></article>
-          <article><MiniBoard type="pawn" /><strong>Tốt</strong><span>Đi thẳng, ăn chéo, có thể đi 2 ô ở nước đầu.</span></article>
-        </div>
-      </section>
-
-      <section className="guide-two-column">
-        <div className="guide-section">
+      <section className="guide-live-layout">
+        <aside className="guide-live-panel">
           <div className="guide-section-title">
-            <Shield size={22} />
-            <h2>Luật cần nhớ</h2>
+            <Target size={22} />
+            <h2>Bài học</h2>
+          </div>
+          <div className="guide-lesson-tabs">
+            {LESSONS.map((item) => (
+              <button className={item.id === lessonId ? 'active' : ''} onClick={() => setLessonId(item.id)} key={item.id}>
+                {item.title}
+              </button>
+            ))}
+          </div>
+          <p>{lesson.text}</p>
+          <div className="guide-action-row">
+            <button onClick={askStockfish}><Brain size={17} /> Gợi ý Stockfish</button>
+            <button onClick={resetLesson}><RotateCcw size={17} /> Đặt lại</button>
+          </div>
+          <div className="guide-status">
+            <strong>{game.turn() === 'w' ? 'Trắng' : 'Đen'} tới lượt</strong>
+            <span>{engineStatus || 'Bấm một quân cùng màu tới lượt để xem cách đi.'}</span>
+            {lastMove && <small>Nước vừa đi: {lastMove.san} ({lastMove.from}-{lastMove.to})</small>}
           </div>
           <ul className="guide-check-list">
-            {MOVE_RULES.map((rule) => <li key={rule}><CheckCircle2 size={17} /> {rule}</li>)}
+            <li><CheckCircle2 size={17} /> Ô xanh là nước đi hợp lệ của quân đang chọn.</li>
+            <li><CheckCircle2 size={17} /> Mũi tên vàng là nước Stockfish đang gợi ý.</li>
+            <li><CheckCircle2 size={17} /> Nếu đi sai luật, bàn cờ sẽ không nhận nước đó.</li>
           </ul>
-        </div>
+        </aside>
 
-        <div className="guide-section">
-          <div className="guide-section-title">
-            <Flag size={22} />
-            <h2>Checklist ván đầu</h2>
+        <div className="guide-real-board-wrap">
+          <div className="guide-real-board" aria-label="Bàn cờ hướng dẫn tương tác">
+            {Array.from({ length: 8 }).map((_, row) => (
+              Array.from({ length: 8 }).map((__, col) => {
+                const square = squareAt(row, col);
+                const piece = game.get(square);
+                const isDark = (row + col) % 2 === 1;
+                const isSelected = selected === square;
+                const isTarget = legalTargets.includes(square);
+                const isLast = lastMove && (lastMove.from === square || lastMove.to === square);
+                const isEngineFrom = engineMove?.from === square;
+                const isEngineTo = engineMove?.to === square;
+                return (
+                  <button
+                    className={`guide-square ${isDark ? 'dark' : 'light'} ${isSelected ? 'selected' : ''} ${isTarget ? 'target' : ''} ${isLast ? 'last' : ''} ${isEngineFrom ? 'engine-from' : ''} ${isEngineTo ? 'engine-to' : ''}`}
+                    key={square}
+                    onClick={() => selectSquare(square)}
+                    aria-label={square}
+                  >
+                    {piece && <img src={getPieceImage('neo', `${piece.color}${piece.type}`)} alt={`${PIECE_NAMES[piece.type]} ${piece.color}`} draggable="false" />}
+                    {(row === 7 || col === 0) && <span>{row === 7 ? square[0] : square[1]}</span>}
+                  </button>
+                );
+              })
+            ))}
           </div>
-          <ol className="guide-number-list">
-            {FIRST_GAME_STEPS.map((step) => <li key={step}>{step}</li>)}
-          </ol>
         </div>
       </section>
     </section>
