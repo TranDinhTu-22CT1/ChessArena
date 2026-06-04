@@ -60,6 +60,74 @@ const PIECE_NAMES = {
   p: 'Tốt'
 };
 
+const RULE_SECTIONS = [
+  {
+    title: 'Mục tiêu',
+    items: [
+      'Mục tiêu của cờ vua là chiếu hết vua đối phương.',
+      'Chiếu hết nghĩa là vua đang bị tấn công và không còn nước hợp lệ nào để thoát.',
+      'Không bao giờ được đi một nước khiến vua của mình bị chiếu.'
+    ]
+  },
+  {
+    title: 'Bàn cờ và setup',
+    items: [
+      'Bàn cờ có 64 ô, gồm 8 hàng ngang và 8 cột dọc.',
+      'Khi nhìn từ phía Trắng, ô góc dưới bên phải phải là ô sáng.',
+      'Hậu đứng trên ô cùng màu với mình: hậu Trắng ở ô sáng, hậu Đen ở ô tối.',
+      'Trắng luôn đi trước, sau đó hai bên luân phiên mỗi bên một nước.'
+    ]
+  },
+  {
+    title: 'Cách đi quân',
+    items: [
+      'Vua đi 1 ô theo mọi hướng.',
+      'Hậu đi ngang, dọc, chéo bao nhiêu ô cũng được nếu không bị chặn.',
+      'Xe đi ngang hoặc dọc. Tượng đi chéo. Mã đi chữ L và có thể nhảy qua quân.',
+      'Tốt đi thẳng 1 ô, nước đầu có thể đi 2 ô nếu đường trống; tốt ăn chéo 1 ô.'
+    ]
+  },
+  {
+    title: 'Ăn quân',
+    items: [
+      'Trừ tốt, hầu hết quân ăn theo đúng cách nó di chuyển.',
+      'Khi ăn quân, quân của bạn đi tới ô quân đối phương đang đứng và quân đối phương rời bàn cờ.',
+      'Không được ăn quân của chính mình và không được đi xuyên qua quân khác, ngoại trừ mã.'
+    ]
+  },
+  {
+    title: 'Chiếu và thoát chiếu',
+    items: [
+      'Chiếu là khi vua đang bị một quân đối phương tấn công.',
+      'Khi bị chiếu, bạn phải xử lý ngay bằng cách di chuyển vua, chặn đường chiếu, hoặc ăn quân đang chiếu.',
+      'Nếu không có cách xử lý hợp lệ, đó là chiếu hết và ván cờ kết thúc.'
+    ]
+  },
+  {
+    title: 'Nước đặc biệt',
+    items: [
+      'Nhập thành: vua đi 2 ô về phía xe, xe nhảy qua đứng cạnh vua. Chỉ được nhập thành khi vua/xe chưa đi, đường trống, vua không bị chiếu và không đi qua ô bị kiểm soát.',
+      'Phong cấp: tốt tới hàng cuối sẽ đổi thành hậu, xe, tượng hoặc mã. Thường chọn hậu.',
+      'Bắt tốt qua đường: nếu tốt đối phương vừa đi 2 ô và đi ngang qua ô tốt của bạn có thể ăn, bạn chỉ được bắt ngay ở lượt kế tiếp.'
+    ]
+  },
+  {
+    title: 'Hòa và kết thúc ván',
+    items: [
+      'Thắng bằng chiếu hết, đối phương đầu hàng, hoặc đối phương hết giờ trong ván có đồng hồ.',
+      'Hòa khi hết nước hợp lệ nhưng vua không bị chiếu. Trường hợp này gọi là hết nước đi hay stalemate.',
+      'Ván cũng có thể hòa do thỏa thuận, lặp lại thế cờ, luật 50 nước, hoặc không đủ lực chiếu hết.'
+    ]
+  }
+];
+
+const LEARNING_PATH = [
+  'Đọc mục tiêu và setup trước.',
+  'Học từng quân bằng các bài nhỏ ở trên.',
+  'Sau khi hiểu cách đi quân, học chiếu, chiếu hết và thoát chiếu.',
+  'Cuối cùng mới học nhập thành, phong cấp, bắt tốt qua đường và các kiểu hòa.'
+];
+
 function moveLabel(move) {
   if (!move) return '';
   return `${move.from}-${move.to}${move.promotion ? `=${move.promotion.toUpperCase()}` : ''}`;
@@ -233,6 +301,36 @@ export default function BeginnerGuidePage({ onNavigate }) {
             {hintFrom && hintTo && <GuideArrow from={hintFrom} to={hintTo} />}
           </div>
         </div>
+      </section>
+
+      <section className="guide-rules-section">
+        <div className="guide-section-title">
+          <BookOpen size={22} />
+          <h2>Bộ luật cờ vua cho người mới</h2>
+        </div>
+        <p className="guide-rules-intro">
+          Phần này viết theo thứ tự dễ học: biết mục tiêu trước, hiểu bàn cờ, học cách đi quân, rồi mới tới luật đặc biệt và cách kết thúc ván.
+        </p>
+        <div className="guide-rules-grid">
+          {RULE_SECTIONS.map((section) => (
+            <article className="guide-rule-card" key={section.title}>
+              <h3>{section.title}</h3>
+              <ul>
+                {section.items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="guide-learning-path">
+        <div>
+          <span><Target size={18} /> Lộ trình học đề xuất</span>
+          <h2>Đừng học tất cả cùng lúc</h2>
+        </div>
+        <ol>
+          {LEARNING_PATH.map((item) => <li key={item}>{item}</li>)}
+        </ol>
       </section>
     </section>
   );
