@@ -179,6 +179,16 @@ export async function fetchAdminConfig() {
   return readJson(response);
 }
 
+export async function updateTestAdminAccess(granted = true) {
+  const response = await fetch(apiUrl('/api/admin/test-access'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify({ granted })
+  });
+  return readJson(response);
+}
+
 export async function fetchPayPalDiagnostics() {
   const response = await fetch(apiUrl('/api/admin/paypal/diagnostics'), { credentials: 'include' });
   return readJson(response);

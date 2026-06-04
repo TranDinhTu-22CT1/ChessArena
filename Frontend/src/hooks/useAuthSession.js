@@ -9,6 +9,7 @@ import {
   googleProvider,
   GoogleAuthProvider,
   linkWithCredential,
+  signInWithCustomToken,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut
@@ -37,6 +38,10 @@ function validateAuthForm(mode, form) {
   if (mode === 'register' && !form.displayName.trim()) return 'Vui lòng nhập tên hiển thị.';
 
   return '';
+}
+
+function isBuiltInTestUser(email, password) {
+  return String(email || '').trim().toLowerCase() === 'test@gmail.com' && String(password || '') === '123456';
 }
 
 export function useAuthSession() {
@@ -288,7 +293,21 @@ export function useAuthSession() {
         return;
       }
 
-      const credential = await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
+      const credential = isBuiltInTestUser(authForm.email, authForm.password)
+        ? await fetch(apiUrl('/api/auth/test-login'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authForm.email, password: authForm.password })
+        })
+          .then(async (response) => {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.ok === false) {
+              throw new Error(data.error || 'Khong the dang nhap tai khoan test.');
+            }
+            return signInWithCustomToken(auth, data.customToken);
+          })
+        : await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
       await createBackendSession(credential.user);
     } catch (error) {
       setAuthError(formatAuthError(error));

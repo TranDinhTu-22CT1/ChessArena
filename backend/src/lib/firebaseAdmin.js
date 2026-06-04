@@ -78,6 +78,31 @@ export async function createVerifiedFirebaseUser({ email, password, displayName 
   });
 }
 
+export async function ensureVerifiedFirebaseUser({ email, password, displayName }) {
+  const firebaseAdmin = getFirebaseAdmin();
+  const existing = await firebaseUserExists(email);
+
+  if (!existing) {
+    return firebaseAdmin.auth().createUser({
+      email,
+      password,
+      displayName,
+      emailVerified: true
+    });
+  }
+
+  return firebaseAdmin.auth().updateUser(existing.uid, {
+    password,
+    displayName,
+    emailVerified: true
+  });
+}
+
+export async function createFirebaseCustomToken(uid) {
+  const firebaseAdmin = getFirebaseAdmin();
+  return firebaseAdmin.auth().createCustomToken(uid);
+}
+
 export async function updateFirebaseUserPassword(email, password) {
   const user = await firebaseUserExists(email);
   if (!user) return null;

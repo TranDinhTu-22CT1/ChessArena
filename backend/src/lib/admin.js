@@ -5,6 +5,21 @@ import { authCookieOptions } from './cookies';
 
 const ADMIN_SESSION_COOKIE = 'admin_session_token';
 const ADMIN_SESSION_MAX_AGE = 60 * 60;
+const TEST_ADMIN_EMAIL = 'admintest@gmail.com';
+
+function testAdminStore() {
+  if (!globalThis.__chessTestAdminAccess) {
+    globalThis.__chessTestAdminAccess = {
+      granted: process.env.ADMIN_TEST_ACCESS_GRANTED === 'true'
+    };
+  }
+  return globalThis.__chessTestAdminAccess;
+}
+
+function testAdminEnabled() {
+  if (process.env.NODE_ENV === 'production') return process.env.ENABLE_TEST_ACCOUNTS === 'true';
+  return process.env.ENABLE_TEST_ACCOUNTS !== 'false';
+}
 
 function adminEmails() {
   return String(process.env.ADMIN_ROOT_EMAILS || '')
@@ -47,6 +62,19 @@ function activeBanFilter(query) {
 
 function adminIdentityFromEmail(value) {
   const email = String(value || '').trim().toLowerCase();
+  if (email === TEST_ADMIN_EMAIL && testAdminEnabled() && testAdminStore().granted) {
+    return {
+      id: null,
+      email,
+      role: 'owner',
+      permissions: ['*'],
+      username: 'admintest',
+      displayName: 'Admin Test',
+      photoURL: null,
+      isTestAdmin: true
+    };
+  }
+
   const roots = adminEmails();
   if (!email || !roots.includes(email)) return null;
   return {
@@ -56,7 +84,8 @@ function adminIdentityFromEmail(value) {
     permissions: ['*'],
     username: email.split('@')[0],
     displayName: 'Admin',
-    photoURL: null
+    photoURL: null,
+    isTestAdmin: false
   };
 }
 
@@ -177,6 +206,26 @@ export async function requireAdminCsrf(request, context) {
 export async function clearAdminSessionCookie() {
   const cookieStore = await cookies();
   cookieStore.set(ADMIN_SESSION_COOKIE, '', authCookieOptions(0));
+}
+
+export function adminTestAccessStatus() {
+  return {
+    email: TEST_ADMIN_EMAIL,
+    enabled: testAdminEnabled(),
+    granted: testAdminEnabled() && testAdminStore().granted
+  };
+}
+
+export function grantTestAdminAccess() {
+  const store = testAdminStore();
+  store.granted = true;
+  return adminTestAccessStatus();
+}
+
+export function revokeTestAdminAccess() {
+  const store = testAdminStore();
+  store.granted = false;
+  return adminTestAccessStatus();
 }
 
 export async function writeAdminAudit(supabase, admin, action, metadata = {}) {

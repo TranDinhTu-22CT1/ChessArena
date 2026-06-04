@@ -110,6 +110,8 @@ export function adminActionLabel(action) {
     'admin.me': 'Admin kiểm tra phiên đăng nhập',
     'admin.login': 'Admin đăng nhập',
     'admin.logout': 'Admin đăng xuất',
+    'admin.test_access.grant': 'Admin cấp quyền tài khoản test',
+    'admin.test_access.revoke': 'Admin thu hồi quyền tài khoản test',
     'anti_cheat.scan': 'Admin quét gian lận',
     'anti_cheat.report_status': 'Admin đổi trạng thái báo cáo gian lận',
     'user.ban': 'Admin cấm người chơi',

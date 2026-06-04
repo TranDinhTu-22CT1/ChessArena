@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
-import { clearAdminSessionCookie, requireAdminCsrf, requireAdminUser, requireRootAdminIdentity, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
+import { clearAdminSessionCookie, requireAdminCsrf, requireAdminUser, requireRootAdminIdentity, revokeTestAdminAccess, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
+const TEST_ADMIN_EMAIL = 'admintest@gmail.com';
+const TEST_ADMIN_PASSWORD = '123456';
 
 function constantTimeEqual(left, right) {
   const a = Buffer.from(String(left || ''));
@@ -26,7 +28,7 @@ export async function POST(request) {
   const payload = await request.json().catch(() => ({}));
   const email = String(payload?.email || '').trim().toLowerCase();
   const password = String(payload?.password || '');
-  const expected = process.env.ADMIN_PANEL_PASSWORD || '';
+  const expected = email === TEST_ADMIN_EMAIL ? TEST_ADMIN_PASSWORD : process.env.ADMIN_PANEL_PASSWORD || '';
   if (!expected) {
     return Response.json({ ok: false, error: 'ADMIN_PANEL_PASSWORD is not configured.' }, { status: 503 });
   }
@@ -62,6 +64,7 @@ export async function DELETE(request) {
   const csrfError = await requireAdminCsrf(request, context);
   if (csrfError) return csrfError;
   await writeAdminAudit(context.supabase, context.admin, 'admin.logout');
+  if (context.admin?.isTestAdmin) revokeTestAdminAccess();
   await clearAdminSessionCookie();
   return Response.json({ ok: true });
 }

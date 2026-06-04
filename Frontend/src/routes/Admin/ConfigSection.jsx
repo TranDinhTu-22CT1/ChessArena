@@ -1,6 +1,14 @@
 import React from 'react';
 
-export default function ConfigSection({ config }) {
+export default function ConfigSection({
+  admin,
+  config,
+  testAdmin,
+  onGrantTestAdmin,
+  onRevokeTestAdmin
+}) {
+  const canManageTestAdmin = !admin?.isTestAdmin;
+
   return (
     <section className="admin-panel">
       <div className="admin-panel-head">
@@ -16,6 +24,26 @@ export default function ConfigSection({ config }) {
             <span>{Array.isArray(value) ? value.join(', ') : String(value)}</span>
           </div>
         ))}
+      </div>
+      <div className="admin-panel-head">
+        <div>
+          <span>Admin test</span>
+          <h2>{testAdmin?.email || 'admintest@gmail.com'}</h2>
+          <p>
+            Trang thai: {testAdmin?.granted ? 'da duoc cap quyen' : 'dang khoa'}
+            {testAdmin?.enabled ? '' : ' | test accounts dang tat'}
+          </p>
+        </div>
+        {canManageTestAdmin && (
+          <div className="admin-actions">
+            <button type="button" onClick={onGrantTestAdmin} disabled={!testAdmin?.enabled || testAdmin?.granted}>
+              Cap quyen
+            </button>
+            <button type="button" onClick={onRevokeTestAdmin} disabled={!testAdmin?.enabled || !testAdmin?.granted}>
+              Thu hoi
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-import { requireAdminPermission, requireAdminUser } from '../../../../lib/admin';
+import { adminTestAccessStatus, requireAdminPermission, requireAdminUser } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -22,9 +22,11 @@ export async function GET(request) {
       cookieSecure: process.env.COOKIE_SECURE === 'true',
       firebaseConfigured: Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL),
       supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      testAccountsEnabled: adminTestAccessStatus().enabled,
       adminSessionTtlSeconds: 3600,
       rateLimit: 'in-memory per deployment instance',
       realtimeTables: ['online_games', 'online_game_moves']
-    }
+    },
+    testAdmin: adminTestAccessStatus()
   });
 }

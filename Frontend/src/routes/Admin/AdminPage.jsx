@@ -37,6 +37,7 @@ import {
   scanUserAntiCheat,
   testPayPalSubscription,
   unlockAdmin,
+  updateTestAdminAccess,
   updateAdminBot,
   updateAdminEvent,
   updateAdminMatchStatus,
@@ -116,6 +117,7 @@ export default function AdminPage() {
   const [auditPage, setAuditPage] = React.useState(() => getUrlPage('page'));
   const [auditTotalPages, setAuditTotalPages] = React.useState(1);
   const [config, setConfig] = React.useState(null);
+  const [testAdmin, setTestAdmin] = React.useState(null);
   const [paypalDiagnostics, setPaypalDiagnostics] = React.useState(null);
   const [search, setSearch] = React.useState('');
   const [message, setMessage] = React.useState('');
@@ -221,7 +223,10 @@ export default function AdminPage() {
         setAuditLogs(auditData.logs || []);
         setAuditTotalPages(auditData.totalPages || 1);
       }
-      if (configData) setConfig(configData.config || null);
+      if (configData) {
+        setConfig(configData.config || null);
+        setTestAdmin(configData.testAdmin || null);
+      }
       setLoginRequired(false);
     } catch (error) {
       const text = error.message || 'Không thể tải trang quản trị.';
@@ -599,6 +604,18 @@ export default function AdminPage() {
     }
   };
 
+  const changeTestAdminAccess = async (granted) => {
+    try {
+      const data = await updateTestAdminAccess(granted);
+      setTestAdmin(data.testAdmin || null);
+      notify(granted ? 'Da cap quyen admin test.' : 'Da thu hoi quyen admin test.', 'success');
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
   if (loginRequired) {
     return (
       <AdminLogin
@@ -758,7 +775,15 @@ export default function AdminPage() {
             onPageChange={changeAuditPage}
           />
         )}
-        {section === 'config' && <ConfigSection config={config} />}
+        {section === 'config' && (
+          <ConfigSection
+            admin={admin}
+            config={config}
+            testAdmin={testAdmin}
+            onGrantTestAdmin={() => changeTestAdminAccess(true)}
+            onRevokeTestAdmin={() => changeTestAdminAccess(false)}
+          />
+        )}
       </section>
 
       <DetailModal selectedDetail={selectedDetail} onClose={() => setSelectedDetail(null)} />
