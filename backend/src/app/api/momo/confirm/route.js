@@ -4,6 +4,10 @@ import { momoAmount, readMomoExtraData, verifyMomoResultSignature } from '../../
 
 export const runtime = 'nodejs';
 
+function cleanTransactionId(payload) {
+  return String(payload?.transId || payload?.orderId || '').trim().slice(0, 160);
+}
+
 async function activateMomoMembership(supabase, payload) {
   const extra = readMomoExtraData(payload.extraData);
   if (!extra?.userId || !extra?.tier || !extra?.billingCycle) {
@@ -23,6 +27,29 @@ async function activateMomoMembership(supabase, payload) {
     return Response.json({ ok: false, error: 'Invalid MoMo signature.' }, { status: 400 });
   }
 
+  const transactionId = cleanTransactionId(payload);
+  if (!transactionId) {
+    return Response.json({ ok: false, error: 'Missing MoMo transaction id.' }, { status: 400 });
+  }
+
+  const { data: existingPayment, error: lookupError } = await supabase
+    .from('user_memberships')
+    .select('user_id, tier, billing_cycle, status, provider_subscription_id')
+    .eq('provider', 'momo')
+    .eq('provider_subscription_id', transactionId)
+    .maybeSingle();
+
+  if (lookupError) return Response.json({ ok: false, error: lookupError.message }, { status: 500 });
+  if (existingPayment) {
+    return Response.json({
+      ok: true,
+      idempotent: true,
+      tier: existingPayment.tier,
+      billingCycle: existingPayment.billing_cycle,
+      status: existingPayment.status
+    });
+  }
+
   const now = new Date();
   const currentPeriodEnd = new Date(now);
   currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + (extra.billingCycle === 'yearly' ? 12 : 1));
@@ -35,7 +62,7 @@ async function activateMomoMembership(supabase, payload) {
       status: 'active',
       billing_cycle: extra.billingCycle,
       provider: 'momo',
-      provider_subscription_id: String(payload.transId || payload.orderId || '').slice(0, 160),
+      provider_subscription_id: transactionId,
       provider_plan_id: `momo:${extra.tier}:${extra.billingCycle}`,
       started_at: now.toISOString(),
       current_period_end: currentPeriodEnd.toISOString(),

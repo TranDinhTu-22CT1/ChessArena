@@ -130,7 +130,7 @@ export async function fetchPayPalPlan(planId) {
   return data;
 }
 
-export async function verifyPayPalWebhook(headers, body) {
+export async function verifyPayPalWebhook(headers, body, event = null) {
   const webhookId = process.env.PAYPAL_WEBHOOK_ID;
   if (!webhookId) throw new Error('Missing PAYPAL_WEBHOOK_ID.');
 
@@ -148,7 +148,7 @@ export async function verifyPayPalWebhook(headers, body) {
       transmission_sig: headers.get('paypal-transmission-sig'),
       transmission_time: headers.get('paypal-transmission-time'),
       webhook_id: webhookId,
-      webhook_event: JSON.parse(body)
+      webhook_event: event || JSON.parse(body)
     })
   });
 

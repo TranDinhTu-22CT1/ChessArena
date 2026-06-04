@@ -37,10 +37,22 @@ export async function POST(request) {
 
   const body = await request.text();
   const headerStore = await headers();
-  const verified = await verifyPayPalWebhook(headerStore, body);
+  let event;
+  try {
+    event = JSON.parse(body);
+  } catch {
+    return Response.json({ ok: false, error: 'Invalid PayPal webhook payload.' }, { status: 400 });
+  }
+
+  let verified = false;
+  try {
+    verified = await verifyPayPalWebhook(headerStore, body, event);
+  } catch (error) {
+    console.warn('PayPal webhook verification failed:', error.message);
+    return Response.json({ ok: false, error: 'PayPal webhook verification failed.' }, { status: 502 });
+  }
   if (!verified) return Response.json({ ok: false, error: 'Invalid PayPal webhook signature.' }, { status: 401 });
 
-  const event = JSON.parse(body);
   const subscriptionId = resourceSubscriptionId(event);
   const status = statusFromEvent(event.event_type);
   if (!subscriptionId || !status) return Response.json({ ok: true, ignored: true });

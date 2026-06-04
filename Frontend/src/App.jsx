@@ -29,6 +29,7 @@ import {
   squareCenter
 } from './game/gameView';
 import AuthPage from './components/AuthPage';
+import AiCoachChat from './components/AiCoachChat';
 import GameBoard from './components/GameBoard';
 import MatchPanel from './components/MatchPanel';
 import ResultDialog from './components/ResultDialog';
@@ -1059,6 +1060,32 @@ export default function App() {
   const blackName = playerColor === 'b' ? userName : aiDisplayName;
   const whiteAvatarURL = playerColor === 'w' ? authUser?.photoURL : null;
   const blackAvatarURL = playerColor === 'b' ? authUser?.photoURL : null;
+  const aiCoachContext = React.useMemo(() => {
+    const safeGame = reviewMode ? displayGame : game;
+    const latestMove = history.at(-1);
+    const activeReview = currentReviewAnalysis || latestCoachAnalysis || null;
+
+    return {
+      route,
+      mode: gameMode,
+      fen: safeGame.fen(),
+      pgn: safeGame.pgn(),
+      turn: safeGame.turn(),
+      playerColor,
+      latestMove: latestMove ? `${latestMove.san || `${latestMove.from || ''}${latestMove.to || ''}`}` : '',
+      recentMoves: history.slice(-12).map((move, index) => {
+        const ply = history.length - Math.min(12, history.length) + index + 1;
+        return `${ply}. ${move.color === 'w' ? 'White' : 'Black'} ${move.san || `${move.from}${move.to}`}`;
+      }),
+      review: activeReview ? {
+        label: activeReview.label,
+        tone: activeReview.tone,
+        bestMove: activeReview.bestMove || activeReview.bestSan || '',
+        centipawnLoss: activeReview.centipawnLoss,
+        winLoss: activeReview.winLoss
+      } : null
+    };
+  }, [currentReviewAnalysis, displayGame, game, gameMode, history, latestCoachAnalysis, playerColor, reviewMode, route]);
 
   if (route === 'admin') {
     return (
@@ -1430,6 +1457,12 @@ export default function App() {
         </React.Suspense>
         )}
       </section>
+
+      <AiCoachChat
+        authUser={authUser}
+        context={aiCoachContext}
+        onLogin={() => setAuthMode('login')}
+      />
 
       {showResultDialog && (
         <ResultDialog

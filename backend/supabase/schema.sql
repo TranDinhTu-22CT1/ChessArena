@@ -1568,6 +1568,10 @@ on public.matchmaking_abuse_logs(user_id, created_at desc);
 create index if not exists idx_user_memberships_status
 on public.user_memberships(status, tier, updated_at desc);
 
+create index if not exists idx_user_memberships_provider_subscription
+on public.user_memberships(provider, provider_subscription_id)
+where provider_subscription_id is not null;
+
 create index if not exists idx_user_devices_fingerprint
 on public.user_devices(device_fingerprint, last_seen_at desc);
 
