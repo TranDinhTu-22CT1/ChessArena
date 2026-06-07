@@ -10,6 +10,7 @@ import { formatClock } from '../../game/gameView';
 import { hasPremium, membershipPlan } from '../../membership/plans';
 
 const SAVED_GAME_KEY = 'chessarena-pass-and-play-last-game';
+const LOCAL_STANDARD_PIECE_SET = 'neo';
 
 function squareName(row, column, flipped) {
   const rank = flipped ? row + 1 : 8 - row;
@@ -249,7 +250,7 @@ export default function LocalBoardPage({ pieceSet, theme, membership }) {
                   <span>Chọn thời gian và bắt đầu ván đấu.</span>
                 </div>
               )}
-              <div className={`local-chess-board piece-set-${pieceSet}`}>
+              <div className={`local-chess-board piece-set-${LOCAL_STANDARD_PIECE_SET}`}>
                 {Array.from({ length: 8 }).map((_, row) =>
                   Array.from({ length: 8 }).map((__, column) => {
                     const square = squareName(row, column, flipped);
@@ -267,7 +268,7 @@ export default function LocalBoardPage({ pieceSet, theme, membership }) {
                       >
                         {piece && (
                           <img
-                            src={getPieceImage(pieceSet, `${piece.color}${piece.type}`)}
+                            src={getPieceImage(LOCAL_STANDARD_PIECE_SET, `${piece.color}${piece.type}`)}
                             alt=""
                             draggable={started && !finished && piece.color === game.turn()}
                             onDragStart={(event) => {
@@ -286,7 +287,7 @@ export default function LocalBoardPage({ pieceSet, theme, membership }) {
                   <div className="local-promotion-picker">
                     {PROMOTION_PIECES.map((piece) => (
                       <button type="button" key={piece} onClick={() => commitMove(promotion.from, promotion.to, piece)}>
-                        <img src={getPieceImage(pieceSet, `${promotion.color}${piece}`)} alt={piece} />
+                        <img src={getPieceImage(LOCAL_STANDARD_PIECE_SET, `${promotion.color}${piece}`)} alt={piece} />
                       </button>
                     ))}
                   </div>

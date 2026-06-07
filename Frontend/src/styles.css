@@ -15674,6 +15674,7 @@ h2 {
   position: relative;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
   aspect-ratio: 1;
   width: 100%;
 }
