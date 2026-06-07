@@ -39,9 +39,23 @@ export function useMoveGuidance({
     let cancelled = false;
     const historyMoves = history.map((move) => `${move.from}${move.to}${move.promotion ?? ''}`);
 
-    requestStockfishMove(gameFen, aiElo, { moves: historyMoves, variant: gameVariant })
+    requestStockfishMove(gameFen, aiElo, {
+      moves: historyMoves,
+      variant: gameVariant,
+      fullStrength: true
+    })
       .then((bestMove) => {
         if (cancelled) return;
+        const legalMove = game.moves({ verbose: true }).some((move) => (
+          move.from === bestMove.from
+          && move.to === bestMove.to
+          && (move.promotion ?? '') === (bestMove.promotion ?? '')
+        ));
+        if (!legalMove) {
+          setSuggestionMove(null);
+          setThreatMove(null);
+          return;
+        }
         if (game.turn() === playerColor && suggestionArrows) {
           setSuggestionMove({ from: bestMove.from, to: bestMove.to });
           setThreatMove(null);

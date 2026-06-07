@@ -97,9 +97,26 @@ export async function POST(request, { params }) {
   const result = gameResult(chess);
   const now = new Date().toISOString();
 
-  const { error: insertError } = await supabase
-    .from('online_game_moves')
-    .insert({
+  const moveParams = {
+    p_game_id: game.id,
+    p_user_id: user.id,
+    p_expected_ply: nextPly,
+    p_expected_turn: playerColor,
+    p_san: played.san,
+    p_lan: lan,
+    p_from_square: played.from,
+    p_to_square: played.to,
+    p_promotion: played.promotion ?? null,
+    p_fen_after: chess.fen(),
+    p_pgn_after: chess.pgn(),
+    p_next_turn: chess.turn(),
+    p_next_status: nextStatus,
+    p_result: result
+  };
+  const atomicMove = await supabase.rpc('commit_online_move_v2', moveParams);
+  let updatedGame = atomicMove.data;
+  if (atomicMove.error?.code === 'PGRST202' || atomicMove.error?.code === 'PGRST203') {
+    const { error: insertError } = await supabase.from('online_game_moves').insert({
       game_id: game.id,
       ply: nextPly,
       user_id: user.id,
@@ -112,30 +129,36 @@ export async function POST(request, { params }) {
       fen_after: chess.fen(),
       created_at: now
     });
-
-  if (insertError) {
-    return Response.json({ ok: false, error: insertError.message }, { status: 409 });
-  }
-
-  const { data: updatedGame, error: updateError } = await supabase
-    .from('online_games')
-    .update({
-      status: nextStatus,
-      fen: chess.fen(),
-      pgn: chess.pgn(),
-      turn: chess.turn(),
-      result,
-      last_move_at: now,
-      finished_at: nextStatus === 'active' ? null : now,
-      updated_at: now
-    })
-    .eq('id', game.id)
-    .eq('turn', playerColor)
-    .select('*')
-    .single();
-
-  if (updateError) {
-    return Response.json({ ok: false, error: updateError.message }, { status: 409 });
+    if (insertError) {
+      return Response.json({ ok: false, error: insertError.message }, { status: 409 });
+    }
+    const legacyUpdate = await supabase
+      .from('online_games')
+      .update({
+        status: nextStatus,
+        fen: chess.fen(),
+        pgn: chess.pgn(),
+        turn: chess.turn(),
+        result,
+        last_move_at: now,
+        finished_at: nextStatus === 'active' ? null : now,
+        updated_at: now
+      })
+      .eq('id', game.id)
+      .eq('turn', playerColor)
+      .select('*')
+      .single();
+    if (legacyUpdate.error) {
+      return Response.json({ ok: false, error: legacyUpdate.error.message }, { status: 409 });
+    }
+    updatedGame = legacyUpdate.data;
+  } else if (atomicMove.error) {
+    return Response.json({
+      ok: false,
+      error: atomicMove.error.code === '40001'
+        ? 'The game changed before this move was committed. Refresh and try again.'
+        : atomicMove.error.message
+    }, { status: 409 });
   }
 
   const nextMoves = [

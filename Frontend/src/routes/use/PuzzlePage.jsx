@@ -1,7 +1,17 @@
 ﻿import React from 'react';
 import { Chess } from 'chess.js';
 import { CalendarDays, Check, Crown, Flame, Lock, Puzzle, Swords, Timer, Trophy, X, Zap } from 'lucide-react';
-import { checkPuzzleMove, recordPuzzleSession, requestPuzzle } from '../../api/puzzles';
+import {
+  answerPuzzleBattle,
+  cancelPuzzleBattle,
+  checkPuzzleMove,
+  fetchPuzzleBattle,
+  fetchPuzzleProgress,
+  joinPuzzleBattle,
+  recordPuzzleSession,
+  requestPuzzle,
+  savePuzzleProgress
+} from '../../api/puzzles';
 import { getPieceImage } from '../../game/pieces';
 import { squareName } from '../../game/chessLogic';
 import { formatLimit, hasPremium, membershipPlan } from '../../membership/plans';
@@ -75,7 +85,7 @@ function puzzleQuotaReached(plan, progress, mode) {
   return mode === 'rated' && Number.isFinite(plan.puzzleLimit) && puzzleUsage(progress) >= plan.puzzleLimit;
 }
 
-export default function PuzzlePage({ activeRoute, pieceSet, membership, onNavigate }) {
+export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser, onNavigate }) {
   const mode = ROUTE_MODES[activeRoute] ?? 'rated';
   const plan = membershipPlan(membership);
   const rushLocked = mode === 'rush' && !hasPremium(membership, 'plus');
@@ -102,6 +112,37 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
   const [streakActive, setStreakActive] = React.useState(false);
   const [streakScore, setStreakScore] = React.useState(0);
   const sessionStartedAtRef = React.useRef(null);
+  const progressLoadedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!authUser) {
+      progressLoadedRef.current = true;
+      return;
+    }
+    let cancelled = false;
+    fetchPuzzleProgress().then((data) => {
+      if (cancelled || !data.progress) return;
+      const dailySolved = Object.fromEntries((data.dailyClaims || []).filter((item) => item.solved_at).map((item) => [item.puzzle_date, true]));
+      setProgress((current) => ({
+        ...current,
+        ...data.progress,
+        dailySolved
+      }));
+    }).catch(() => {}).finally(() => {
+      progressLoadedRef.current = true;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
+
+  React.useEffect(() => {
+    if (!authUser || !progressLoadedRef.current) return undefined;
+    const timer = window.setTimeout(() => {
+      savePuzzleProgress(progress).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [authUser, progress]);
 
   const loadPuzzle = React.useCallback(async (nextMode = mode, additionalExcluded = []) => {
     if (nextMode === 'battle') return;
@@ -329,8 +370,9 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       return;
     }
 
-    const promotion = position.get(selected)?.type === 'p' && ['1', '8'].includes(square[1]) ? 'q' : undefined;
-    const lan = `${selected}${square}${promotion ?? ''}`;
+    const fromSquare = selected;
+    const promotion = position.get(fromSquare)?.type === 'p' && ['1', '8'].includes(square[1]) ? 'q' : undefined;
+    const lan = `${fromSquare}${square}${promotion ?? ''}`;
     setSelected(null);
     setTargets([]);
 
@@ -343,7 +385,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
       }
 
       const solvedPosition = new Chess(position.fen());
-      solvedPosition.move({ from: selected, to: square, promotion });
+      solvedPosition.move({ from: fromSquare, to: square, promotion });
       setPosition(solvedPosition);
       completePuzzle();
     } catch {
@@ -419,12 +461,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
             <button onClick={() => onNavigate('membership')}>Xem gói Premium</button>
           </section>
         ) : mode === 'battle' ? (
-          <section className="puzzle-unavailable">
-            <Swords size={42} />
-            <h2>Puzzle Battle cần đối thủ realtime</h2>
-            <p>Chế độ này cần ghép trận, đồng hồ đồng bộ và xác nhận điểm từ server. Hiện tại không tạo đối thủ giả để tránh kết quả sai.</p>
-            <button onClick={() => onNavigate('puzzle-rush')}>Chơi Puzzle Rush</button>
-          </section>
+          <PuzzleBattle pieceSet={pieceSet} authUser={authUser} />
         ) : (
           <section className={`puzzle-play-layout ${feedback?.correct ? 'puzzle-solved' : feedback && !feedback.correct ? 'puzzle-missed' : ''}`}>
             <PuzzleBoard
@@ -497,6 +534,162 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, onNaviga
           </section>
         )}
       </main>
+    </section>
+  );
+}
+
+function PuzzleBattle({ pieceSet, authUser }) {
+  const [battle, setBattle] = React.useState(null);
+  const [position, setPosition] = React.useState(null);
+  const [selected, setSelected] = React.useState(null);
+  const [targets, setTargets] = React.useState([]);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState('');
+
+  React.useEffect(() => {
+    if (!battle?.puzzle?.fen) {
+      setPosition(null);
+      return;
+    }
+    setPosition(new Chess(battle.puzzle.fen));
+    setSelected(null);
+    setTargets([]);
+  }, [battle?.puzzle?.id, battle?.puzzle?.fen]);
+
+  React.useEffect(() => {
+    if (!authUser || !battle?.id || battle.status === 'finished') return undefined;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const data = await fetchPuzzleBattle(battle.id);
+        if (!cancelled) setBattle(data.battle);
+      } catch {
+        // Keep the current board while a polling request is unavailable.
+      }
+    };
+    const interval = window.setInterval(refresh, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [authUser, battle?.id, battle?.status]);
+
+  const join = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const data = await joinPuzzleBattle();
+      setBattle(data.battle);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = async () => {
+    if (!battle?.id) return;
+    setBusy(true);
+    try {
+      await cancelPuzzleBattle(battle.id);
+      setBattle(null);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const playSquare = async (square) => {
+    if (!position || !battle?.puzzle || busy) return;
+    const piece = position.get(square);
+    if (!selected) {
+      if (piece?.color !== position.turn()) return;
+      setSelected(square);
+      setTargets(position.moves({ square, verbose: true }).map((move) => move.to));
+      return;
+    }
+    if (selected === square) {
+      setSelected(null);
+      setTargets([]);
+      return;
+    }
+    const move = position.moves({ square: selected, verbose: true }).find((item) => item.to === square);
+    setSelected(null);
+    setTargets([]);
+    if (!move) return;
+    setBusy(true);
+    try {
+      const lan = `${move.from}${move.to}${move.promotion || ''}`;
+      const data = await answerPuzzleBattle(battle.id, lan);
+      setMessage(data.correct ? 'Chính xác. Đã chuyển sang câu tiếp theo.' : 'Chưa đúng. Đã chuyển sang câu tiếp theo.');
+      setBattle(data.battle);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!authUser) {
+    return <section className="puzzle-unavailable"><Swords size={42} /><h2>Đăng nhập để chơi Puzzle Battle</h2></section>;
+  }
+  if (!battle) {
+    return (
+      <section className="puzzle-unavailable">
+        <Swords size={42} />
+        <h2>Puzzle Battle realtime</h2>
+        <p>Hai người giải cùng một bộ câu đố. Server xác nhận từng nước đi và chốt điểm.</p>
+        <button type="button" disabled={busy} onClick={join}>{busy ? 'Đang tìm...' : 'Tìm đối thủ'}</button>
+        {message && <small>{message}</small>}
+      </section>
+    );
+  }
+  if (battle.status === 'waiting') {
+    return (
+      <section className="puzzle-unavailable">
+        <Swords size={42} />
+        <h2>Đang chờ đối thủ</h2>
+        <p>Phòng #{String(battle.id).slice(0, 8)}</p>
+        <button type="button" disabled={busy} onClick={cancel}>Hủy tìm</button>
+      </section>
+    );
+  }
+  if (battle.status === 'finished') {
+    return (
+      <section className="puzzle-unavailable">
+        <Trophy size={42} />
+        <h2>{battle.winnerUserId === null ? 'Trận hòa' : battle.won ? 'Bạn thắng' : 'Đối thủ thắng'}</h2>
+        <p>{battle.score} - {battle.opponentScore}</p>
+        <button type="button" onClick={() => setBattle(null)}>Chơi trận mới</button>
+      </section>
+    );
+  }
+  if (!battle.puzzle || !position) {
+    return (
+      <section className="puzzle-unavailable">
+        <Timer size={42} />
+        <h2>Đã hoàn thành phần của bạn</h2>
+        <p>Điểm hiện tại: {battle.score} - {battle.opponentScore}. Đang chờ đối thủ.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="puzzle-play-layout puzzle-battle-live">
+      <PuzzleBoard
+        position={position}
+        flipped={position.turn() === 'b'}
+        pieceSet={pieceSet}
+        selected={selected}
+        targets={targets}
+        onSelectSquare={playSquare}
+      />
+      <aside className="puzzle-panel">
+        <span>Puzzle Battle</span>
+        <h2>{battle.score} - {battle.opponentScore}</h2>
+        <p>Câu {battle.index + 1}/{battle.total} | Rating {battle.puzzle.rating}</p>
+        <p>{message || 'Tìm nước đi tốt nhất.'}</p>
+      </aside>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { requireAdminPermission, requireAdminUser } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -95,7 +96,7 @@ export async function GET(request) {
       .select('id, username, display_name, email')
       .in('id', targetIds)
     : { data: [] };
-  const userById = new Map(targetUsers.map((user) => [user.id, user]));
+  const userById = new Map(safeArray(targetUsers).map((user) => [user.id, user]));
 
   return Response.json({
     ok: true,

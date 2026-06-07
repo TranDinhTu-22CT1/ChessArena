@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { verifyPayPalWebhook } from '../../../../lib/paypal';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { recordPaymentTransaction } from '../../../../lib/payments';
 
 export const runtime = 'nodejs';
 
@@ -71,5 +72,26 @@ export async function POST(request) {
     .eq('provider_subscription_id', subscriptionId);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const { data: membership } = await supabase
+    .from('user_memberships')
+    .select('user_id, tier, billing_cycle')
+    .eq('provider', 'paypal')
+    .eq('provider_subscription_id', subscriptionId)
+    .maybeSingle();
+  const amount = event?.resource?.amount || event?.resource?.billing_info?.last_payment?.amount || {};
+  await recordPaymentTransaction(supabase, {
+    userId: membership?.user_id,
+    provider: 'paypal',
+    providerTransactionId: subscriptionId,
+    providerEventId: event.id,
+    kind: event.event_type === 'PAYMENT.SALE.COMPLETED' ? 'renewal' : 'subscription',
+    status: status === 'active' ? 'completed' : status === 'pending' ? 'pending' : 'cancelled',
+    tier: membership?.tier,
+    billingCycle: membership?.billing_cycle,
+    currency: amount.currency_code || amount.currency || 'USD',
+    amount: amount.value || amount.total,
+    occurredAt: event.create_time,
+    metadata: { eventType: event.event_type }
+  });
   return Response.json({ ok: true });
 }

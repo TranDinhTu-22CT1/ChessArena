@@ -515,6 +515,21 @@ create table if not exists public.anti_cheat_reports (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.anti_cheat_appeals (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid references public.anti_cheat_reports(id) on delete set null,
+  user_id uuid not null references public.users(id) on delete cascade,
+  message text not null,
+  attachments jsonb not null default '[]'::jsonb,
+  status text not null default 'pending'
+    check (status in ('pending', 'in_review', 'accepted', 'rejected')),
+  admin_note text,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.player_reports (
   id uuid primary key default gen_random_uuid(),
   game_id uuid references public.online_games(id) on delete cascade,
@@ -531,6 +546,49 @@ create table if not exists public.player_reports (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (game_id, reporter_user_id, category)
+);
+
+create table if not exists public.support_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  category text not null default 'general' check (category in ('account', 'billing', 'online', 'moderation', 'puzzle', 'tournament', 'technical', 'general')),
+  status text not null default 'new' check (status in ('new', 'in_review', 'waiting_user', 'resolved', 'dismissed')),
+  subject text not null default '',
+  message text not null default '',
+  page_url text,
+  contact_email text,
+  context jsonb not null default '{}'::jsonb,
+  admin_note text,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.support_requests
+add column if not exists attachments jsonb not null default '[]'::jsonb;
+
+create table if not exists public.support_messages (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.support_requests(id) on delete cascade,
+  sender_user_id uuid references public.users(id) on delete set null,
+  sender_role text not null check (sender_role in ('user', 'admin', 'system')),
+  body text not null default '',
+  attachments jsonb not null default '[]'::jsonb,
+  read_by_user_at timestamptz,
+  read_by_admin_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.support_status_events (
+  id bigserial primary key,
+  request_id uuid not null references public.support_requests(id) on delete cascade,
+  actor_user_id uuid references public.users(id) on delete set null,
+  actor_role text not null check (actor_role in ('user', 'admin', 'system')),
+  old_status text,
+  new_status text not null,
+  note text,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.bot_personas (
@@ -710,6 +768,17 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'online_match_queue_game_fk') then
     alter table public.online_match_queue
     add constraint online_match_queue_game_fk foreign key (matched_game_id)
+    references public.online_games(id) on delete set null;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.online_presence'::regclass
+      and conname = 'online_presence_current_game_fk'
+  ) then
+    alter table public.online_presence
+    add constraint online_presence_current_game_fk foreign key (current_game_id)
     references public.online_games(id) on delete set null;
   end if;
 
@@ -1006,6 +1075,26 @@ begin
   limit 1
   for update;
 
+  -- The row lock above may wait while another user matches this ticket.
+  -- Re-check after the wait so this transaction cannot insert a new ticket
+  -- for a user whose game was created concurrently.
+  if not found then
+    select id into v_existing_game
+    from public.online_games
+    where status = 'active'
+      and (white_user_id = p_user_id or black_user_id = p_user_id)
+    order by created_at desc
+    limit 1;
+
+    if v_existing_game is not null then
+      return jsonb_build_object(
+        'status', 'matched',
+        'game_id', v_existing_game,
+        'reconnected', true
+      );
+    end if;
+  end if;
+
   if found and v_me.status = 'waiting'
     and v_me.time_control = p_time_control
     and v_me.mode = p_mode
@@ -1067,10 +1156,6 @@ begin
     last_seen = excluded.last_seen,
     updated_at = excluded.updated_at;
 
-  update public.online_match_queue
-  set status = 'stale', updated_at = v_now
-  where status = 'waiting' and last_seen < v_now - interval '30 seconds';
-
   select q.* into v_opponent
   from public.online_match_queue q
   where q.id <> v_me.id
@@ -1078,7 +1163,7 @@ begin
     and q.status = 'waiting'
     and q.time_control = p_time_control
     and q.mode = p_mode
-    and q.pool <> 'restricted'
+    and q.pool = v_pool
     and q.last_seen >= v_now - interval '30 seconds'
     and abs(q.rating - v_rating) <= public.matchmaking_rating_window(v_me.joined_at, v_me.rating_range_preference)
     and abs(q.rating - v_rating) <= public.matchmaking_rating_window(q.joined_at, q.rating_range_preference)
@@ -1532,8 +1617,24 @@ create index if not exists idx_online_match_queue_stale
 on public.online_match_queue(last_seen)
 where status in ('waiting', 'claimed');
 
+create index if not exists idx_online_match_queue_candidate_rating
+on public.online_match_queue(time_control, mode, pool, rating, joined_at, id)
+where status = 'waiting';
+
+create index if not exists idx_online_match_queue_cleanup
+on public.online_match_queue(last_seen, id)
+where status in ('waiting', 'claimed');
+
 create index if not exists idx_online_games_players
 on public.online_games(white_user_id, black_user_id, updated_at desc);
+
+create index if not exists idx_online_games_active_white
+on public.online_games(white_user_id, updated_at desc)
+where status = 'active';
+
+create index if not exists idx_online_games_active_black
+on public.online_games(black_user_id, updated_at desc)
+where status = 'active';
 
 create index if not exists idx_online_games_quick_recent_pair
 on public.online_games(match_type, created_at desc, white_user_id, black_user_id)
@@ -1546,6 +1647,12 @@ where matchmaking_ticket_white is not null;
 create unique index if not exists idx_online_games_ticket_black_unique
 on public.online_games(matchmaking_ticket_black)
 where matchmaking_ticket_black is not null;
+
+create unique index if not exists idx_online_game_tickets_game_color_unique
+on public.online_game_tickets(game_id, color);
+
+create index if not exists idx_online_game_tickets_game
+on public.online_game_tickets(game_id);
 
 create index if not exists idx_online_ratings_rating
 on public.online_ratings(rating desc);
@@ -1599,6 +1706,18 @@ on public.anti_cheat_reports(user_id, risk_score desc, created_at desc);
 create index if not exists idx_anti_cheat_reports_user_game
 on public.anti_cheat_reports(user_id, game_id, created_at desc)
 where game_id is not null;
+
+create index if not exists idx_anti_cheat_appeals_status_created
+on public.anti_cheat_appeals(status, created_at desc);
+
+create index if not exists idx_anti_cheat_appeals_user_created
+on public.anti_cheat_appeals(user_id, created_at desc);
+
+create index if not exists idx_support_messages_request_created
+on public.support_messages(request_id, created_at);
+
+create index if not exists idx_support_status_events_request_created
+on public.support_status_events(request_id, created_at);
 
 create table if not exists public.game_reviews (
   id uuid primary key default gen_random_uuid(),
@@ -1790,6 +1909,12 @@ on public.player_reports(game_id, created_at desc);
 create index if not exists idx_player_reports_reported_user
 on public.player_reports(reported_user_id, status, created_at desc);
 
+create index if not exists idx_support_requests_status_created
+on public.support_requests(status, created_at desc);
+
+create index if not exists idx_support_requests_user_created
+on public.support_requests(user_id, created_at desc);
+
 create index if not exists idx_online_game_moves_game_ply
 on public.online_game_moves(game_id, ply);
 
@@ -1836,7 +1961,11 @@ alter table public.user_bans enable row level security;
 alter table public.user_mutes enable row level security;
 alter table public.admin_audit_logs enable row level security;
 alter table public.anti_cheat_reports enable row level security;
+alter table public.anti_cheat_appeals enable row level security;
 alter table public.player_reports enable row level security;
+alter table public.support_requests enable row level security;
+alter table public.support_messages enable row level security;
+alter table public.support_status_events enable row level security;
 alter table public.user_matchmaking_stats enable row level security;
 alter table public.user_memberships enable row level security;
 alter table public.matchmaking_events enable row level security;
@@ -1872,7 +2001,11 @@ drop policy if exists "service role manages user bans" on public.user_bans;
 drop policy if exists "service role manages user mutes" on public.user_mutes;
 drop policy if exists "service role manages admin audit logs" on public.admin_audit_logs;
 drop policy if exists "service role manages anti cheat reports" on public.anti_cheat_reports;
+drop policy if exists "service role manages anti cheat appeals" on public.anti_cheat_appeals;
 drop policy if exists "service role manages player reports" on public.player_reports;
+drop policy if exists "service role manages support requests" on public.support_requests;
+drop policy if exists "service role manages support messages" on public.support_messages;
+drop policy if exists "service role manages support status events" on public.support_status_events;
 drop policy if exists "service role manages user matchmaking stats" on public.user_matchmaking_stats;
 drop policy if exists "service role manages user memberships" on public.user_memberships;
 drop policy if exists "service role manages matchmaking events" on public.matchmaking_events;
@@ -1998,8 +2131,32 @@ for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
 
+create policy "service role manages anti cheat appeals"
+on public.anti_cheat_appeals
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
 create policy "service role manages player reports"
 on public.player_reports
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages support requests"
+on public.support_requests
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages support messages"
+on public.support_messages
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
+
+create policy "service role manages support status events"
+on public.support_status_events
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

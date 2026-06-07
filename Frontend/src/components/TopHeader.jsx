@@ -1,10 +1,10 @@
 import React from 'react';
-import { Bell, Brain, Flame, Info, Settings, Sparkles, Target, Wifi, WifiOff, X } from 'lucide-react';
+import { Bell, Brain, Flame, HelpCircle, Info, Settings, Sparkles, Target, Wifi, WifiOff, X } from 'lucide-react';
 import { BOARD_PRESETS, PIECE_SETS } from '../game/constants';
 import { getPieceImage } from '../game/pieces';
 
 const puzzleRoutes = new Set(['puzzles', 'daily-puzzle', 'puzzle-rush', 'puzzle-battle', 'custom-puzzles']);
-const playRoutes = new Set(['online', 'bot', 'player', 'coach', 'custom']);
+const playRoutes = new Set(['online', 'bot', 'player', 'coach', 'custom', 'local']);
 
 const puzzleTips = [
   'Tìm nước chiếu, bắt quân, đe dọa trước.',
@@ -39,6 +39,16 @@ function headerInsights(activeRoute) {
   }
 
   if (playRoutes.has(activeRoute)) {
+    if (activeRoute === 'local') {
+      return [
+        {
+          icon: Brain,
+          label: 'Pass & play',
+          text: 'Hai người chơi trên một thiết bị, đồng hồ chạy ngay khi bắt đầu.'
+        }
+      ];
+    }
+
     return [
       { icon: activeRoute === 'coach' ? Sparkles : Brain, label: activeRoute === 'coach' ? 'Coach' : activeRoute === 'online' ? 'Online' : 'Game plan', text: activeRoute === 'coach' ? 'Coach sẽ nhắc kế hoạch theo thế cờ.' : activeRoute === 'online' ? 'Chỉ ghép người thật, server xác thực từng nước.' : dailyPick(playTips) }
     ];
@@ -68,6 +78,7 @@ export default function TopHeader({
   notificationCount = 0,
   onOpenAcademicNotice,
   onOpenNotifications,
+  onOpenSupport,
   onToggleSettings,
   onCloseSettings,
   onResetTheme,
@@ -125,6 +136,10 @@ export default function TopHeader({
         <button className="notification-bell" aria-label="Notifications" onClick={onOpenNotifications}>
           <Bell size={19} />
           {notificationCount > 0 && <b>{Math.min(notificationCount, 99)}</b>}
+        </button>
+        <button className="header-support-button" aria-label="Hỗ trợ" onClick={onOpenSupport}>
+          <HelpCircle size={19} />
+          <span>Hỗ trợ</span>
         </button>
         <button aria-label="Academic and copyright notice" onClick={onOpenAcademicNotice}>
           <Info size={19} />
@@ -199,7 +214,7 @@ export default function TopHeader({
           </div>
           <small className="theme-note">Board colors are private. Piece style appears on your own pieces in online games.</small>
           <strong className="chesscom-asset-credit">
-            Chess piece sets and board themes are the intellectual property of Chess.com and are used with permission for academic purposes.
+            Chess.com owns the referenced piece sets and board themes. Academic-use permission is pending written approval.
           </strong>
           <p className="theme-note">
             {authUser ? 'Màu sẽ được lưu theo tài khoản của bạn.' : 'Đăng nhập để đồng bộ màu trên tài khoản.'}

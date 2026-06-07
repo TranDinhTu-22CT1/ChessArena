@@ -1,20 +1,10 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { chooseOpeningBookMove } from '../../../../lib/openingBook';
+import { engineStrength } from '../../../../lib/enginePolicy';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
-
-function botStrength(elo) {
-  const rating = Math.max(1320, Math.min(3190, Number(elo) || 1600));
-
-  if (rating <= 1320) return { skillLevel: 3, elo: rating, movetime: 350 };
-  if (rating <= 1600) return { skillLevel: 8, elo: rating, movetime: 500 };
-  if (rating <= 2000) return { skillLevel: 13, elo: rating, movetime: 700 };
-  if (rating <= 2400) return { skillLevel: 17, elo: rating, movetime: 950 };
-  if (rating < 3190) return { skillLevel: 20, elo: rating, movetime: 1300 };
-  return { skillLevel: 20, elo: null, movetime: 1800 };
-}
 
 function validFen(value) {
   return typeof value === 'string' && value.split(/\s+/).length >= 4 && value.length < 120;
@@ -46,9 +36,10 @@ export async function POST(request) {
   }
 
   const elo = Math.max(1320, Math.min(3190, Number(payload?.elo) || 1600));
+  const fullStrength = payload?.fullStrength === true;
   const moves = Array.isArray(payload?.moves) ? payload.moves.slice(0, 40) : [];
   const bookMove = payload?.variant === 'standard' ? chooseOpeningBookMove(moves, fen) : null;
-  const strength = botStrength(elo);
+  const strength = engineStrength(elo, fullStrength);
 
   if (bookMove) {
     return Response.json({
@@ -62,7 +53,7 @@ export async function POST(request) {
   }
 
   try {
-    const result = await withStockfishEngine({ skillLevel: 10 }, async (engine) => {
+    const result = await withStockfishEngine({ skillLevel: strength.skillLevel }, async (engine) => {
       await engine.configure({
         skillLevel: strength.skillLevel,
         elo: strength.elo

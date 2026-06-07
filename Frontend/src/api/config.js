@@ -1,4 +1,3 @@
-const LOCAL_API_URL = 'http://localhost:3000';
 const DEPLOYED_API_FALLBACK = 'https://chess-arena-seven.vercel.app';
 
 function isLocalHostname(hostname) {
@@ -15,14 +14,14 @@ function isLocalApiUrl(url) {
 
 function resolveApiBaseUrl() {
   const configured = import.meta.env.VITE_API_URL || '';
-  if (typeof window === 'undefined') return configured || LOCAL_API_URL;
+  if (typeof window === 'undefined') return configured || '';
 
   const runningOnLocalhost = isLocalHostname(window.location.hostname);
   if (!runningOnLocalhost && (!configured || isLocalApiUrl(configured))) {
     return DEPLOYED_API_FALLBACK;
   }
 
-  return configured || LOCAL_API_URL;
+  return configured || '';
 }
 
 export function apiUrl(path) {

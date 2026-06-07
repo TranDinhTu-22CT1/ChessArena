@@ -209,7 +209,12 @@ export default function BeginnerGuidePage({ onNavigate }) {
     setEngineStatus('Stockfish đang phân tích thế cờ nhỏ này...');
     setEngineMove(null);
     try {
-      const move = await requestStockfishMove(game.fen(), 1200, { variant: 'standard' }, 7000);
+      const move = await requestStockfishMove(
+        game.fen(),
+        3190,
+        { variant: 'standard', fullStrength: true },
+        12000
+      );
       setEngineMove(move);
       setEngineStatus(`Stockfish gợi ý: ${moveLabel(move)}. Đây là gợi ý luyện tập, không bắt buộc phải đi theo.`);
     } catch (error) {

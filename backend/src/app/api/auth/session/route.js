@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { authCookieOptions } from '../../../../lib/cookies';
 import { createFirebaseSessionCookie, verifyFirebaseToken } from '../../../../lib/firebaseAdmin';
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { readJsonPayload, validateSessionPayload } from '../../../../lib/validation';
 import { activeBanForUser, clearAdminSessionCookie, recordUserDevice } from '../../../../lib/admin';
@@ -51,7 +51,7 @@ function isTrustedOauthProvider(decoded) {
 
 export async function POST(request) {
   try {
-    const blocked = rateLimit(request, { scope: 'auth-session', limit: 12, windowMs: 60_000 });
+    const blocked = await distributedRateLimit(request, { scope: 'auth-session', limit: 12, windowMs: 60_000 });
     if (blocked) return blocked;
 
     const payload = await readJsonPayload(request);

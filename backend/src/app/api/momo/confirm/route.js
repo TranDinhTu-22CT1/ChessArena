@@ -1,6 +1,7 @@
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { requireSupabase } from '../../../../lib/online';
 import { momoAmount, readMomoExtraData, verifyMomoResultSignature } from '../../../../lib/momo';
+import { recordPaymentTransaction } from '../../../../lib/payments';
 
 export const runtime = 'nodejs';
 
@@ -71,11 +72,25 @@ async function activateMomoMembership(supabase, payload) {
     }, { onConflict: 'user_id' });
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  await recordPaymentTransaction(supabase, {
+    userId: extra.userId,
+    provider: 'momo',
+    providerTransactionId: transactionId,
+    status: 'completed',
+    tier: extra.tier,
+    billingCycle: extra.billingCycle,
+    currency: 'VND',
+    amount: payload.amount,
+    metadata: {
+      orderId: payload.orderId,
+      requestId: payload.requestId
+    }
+  });
   return Response.json({ ok: true, tier: extra.tier, billingCycle: extra.billingCycle });
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'momo-payment-confirm', limit: 30, windowMs: 60_000 });
+  const blocked = await distributedRateLimit(request, { scope: 'momo-payment-confirm', limit: 30, windowMs: 60_000 });
   if (blocked) return blocked;
 
   const { supabase, error } = requireSupabase();

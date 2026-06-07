@@ -1,4 +1,4 @@
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import {
   activeOnlineGameForUser,
   abortOnlineGameIfOpeningIdle,
@@ -15,6 +15,8 @@ import { publishOnlineGame } from '../../../../lib/onlineEvents';
 
 export const runtime = 'nodejs';
 
+let matchmakingV2ColumnsAvailable = null;
+
 function cleanClientValue(value, limit) {
   return String(value || '').trim().slice(0, limit) || null;
 }
@@ -29,6 +31,46 @@ function isMissingRpcSignature(error) {
   );
 }
 
+function isMissingMatchmakingV2Schema(error) {
+  const message = String(error?.message || '');
+  return (
+    error?.code === '42703'
+    || error?.code === 'PGRST204'
+    || message.includes('region_scope')
+    || message.includes('generation')
+    || message.includes('lease_expires_at')
+  );
+}
+
+async function findWaitingTicket(supabase, userId, sessionId, ticketId) {
+  const applyOwnershipFilters = (query) => {
+    let nextQuery = query.eq('user_id', userId).eq('status', 'waiting');
+    if (sessionId) nextQuery = nextQuery.eq('session_id', sessionId);
+    if (ticketId) nextQuery = nextQuery.eq('id', ticketId);
+    return nextQuery.maybeSingle();
+  };
+
+  if (matchmakingV2ColumnsAvailable !== false) {
+    const current = await applyOwnershipFilters(
+      supabase
+        .from('online_match_queue')
+        .select('id, user_id, time_control, mode, rating, rating_range_preference, region, region_scope, session_id, generation, lease_expires_at')
+    );
+    if (!current.error) {
+      matchmakingV2ColumnsAvailable = true;
+      return current;
+    }
+    if (!isMissingMatchmakingV2Schema(current.error)) return current;
+    matchmakingV2ColumnsAvailable = false;
+  }
+
+  return applyOwnershipFilters(
+    supabase
+      .from('online_match_queue')
+      .select('id, user_id, time_control, mode, rating, rating_range_preference, region, session_id')
+  );
+}
+
 async function quickMatchFindFromTicket(supabase, user, ticket, clientId, sessionId) {
   if (!ticket?.time_control || !ticket?.mode) return null;
 
@@ -39,10 +81,13 @@ async function quickMatchFindFromTicket(supabase, user, ticket, clientId, sessio
     p_rating: ticket.rating ?? null,
     p_client_id: clientId,
     p_session_id: sessionId,
-    p_region: ticket.region || 'global',
+    p_region: ticket.region_scope || ticket.region || 'global',
     p_rating_range_preference: ticket.rating_range_preference ?? 500,
     p_idempotency_key: null
   };
+  const v2Result = await supabase.rpc('quick_match_find_game_v2', params);
+  if (!isMissingRpcSignature(v2Result.error)) return v2Result;
+
   const nextResult = await supabase.rpc('quick_match_find_game', params);
   if (!isMissingRpcSignature(nextResult.error)) return nextResult;
 
@@ -71,9 +116,6 @@ async function enforceClockTimeout(supabase, game) {
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'online-heartbeat', limit: 500, windowMs: 60_000 });
-  if (blocked) return blocked;
-
   const context = await requireOnlineUser();
   if (context.error) {
     return Response.json({
@@ -88,25 +130,32 @@ export async function POST(request) {
   }
 
   const { supabase, user } = context;
+  const blocked = await distributedRateLimit(request, {
+    scope: 'online-heartbeat',
+    identity: user.id,
+    limit: 30,
+    windowMs: 60_000
+  });
+  if (blocked) return blocked;
+
   const payload = await request.json().catch(() => ({}));
   const wantsQueue = payload?.queueing === true;
   const clientGameId = String(payload?.gameId || '');
   const clientId = cleanClientValue(payload?.clientId || request.headers.get('x-client-id'), 120);
   const sessionId = cleanClientValue(payload?.sessionId || request.headers.get('x-matchmaking-session-id'), 120);
-  const [activeGameCandidate, queued, presence] = await Promise.all([
+  const ticketId = cleanClientValue(payload?.ticketId, 80);
+  const [activeGameCandidate, queued] = await Promise.all([
     activeOnlineGameForUser(supabase, user.id),
-    supabase
-      .from('online_match_queue')
-      .select('id, user_id, time_control, mode, rating, rating_range_preference, region')
-      .eq('user_id', user.id)
-      .eq('status', 'waiting')
-      .maybeSingle(),
-    supabase
-      .from('online_presence')
-      .select('status, current_game_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    findWaitingTicket(supabase, user.id, sessionId, ticketId)
   ]);
+  if (queued.error) {
+    console.error('[heartbeat] queue lookup failed', {
+      code: queued.error.code,
+      message: queued.error.message,
+      details: queued.error.details,
+      hint: queued.error.hint
+    });
+  }
   let rawActiveGame = activeGameCandidate;
   if (!rawActiveGame && clientGameId) {
     const { data: clientGame } = await supabase
@@ -128,22 +177,26 @@ export async function POST(request) {
     activeGame?.mode || onlineModeFromTimeControl(activeGame?.time_control)
   );
   let isQueued = Boolean(queued.data);
-  if (isQueued && !wantsQueue && presence.data?.status !== 'playing') {
-    await supabase.rpc('quick_match_cancel', { p_user_id: user.id, p_reason: 'left_queue_view' });
-    isQueued = false;
-  }
   if (isQueued && wantsQueue) {
-    const { error: heartbeatError } = await supabase.rpc('quick_match_heartbeat', {
+    const v2Heartbeat = await supabase.rpc('quick_match_heartbeat_v2', {
       p_user_id: user.id,
+      p_ticket_id: queued.data.id,
       p_client_id: clientId,
       p_session_id: sessionId
     });
-    if (isMissingRpcSignature(heartbeatError)) {
-      await supabase
-        .from('online_match_queue')
-        .update({ last_seen: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('status', 'waiting');
+    if (isMissingRpcSignature(v2Heartbeat.error)) {
+      const legacyHeartbeat = await supabase.rpc('quick_match_heartbeat', {
+        p_user_id: user.id,
+        p_client_id: clientId,
+        p_session_id: sessionId
+      });
+      if (isMissingRpcSignature(legacyHeartbeat.error)) {
+        await supabase
+          .from('online_match_queue')
+          .update({ last_seen: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', queued.data.id)
+          .eq('status', 'waiting');
+      }
     }
 
     const { data: matchResult, error: matchError } = await quickMatchFindFromTicket(
@@ -176,6 +229,7 @@ export async function POST(request) {
             displayName: user.displayName,
             rating: rating.rating
           },
+          queueTicketId: queued.data.id,
           ...(await onlineSummary(supabase))
         });
       }
@@ -209,6 +263,9 @@ export async function POST(request) {
       displayName: user.displayName,
       rating: rating.rating
     },
+    queueTicketId: isQueued ? queued.data?.id ?? null : null,
+    generation: isQueued ? queued.data?.generation ?? null : null,
+    leaseExpiresAt: isQueued ? queued.data?.lease_expires_at ?? null : null,
     ...summary
   });
 }

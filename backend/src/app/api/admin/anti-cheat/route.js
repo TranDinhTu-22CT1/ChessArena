@@ -115,6 +115,15 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
     : { data: [] };
   const bans = safeArray(banRows);
+  const reportIds = reports.map((report) => report.id);
+  const { data: appealRows = [] } = reportIds.length
+    ? await context.supabase
+      .from('anti_cheat_appeals')
+      .select('*')
+      .in('report_id', reportIds)
+      .order('created_at', { ascending: false })
+    : { data: [] };
+  const appeals = safeArray(appealRows);
 
   return Response.json({
     ok: true,
@@ -124,7 +133,8 @@ export async function GET(request) {
     totalPages: Math.max(1, Math.ceil((count ?? reports.length) / limit)),
     reports: reports.map((report) => ({
       ...report,
-      activeBan: bans.find((ban) => ban.user_id === report.user_id) || null
+      activeBan: bans.find((ban) => ban.user_id === report.user_id) || null,
+      appeal: appeals.find((appeal) => appeal.report_id === report.id) || null
     }))
   });
 }

@@ -3,11 +3,14 @@ import { apiUrl } from './config';
 let adminCsrfToken = '';
 
 async function readJson(response) {
-  const data = await response.json().catch(() => ({
-    error: response.ok ? '' : `Admin request failed with HTTP ${response.status}.`
-  }));
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('application/json')
+    ? await response.json().catch(() => ({}))
+    : {};
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || 'Admin request failed.');
+    const error = new Error(data.error || `Yêu cầu admin thất bại (HTTP ${response.status}).`);
+    error.status = response.status;
+    throw error;
   }
   if (data.csrfToken) adminCsrfToken = data.csrfToken;
   if (data.admin?.csrfToken) adminCsrfToken = data.admin.csrfToken;
@@ -164,6 +167,40 @@ export async function updateAdminTournamentStatus(tournamentId, status) {
 export async function fetchAdminPayments({ page = 1, limit = 10 } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   const response = await fetch(apiUrl(`/api/admin/payments?${params.toString()}`), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function fetchAdminSupportRequests({ page = 1, limit = 10, status = '' } = {}) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  const response = await fetch(apiUrl(`/api/admin/support?${params.toString()}`), { credentials: 'include' });
+  return readJson(response);
+}
+
+export async function updateAdminSupportRequest(requestId, status, adminNote = '') {
+  const response = await fetch(apiUrl('/api/admin/support'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify({ requestId, status, adminNote })
+  });
+  return readJson(response);
+}
+
+export async function fetchAdminSupportThread(requestId) {
+  const response = await fetch(apiUrl(`/api/admin/support/${encodeURIComponent(requestId)}/messages`), {
+    credentials: 'include'
+  });
+  return readJson(response);
+}
+
+export async function sendAdminSupportMessage(requestId, payload) {
+  const response = await fetch(apiUrl(`/api/admin/support/${encodeURIComponent(requestId)}/messages`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify(payload)
+  });
   return readJson(response);
 }
 

@@ -22,6 +22,10 @@ function cleanStartsAt(value) {
   return Number.isFinite(date.getTime()) ? date : new Date();
 }
 
+function cleanPairingSystem(value) {
+  return ['arena', 'swiss', 'round_robin'].includes(value) ? value : 'arena';
+}
+
 async function notifyPlayers(supabase, tournament) {
   const { data: users = [], error } = await supabase
     .from('users')
@@ -135,6 +139,9 @@ export async function POST(request) {
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
       created_by: context.admin.id,
+      pairing_system: cleanPairingSystem(payload.pairingSystem),
+      max_players: Math.max(2, Math.min(1000, Math.floor(Number(payload.maxPlayers) || 100))),
+      auto_manage: payload.autoManage !== false,
       updated_at: new Date().toISOString()
     })
     .select('*')

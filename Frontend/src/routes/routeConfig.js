@@ -1,5 +1,8 @@
 export const ROUTES = {
   home: '/',
+  login: '/login',
+  register: '/register',
+  forgotPassword: '/forgot-password',
   online: '/play/online',
   bot: '/play/bot',
   coach: '/coach',
@@ -12,9 +15,12 @@ export const ROUTES = {
   leaderboard: '/leaderboard',
   achievements: '/achievements',
   tournaments: '/tournaments',
+  support: '/support',
+  supportTickets: '/support/tickets',
   coachLab: '/training/coach',
   beginnerGuide: '/learn',
   membership: '/membership',
+  academicNotice: '/academic-notice',
   admin: '/admin',
   notFound: '/404',
   review: '/review',
@@ -40,6 +46,9 @@ export function isPuzzleRoute(route) {
 
 export function routeFromPath(pathname) {
   if (pathname === '/404') return 'notFound';
+  if (pathname === '/login' || pathname === '/signin') return 'login';
+  if (pathname === '/register' || pathname === '/signup') return 'register';
+  if (pathname === '/forgot-password' || pathname === '/forgot') return 'forgotPassword';
   if (pathname === '/profile') return 'profile';
   if (pathname.startsWith('/profile/')) return 'profile';
   if (pathname === '/friends') return 'friends';
@@ -49,9 +58,12 @@ export function routeFromPath(pathname) {
   if (pathname === '/leaderboard') return 'leaderboard';
   if (pathname === '/achievements') return 'achievements';
   if (pathname === '/tournaments') return 'tournaments';
+  if (pathname === '/support/tickets' || pathname === '/tickets') return 'supportTickets';
+  if (pathname === '/support' || pathname === '/help' || pathname === '/contact') return 'support';
   if (pathname === '/training/coach' || pathname === '/coach-lab') return 'coachLab';
   if (pathname === '/learn' || pathname === '/guide' || pathname === '/how-to-play') return 'beginnerGuide';
   if (pathname === '/membership' || pathname === '/premium') return 'membership';
+  if (pathname === '/academic-notice' || pathname === '/academic') return 'academicNotice';
   if (pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/amdin') return 'admin';
   if (pathname === '/review') return 'review';
   if (pathname === '/puzzles/daily') return 'daily-puzzle';

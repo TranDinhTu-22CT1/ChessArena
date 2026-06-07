@@ -26,6 +26,13 @@ function buildInsights({ ratings, games, reviewMoves, puzzleSessions }) {
   const bestStreak = Math.max(0, ...puzzleSessionRows.map((item) => Number(item.best_streak) || 0));
   const bestRating = Math.max(0, ...ratingRows.map((item) => Number(item.rating) || 0));
   const puzzleAccuracy = puzzleAttempted ? puzzleCorrect / puzzleAttempted : 0;
+  const phaseMistakes = reviewMoveRows.reduce((summary, move) => {
+    if (!['mistake', 'blunder', 'miss'].includes(move.tone)) return summary;
+    const phase = Number(move.ply) <= 20 ? 'opening' : Number(move.ply) <= 60 ? 'middlegame' : 'endgame';
+    summary[phase] += 1;
+    return summary;
+  }, { opening: 0, middlegame: 0, endgame: 0 });
+  const weakestPhase = Object.entries(phaseMistakes).sort((first, second) => second[1] - first[1])[0]?.[0] || 'middlegame';
 
   const cards = [
     {
@@ -70,7 +77,13 @@ function buildInsights({ ratings, games, reviewMoves, puzzleSessions }) {
     recommendations.push('Your training data is balanced. Keep alternating online games, Game Review and daily puzzle streaks.');
   }
 
-  return { cards, recommendations };
+  const weeklyPlan = [
+    { day: 'Thứ 2', focus: `${weakestPhase} review`, target: '2 ván đã review' },
+    { day: 'Thứ 4', focus: 'Tactical accuracy', target: '15 puzzle, mục tiêu 70%' },
+    { day: 'Thứ 6', focus: 'Opening repertoire', target: 'Ôn 2 line bằng PGN' },
+    { day: 'Cuối tuần', focus: 'Rated practice', target: '3 ván chậm và review toàn bộ' }
+  ];
+  return { cards, recommendations, phaseMistakes, weakestPhase, weeklyPlan };
 }
 
 export async function GET(request) {
@@ -95,7 +108,7 @@ export async function GET(request) {
       .limit(40),
     context.supabase
       .from('game_review_moves')
-      .select('tone, label, ply, created_at')
+      .select('tone, label, ply, fen, created_at')
       .eq('user_id', context.user.id)
       .order('created_at', { ascending: false })
       .limit(80),

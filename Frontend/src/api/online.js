@@ -56,8 +56,25 @@ function queueAttemptContext() {
   return { ...context, idempotencyKey };
 }
 
+export function currentMatchmakingSessionId() {
+  return matchmakingContext().sessionId || null;
+}
+
+function currentQueueTicketId() {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem('chessArenaQueueTicketId');
+}
+
+function rememberQueueTicket(ticketId) {
+  if (typeof window === 'undefined' || !ticketId) return;
+  window.sessionStorage.setItem('chessArenaQueueTicketId', ticketId);
+}
+
 function clearQueueAttemptContext() {
-  if (typeof window !== 'undefined') window.sessionStorage.removeItem('chessArenaQueueAttemptId');
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.removeItem('chessArenaQueueAttemptId');
+    window.sessionStorage.removeItem('chessArenaQueueTicketId');
+  }
 }
 
 export async function sendOnlineHeartbeat(queueing = false, gameId = null, options = {}) {
@@ -65,9 +82,18 @@ export async function sendOnlineHeartbeat(queueing = false, gameId = null, optio
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ queueing, gameId, ...matchmakingContext(), ...options })
+    body: JSON.stringify({
+      queueing,
+      gameId,
+      ticketId: currentQueueTicketId(),
+      ...matchmakingContext(),
+      ...options
+    })
   });
-  return readJson(response);
+  const data = await readJson(response);
+  if (data.queueTicketId) rememberQueueTicket(data.queueTicketId);
+  if (data.currentGameId) clearQueueAttemptContext();
+  return data;
 }
 
 export async function joinOnlineQueue(timeControl) {
@@ -78,6 +104,7 @@ export async function joinOnlineQueue(timeControl) {
     body: JSON.stringify({ action: 'join', timeControl, ...queueAttemptContext() })
   });
   const data = await readJson(response);
+  if (data.queueTicketId) rememberQueueTicket(data.queueTicketId);
   if (data.status === 'matched') clearQueueAttemptContext();
   return data;
 }
@@ -87,7 +114,11 @@ export async function cancelOnlineQueue() {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason: 'user_cancelled', ...matchmakingContext() })
+    body: JSON.stringify({
+      reason: 'user_cancelled',
+      ticketId: currentQueueTicketId(),
+      ...matchmakingContext()
+    })
   });
   const data = await readJson(response);
   if (data.status === 'cancelled') clearQueueAttemptContext();
@@ -167,6 +198,41 @@ export async function sendOnlineRematch(gameId, action) {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action })
+  });
+  return readJson(response);
+}
+
+export async function sendOnlineDrawAction(gameId, action) {
+  const response = await fetch(apiUrl(`/api/online/games/${gameId}/draw`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action })
+  });
+  return readJson(response);
+}
+
+export async function fetchOnlineChat(gameId) {
+  const response = await fetch(apiUrl(`/api/online/games/${gameId}/chat`), {
+    credentials: 'include'
+  });
+  return readJson(response);
+}
+
+export async function sendOnlineChat(gameId, body) {
+  const response = await fetch(apiUrl(`/api/online/games/${gameId}/chat`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body })
+  });
+  return readJson(response);
+}
+
+export async function joinOnlineSpectators(gameId) {
+  const response = await fetch(apiUrl(`/api/online/games/${gameId}/spectate`), {
+    method: 'POST',
+    credentials: 'include'
   });
   return readJson(response);
 }

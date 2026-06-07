@@ -1,6 +1,7 @@
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
 import { fetchPayPalSubscription } from '../../../../lib/paypal';
+import { recordPaymentTransaction } from '../../../../lib/payments';
 
 export const runtime = 'nodejs';
 
@@ -72,7 +73,7 @@ async function membershipPayload(supabase, userId) {
 }
 
 export async function GET(request) {
-  const blocked = rateLimit(request, { scope: 'membership-read', limit: 60, windowMs: 60_000 });
+  const blocked = await distributedRateLimit(request, { scope: 'membership-read', limit: 60, windowMs: 60_000 });
   if (blocked) return blocked;
 
   const context = await requireOnlineUser();
@@ -85,7 +86,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'membership-write', limit: 20, windowMs: 60_000 });
+  const blocked = await distributedRateLimit(request, { scope: 'membership-write', limit: 20, windowMs: 60_000 });
   if (blocked) return blocked;
 
   const context = await requireOnlineUser();
@@ -141,6 +142,21 @@ export async function POST(request) {
     }, { onConflict: 'user_id' });
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  await recordPaymentTransaction(context.supabase, {
+    userId: context.user.id,
+    provider: 'paypal',
+    providerTransactionId: providerSubscriptionId,
+    status: active ? 'completed' : 'pending',
+    tier,
+    billingCycle,
+    currency: subscription?.billing_info?.last_payment?.amount?.currency_code || 'USD',
+    amount: subscription?.billing_info?.last_payment?.amount?.value,
+    metadata: {
+      planId: providerPlanId,
+      subscriptionStatus
+    }
+  });
 
   return Response.json({
     ok: true,

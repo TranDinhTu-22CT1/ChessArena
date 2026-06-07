@@ -9,6 +9,14 @@ export function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+export function isMissingTableError(error, tableName = '') {
+  const message = String(error?.message || '').toLowerCase();
+  const table = String(tableName || '').toLowerCase();
+  return error?.code === 'PGRST205'
+    || (message.includes('could not find the table') && (!table || message.includes(table)))
+    || (message.includes('schema cache') && (!table || message.includes(table)));
+}
+
 export async function readJsonPayload(request) {
   try {
     return await request.json();

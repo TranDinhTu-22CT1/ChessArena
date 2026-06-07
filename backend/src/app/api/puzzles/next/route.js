@@ -1,6 +1,7 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { withStockfishEngine } from '../../../../lib/stockfishEngine';
 import { PUZZLE_POSITIONS, PUZZLE_STAGES, PUZZLE_THEMES } from '../../../../lib/puzzlePositions';
+import { isUuid } from '../../../../lib/puzzleUtils';
 import { readJsonPayload } from '../../../../lib/validation';
 import { requireOnlineUser } from '../../../../lib/online';
 
@@ -58,7 +59,9 @@ async function selectPersonalPuzzle(payload) {
   const context = await requireOnlineUser();
   if (context.error) return { error: context.error };
 
-  const excluded = Array.isArray(payload?.excluded) ? payload.excluded.slice(0, 300) : [];
+  const excluded = Array.isArray(payload?.excluded)
+    ? payload.excluded.filter(isUuid).slice(0, 300)
+    : [];
   let query = context.supabase
     .from('personal_puzzles')
     .select('*')

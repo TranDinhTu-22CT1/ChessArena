@@ -14,9 +14,10 @@ async function readJson(response) {
   return data;
 }
 
-export async function fetchLeaderboard(mode = 'rapid', limit = 50) {
+export async function fetchLeaderboard(mode = 'rapid', { page = 1, limit = 20 } = {}) {
   const params = new URLSearchParams({
     mode: cleanMode(mode),
+    page: String(page),
     limit: String(limit)
   });
   const response = await fetch(apiUrl(`/api/leaderboard?${params.toString()}`), {

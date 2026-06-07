@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, CheckCircle2, Lock, Target } from 'lucide-react';
+import { Award, CheckCircle2, Loader2, Lock, Target } from 'lucide-react';
 import { fetchAchievements } from '../../api/achievements';
 
 export default function AchievementsPage({ authUser, onLogin, onNavigate }) {
@@ -42,6 +42,24 @@ export default function AchievementsPage({ authUser, onLogin, onNavigate }) {
 
   return (
     <section className="feature-page">
+      {/* CSS Animation cho spinner */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+        .loading-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 60px 0;
+          color: #888;
+        }
+      `}</style>
+
       <header className="feature-hero">
         <div>
           <span>Progression</span>
@@ -51,30 +69,36 @@ export default function AchievementsPage({ authUser, onLogin, onNavigate }) {
         <strong>{unlocked}/{achievements.length}</strong>
       </header>
 
-      {loading && <p className="feature-message">Đang tải achievement...</p>}
-      {error && <p className="feature-message error">{error}</p>}
-
-      <div className="achievement-grid">
-        {achievements.map((item) => {
-          const percent = Math.min(100, Math.round((item.progress / Math.max(1, item.target)) * 100));
-          return (
-            <article className={`achievement-card ${item.unlocked ? 'unlocked' : ''}`} key={item.key}>
-              <div className="achievement-icon">
-                {item.unlocked ? <CheckCircle2 size={24} /> : <Lock size={24} />}
-              </div>
-              <div>
-                <span>{item.tier}</span>
-                <h2>{item.title}</h2>
-                <p>{item.description}</p>
-              </div>
-              <div className="achievement-progress">
-                <b>{item.progress}/{item.target}</b>
-                <i><span style={{ width: `${percent}%` }} /></i>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      {/* Hiển thị loading, lỗi hoặc danh sách achievement */}
+      {loading ? (
+        <div className="loading-container">
+          <Loader2 size={40} className="animate-spin" />
+        </div>
+      ) : error ? (
+        <p className="feature-message error">{error}</p>
+      ) : (
+        <div className="achievement-grid">
+          {achievements.map((item) => {
+            const percent = Math.min(100, Math.round((item.progress / Math.max(1, item.target)) * 100));
+            return (
+              <article className={`achievement-card ${item.unlocked ? 'unlocked' : ''}`} key={item.key}>
+                <div className="achievement-icon">
+                  {item.unlocked ? <CheckCircle2 size={24} /> : <Lock size={24} />}
+                </div>
+                <div>
+                  <span>{item.tier}</span>
+                  <h2>{item.title}</h2>
+                  <p>{item.description}</p>
+                </div>
+                <div className="achievement-progress">
+                  <b>{item.progress}/{item.target}</b>
+                  <i><span style={{ width: `${percent}%` }} /></i>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <button className="secondary-feature-action" onClick={() => onNavigate('puzzle-streak')}>
         <Target size={18} /> Luyện Puzzle Streak

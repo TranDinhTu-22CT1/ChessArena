@@ -82,6 +82,17 @@ export default function FairPlaySection({
                 </span>
                 <small>{time(report.created_at)} | {report.status} | {details.guidance || 'Cần xem ngữ cảnh ván trước khi xử lý.'}</small>
                 {isBanned && <b className="admin-ban-note">Đang bị cấm: {report.activeBan.reason}</b>}
+                {report.appeal && (
+                  <div className="admin-appeal-note">
+                    <b>Khiếu nại: {report.appeal.status}</b>
+                    <p>{report.appeal.message}</p>
+                    {report.appeal.attachments?.map((attachment) => (
+                      <a href={attachment.url || attachment.dataUrl} target="_blank" rel="noreferrer" key={attachment.id || attachment.name}>
+                        {attachment.name || 'Bằng chứng đính kèm'}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="admin-report-actions">
                 <button onClick={() => onUpdateReport(report.id, 'reviewed')}>Đã review</button>

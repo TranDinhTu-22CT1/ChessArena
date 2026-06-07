@@ -47,6 +47,13 @@ export default function PaymentsSection({
                 {' | '}Chu kỳ: {billingCycleLabel(payment.billing_cycle)}
                 {' | '}Mã đăng ký: {payment.provider_subscription_id || 'Chưa có'}
               </span>
+              {payment.latestTransaction && (
+                <small>
+                  Giao dịch gần nhất: {payment.latestTransaction.status}
+                  {' | '}{payment.latestTransaction.amount ?? '--'} {payment.latestTransaction.currency}
+                  {' | '}{payment.transactionCount || 1} giao dịch
+                </small>
+              )}
               <small>Mã gói PayPal: {payment.provider_plan_id || '--'} | Gia hạn: {time(payment.current_period_end)} | Cập nhật: {time(payment.updated_at)}</small>
             </div>
           </article>

@@ -1,6 +1,11 @@
-import { createVerifiedFirebaseUser, updateFirebaseUserPassword } from '../../../../../lib/firebaseAdmin';
+import {
+  createVerifiedFirebaseUser,
+  firebaseUserExists,
+  getPasswordResetEligibility,
+  updateFirebaseUserPassword
+} from '../../../../../lib/firebaseAdmin';
 import { consumeOtp, normalizeOtpEmail, verifyOtp } from '../../../../../lib/otp';
-import { rateLimit } from '../../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../../lib/rateLimit';
 import { readJsonPayload } from '../../../../../lib/validation';
 
 export const runtime = 'nodejs';
@@ -13,9 +18,21 @@ function validOtp(otp) {
   return /^\d{6}$/.test(String(otp || ''));
 }
 
+function socialPasswordResetError(provider) {
+  if (provider === 'google.com') {
+    return 'Tài khoản này chỉ dùng đăng nhập Google. Không thể đặt lại mật khẩu ChessArena.';
+  }
+
+  if (provider === 'github.com') {
+    return 'Tài khoản này chỉ dùng đăng nhập GitHub. Không thể đặt lại mật khẩu ChessArena.';
+  }
+
+  return 'Tài khoản này không hỗ trợ đặt lại mật khẩu.';
+}
+
 export async function POST(request) {
   try {
-    const blocked = rateLimit(request, { scope: 'otp-verify', limit: 20, windowMs: 60_000 });
+    const blocked = await distributedRateLimit(request, { scope: 'otp-verify', limit: 20, windowMs: 60_000 });
     if (blocked) return blocked;
 
     const payload = await readJsonPayload(request);
@@ -54,6 +71,21 @@ export async function POST(request) {
 
     if (!validPassword(payload?.newPassword)) {
       return Response.json({ ok: false, error: 'Mật khẩu mới phải có ít nhất 6 ký tự.' }, { status: 400 });
+    }
+
+    const existingUser = await firebaseUserExists(email);
+    if (!existingUser) {
+      return Response.json({ ok: false, error: 'Không tìm thấy tài khoản.' }, { status: 404 });
+    }
+
+    const eligibility = getPasswordResetEligibility(existingUser);
+    if (!eligibility.allowed) {
+      return Response.json({
+        ok: false,
+        code: 'SOCIAL_PROVIDER_ONLY',
+        provider: eligibility.provider,
+        error: socialPasswordResetError(eligibility.provider)
+      }, { status: 409 });
     }
 
     const updatedUser = await updateFirebaseUserPassword(email, payload.newPassword);

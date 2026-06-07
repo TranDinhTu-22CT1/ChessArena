@@ -114,6 +114,7 @@ export function useGameReview({ game, history, initialFen, gameVariant, isCoachG
     setStockfishStatus('loading');
     fetch(apiUrl('/api/analysis/review'), {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         positions,

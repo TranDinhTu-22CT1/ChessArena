@@ -14,5 +14,8 @@ backend/logs/
 backend/stockfish/*.exe
 *.log
 *.docx
+*_AUDIT_*.md
+*_RUNBOOK_*.md
+*_REPORT_*.md
 bao_cao_*.txt
 bao-cao-*.txt

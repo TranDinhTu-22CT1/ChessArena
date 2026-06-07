@@ -1,6 +1,7 @@
 import { decorateGameRatings, gameParticipantUserId, publicGame, relatedOnlineUserIds } from '../../../../../lib/online';
 import { requireAdminPermission, requireAdminUser } from '../../../../../lib/admin';
 import { rateLimit } from '../../../../../lib/rateLimit';
+import { safeArray } from '../../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -53,33 +54,36 @@ export async function GET(request, { params }) {
 
   if (gamesError) return Response.json({ ok: false, error: gamesError.message }, { status: 500 });
 
-  const decoratedGames = await Promise.all(games.map(async (game) => {
+  const gameRows = safeArray(games);
+  const decoratedGames = await Promise.all(gameRows.map(async (game) => {
     const { data: moves = [] } = await supabase
       .from('online_game_moves')
       .select('*')
       .eq('game_id', game.id)
       .order('ply', { ascending: true });
-    return publicGame(await decorateGameRatings(supabase, game), moves, gameParticipantUserId(game, relatedUserIds, userId));
+    return publicGame(await decorateGameRatings(supabase, game), safeArray(moves), gameParticipantUserId(game, relatedUserIds, userId));
   }));
+  const safePlayerReports = safeArray(playerReports);
+  const safeRatingRefunds = safeArray(ratingRefunds);
 
   return Response.json({
     ok: true,
     user,
-    devices,
-    bans,
-    mutes,
-    reports,
-    playerReports,
-    ratingRefunds,
+    devices: safeArray(devices),
+    bans: safeArray(bans),
+    mutes: safeArray(mutes),
+    reports: safeArray(reports),
+    playerReports: safePlayerReports,
+    ratingRefunds: safeRatingRefunds,
     membership,
     diagnostics: {
       relatedUserIds,
-      relatedUsers,
+      relatedUsers: safeArray(relatedUsers),
       splitAccount: relatedUserIds.length > 1,
-      completedGamesFound: games.filter((game) => ['checkmate', 'draw', 'resigned'].includes(game.status)).length,
-      activeGamesFound: games.filter((game) => game.status === 'active').length,
-      openPlayerReports: playerReports.filter((report) => ['pending', 'in_review', 'escalated'].includes(report.status)).length,
-      refundEvents: ratingRefunds.length,
+      completedGamesFound: gameRows.filter((game) => ['checkmate', 'draw', 'resigned'].includes(game.status)).length,
+      activeGamesFound: gameRows.filter((game) => game.status === 'active').length,
+      openPlayerReports: safePlayerReports.filter((report) => ['pending', 'in_review', 'escalated'].includes(report.status)).length,
+      refundEvents: safeRatingRefunds.length,
       membershipStatus: membership?.status || 'inactive'
     },
     games: decoratedGames

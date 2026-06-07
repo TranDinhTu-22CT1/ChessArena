@@ -1,6 +1,6 @@
 import { syncAchievements } from '../../../../lib/achievements';
 import { requireOnlineUser } from '../../../../lib/online';
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,7 @@ function isoOrNow(value, fallback) {
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'puzzle-session-write', limit: 80, windowMs: 60_000 });
+  const blocked = await distributedRateLimit(request, { scope: 'puzzle-session-write', limit: 80, windowMs: 60_000 });
   if (blocked) return blocked;
 
   const context = await requireOnlineUser();
@@ -86,6 +86,62 @@ export async function POST(request) {
 
   const achievements = await syncAchievements(context.supabase, context.user.id);
   return Response.json({ ok: true, session: data, achievements });
+}
+
+export async function GET(request) {
+  const blocked = await distributedRateLimit(request, { scope: 'puzzle-progress-read', limit: 80, windowMs: 60_000 });
+  if (blocked) return blocked;
+  const context = await requireOnlineUser();
+  if (context.error) return context.error;
+  const [{ data: progress }, { data: dailyClaims = [] }] = await Promise.all([
+    context.supabase.from('puzzle_progress').select('*').eq('user_id', context.user.id).maybeSingle(),
+    context.supabase.from('daily_puzzle_claims').select('*').eq('user_id', context.user.id).order('puzzle_date', { ascending: false }).limit(90)
+  ]);
+  return Response.json({
+    ok: true,
+    progress: progress ? {
+      rating: progress.rating,
+      points: progress.points,
+      correct: progress.correct,
+      attempted: progress.attempted,
+      rushBest: progress.rush_best,
+      streakBest: progress.streak_best,
+      dailyStreak: progress.daily_streak,
+      seen: Array.isArray(progress.seen_puzzle_ids) ? progress.seen_puzzle_ids : []
+    } : null,
+    dailyClaims
+  });
+}
+
+export async function PUT(request) {
+  const blocked = await distributedRateLimit(request, { scope: 'puzzle-progress-write', limit: 120, windowMs: 60_000 });
+  if (blocked) return blocked;
+  const context = await requireOnlineUser();
+  if (context.error) return context.error;
+  const payload = await readJsonPayload(request);
+  if (!payload) return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
+  const seen = Array.isArray(payload.seen)
+    ? [...new Set(payload.seen.map((item) => String(item).slice(0, 120)).filter(Boolean))].slice(-500)
+    : [];
+  const row = {
+    user_id: context.user.id,
+    rating: Math.max(100, Math.min(4000, intValue(payload.rating, 800))),
+    points: intValue(payload.points),
+    correct: intValue(payload.correct),
+    attempted: intValue(payload.attempted),
+    rush_best: intValue(payload.rushBest),
+    streak_best: intValue(payload.streakBest),
+    daily_streak: intValue(payload.dailyStreak),
+    seen_puzzle_ids: seen,
+    updated_at: new Date().toISOString()
+  };
+  const { data, error } = await context.supabase
+    .from('puzzle_progress')
+    .upsert(row, { onConflict: 'user_id' })
+    .select('*')
+    .single();
+  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  return Response.json({ ok: true, progress: data });
 }
 
 export function OPTIONS() {

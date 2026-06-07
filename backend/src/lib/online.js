@@ -310,7 +310,25 @@ export async function applyOnlineRatingResult(supabase, game, result) {
     p_game_id: game.id,
     p_result: result
   });
-  if (!rpcError) return rpcResult;
+  if (!rpcError) {
+    if (rpcResult?.status === 'finalized') {
+      await supabase.from('activity_feed').insert([
+        {
+          actor_user_id: game.white_user_id,
+          type: result === '1-0' ? 'won_game' : result === '1/2-1/2' ? 'drew_game' : 'played_game',
+          subject_id: game.id,
+          metadata: { result, mode: game.mode || 'rapid', opponentUserId: game.black_user_id }
+        },
+        {
+          actor_user_id: game.black_user_id,
+          type: result === '0-1' ? 'won_game' : result === '1/2-1/2' ? 'drew_game' : 'played_game',
+          subject_id: game.id,
+          metadata: { result, mode: game.mode || 'rapid', opponentUserId: game.white_user_id }
+        }
+      ]);
+    }
+    return rpcResult;
+  }
 
   const { error: eventError } = await supabase
     .from('online_rating_events')
@@ -375,7 +393,7 @@ export async function decorateGameRatings(supabase, game) {
   if (ids.length === 0) return game;
 
   const mode = game.mode || onlineModeFromTimeControl(game.time_control);
-  const [{ data: modeRatings = [] }, { data: players = [] }, { data: preferences = [] }] = await Promise.all([
+  const [{ data: modeRatings = [] }, { data: players = [] }, { data: preferences = [] }, { data: memberships = [] }] = await Promise.all([
     supabase
       .from('user_ratings')
       .select('user_id, rating, games_played')
@@ -388,6 +406,10 @@ export async function decorateGameRatings(supabase, game) {
     supabase
       .from('user_preferences')
       .select('user_id, theme')
+      .in('user_id', ids),
+    supabase
+      .from('user_memberships')
+      .select('user_id, tier, status')
       .in('user_id', ids)
   ]);
   let data = modeRatings || [];
@@ -405,6 +427,10 @@ export async function decorateGameRatings(supabase, game) {
     preference.user_id,
     sanitizePieceSet(preference.theme?.pieceSet)
   ]));
+  const membershipByUser = new Map((memberships || []).map((membership) => [
+    membership.user_id,
+    membership.status === 'active' ? membership.tier : 'free'
+  ]));
   return {
     ...game,
     white_rating: byUser.get(game.white_user_id)?.rating ?? DEFAULT_ONLINE_RATING,
@@ -412,7 +438,9 @@ export async function decorateGameRatings(supabase, game) {
     white_photo_url: photoByUser.get(game.white_user_id) ?? null,
     black_photo_url: photoByUser.get(game.black_user_id) ?? null,
     white_piece_set: pieceSetByUser.get(game.white_user_id) ?? 'classic',
-    black_piece_set: pieceSetByUser.get(game.black_user_id) ?? 'classic'
+    black_piece_set: pieceSetByUser.get(game.black_user_id) ?? 'classic',
+    white_membership_tier: membershipByUser.get(game.white_user_id) ?? 'free',
+    black_membership_tier: membershipByUser.get(game.black_user_id) ?? 'free'
   };
 }
 
@@ -449,7 +477,14 @@ export async function applyTournamentResult(supabase, game, result) {
 
     const whitePoints = tournamentPoints(result, 'w');
     const blackPoints = tournamentPoints(result, 'b');
-    const { error: eventError } = await supabase.from('arena_tournament_games').insert({
+    const { data: existingTournamentGame } = await supabase
+      .from('arena_tournament_games')
+      .select('result')
+      .eq('tournament_id', tournament.id)
+      .eq('game_id', game.id)
+      .maybeSingle();
+    if (existingTournamentGame && ['1-0', '0-1', '1/2-1/2'].includes(existingTournamentGame.result)) continue;
+    const { error: eventError } = await supabase.from('arena_tournament_games').upsert({
       tournament_id: tournament.id,
       game_id: game.id,
       white_user_id: game.white_user_id,
@@ -457,8 +492,13 @@ export async function applyTournamentResult(supabase, game, result) {
       result,
       score_white: whitePoints,
       score_black: blackPoints
-    });
+    }, { onConflict: 'tournament_id,game_id' });
     if (eventError) continue;
+    await supabase
+      .from('tournament_pairings')
+      .update({ status: 'finished', updated_at: new Date().toISOString() })
+      .eq('tournament_id', tournament.id)
+      .eq('game_id', game.id);
 
     const now = new Date().toISOString();
     await Promise.all([
@@ -520,8 +560,20 @@ export async function applyTournamentResult(supabase, game, result) {
   return updates.length ? updates : null;
 }
 
+let onlineSummaryCache = {
+  expiresAt: 0,
+  value: null,
+  pending: null
+};
+
 export async function onlineSummary(supabase) {
-  const [{ count: onlineCount }, { count: queueCount }] = await Promise.all([
+  const now = Date.now();
+  if (onlineSummaryCache.value && onlineSummaryCache.expiresAt > now) {
+    return onlineSummaryCache.value;
+  }
+  if (onlineSummaryCache.pending) return onlineSummaryCache.pending;
+
+  onlineSummaryCache.pending = Promise.all([
     supabase
       .from('online_presence')
       .select('user_id', { count: 'exact', head: true })
@@ -531,12 +583,23 @@ export async function onlineSummary(supabase) {
       .select('user_id', { count: 'exact', head: true })
       .eq('status', 'queue')
       .gte('last_seen', queueStaleIso())
-  ]);
+  ]).then(([{ count: onlineCount }, { count: queueCount }]) => {
+    const value = {
+      onlineCount: onlineCount ?? 0,
+      queueCount: queueCount ?? 0
+    };
+    onlineSummaryCache = {
+      expiresAt: Date.now() + 5000,
+      value,
+      pending: null
+    };
+    return value;
+  }).catch((error) => {
+    onlineSummaryCache.pending = null;
+    throw error;
+  });
 
-  return {
-    onlineCount: onlineCount ?? 0,
-    queueCount: queueCount ?? 0
-  };
+  return onlineSummaryCache.pending;
 }
 
 export function chessFromMoves(moves) {
@@ -684,6 +747,16 @@ export function publicGame(game, moves, userId) {
     pgn: playedPosition?.pgn() ?? game.pgn,
     turn: playedPosition?.turn() ?? game.turn,
     result: game.result,
+    drawOffer: game.draw_offered_by ? {
+      userId: game.draw_offered_by,
+      offeredAt: game.draw_offered_at,
+      byYou: game.draw_offered_by === userId
+    } : null,
+    spectatorAllowed: game.spectator_allowed !== false,
+    spectator: playerColor === null,
+    disconnectGraceSeconds: game.disconnect_grace_seconds ?? 45,
+    whiteDisconnectedAt: game.white_disconnected_at || null,
+    blackDisconnectedAt: game.black_disconnected_at || null,
     timeControl: game.time_control,
     lastMoveAt: game.last_move_at,
     startedAt: game.started_at,
@@ -702,6 +775,7 @@ export function publicGame(game, moves, userId) {
       ratingDelta: whiteRatingDelta,
       photoURL: game.white_photo_url ?? null,
       pieceSet: sanitizePieceSet(game.white_piece_set),
+      membershipTier: game.white_membership_tier ?? 'free',
       you: game.white_user_id === userId
     },
     black: {
@@ -713,6 +787,7 @@ export function publicGame(game, moves, userId) {
       ratingDelta: blackRatingDelta,
       photoURL: game.black_photo_url ?? null,
       pieceSet: sanitizePieceSet(game.black_piece_set),
+      membershipTier: game.black_membership_tier ?? 'free',
       you: game.black_user_id === userId
     },
     rematch: game.rematch_requested_by ? {

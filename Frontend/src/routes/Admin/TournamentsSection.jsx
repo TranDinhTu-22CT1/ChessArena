@@ -95,6 +95,38 @@ export default function TournamentsSection({
           />
         </label>
 
+        <label>
+          Thể thức ghép cặp
+          <select
+            value={tournamentForm.pairingSystem}
+            onChange={(event) => onChangeTournamentForm({ pairingSystem: event.target.value })}
+          >
+            <option value="arena">Arena</option>
+            <option value="swiss">Swiss</option>
+            <option value="round_robin">Vòng tròn</option>
+          </select>
+        </label>
+
+        <label>
+          Số người tối đa
+          <input
+            type="number"
+            min="2"
+            max="1000"
+            value={tournamentForm.maxPlayers}
+            onChange={(event) => onChangeTournamentForm({ maxPlayers: event.target.value })}
+          />
+        </label>
+
+        <label className="admin-inline-check">
+          <input
+            type="checkbox"
+            checked={tournamentForm.autoManage}
+            onChange={(event) => onChangeTournamentForm({ autoManage: event.target.checked })}
+          />
+          Tự động mở giải và ghép cặp
+        </label>
+
         <div className="admin-match-preview">
           <span><CalendarClock size={14} /> {tournamentForm.startsAt ? formatDate(tournamentForm.startsAt) : 'Mở ngay sau khi tạo'}</span>
           <span><Users size={14} /> Tất cả người chơi đều có thể tham gia</span>
@@ -119,6 +151,7 @@ export default function TournamentsSection({
               </span>
               <small>{item.players?.length || 0} người tham gia trong top hiển thị</small>
               <small>Tổng người tham gia: {item.playerCount ?? item.players?.length ?? 0} | Số ván đã ghi nhận: {item.totalGamesPlayed ?? 0}</small>
+              <small>Thể thức: {item.pairing_system || 'arena'} | Tối đa: {item.max_players || 100} | Vòng: {item.current_round || 0}</small>
               <div className="admin-podium-list">
                 {topPlayers(item.players).length === 0 ? (
                   <em>Chưa có người chơi trên bảng xếp hạng.</em>

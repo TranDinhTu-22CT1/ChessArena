@@ -12,7 +12,7 @@ function cleanMode(value) {
 
 function cleanLimit(value) {
   const limit = Number(value);
-  return Number.isFinite(limit) ? Math.max(10, Math.min(100, Math.floor(limit))) : 50;
+  return Number.isFinite(limit) ? Math.max(10, Math.min(50, Math.floor(limit))) : 20;
 }
 
 function publicPlayer(rating, profile, rank) {
@@ -47,17 +47,20 @@ export async function GET(request) {
   const url = new URL(request.url);
   const mode = cleanMode(url.searchParams.get('mode'));
   const limit = cleanLimit(url.searchParams.get('limit'));
+  const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
   const { supabase, user } = context;
 
-  const { data: ratingRows, error } = await supabase
+  const { data: ratingRows, error, count = 0 } = await supabase
     .from('user_ratings')
-    .select('user_id, mode, rating, deviation, games_played, wins, losses, draws, provisional, updated_at')
+    .select('user_id, mode, rating, deviation, games_played, wins, losses, draws, provisional, updated_at', { count: 'exact' })
     .eq('mode', mode)
     .gt('games_played', 0)
     .order('rating', { ascending: false })
     .order('games_played', { ascending: false })
     .order('updated_at', { ascending: true })
-    .limit(limit);
+    .range(from, to);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   const ratings = safeArray(ratingRows);
@@ -74,7 +77,7 @@ export async function GET(request) {
   const profiles = safeArray(profileRows);
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
 
-  const entries = ratings.map((rating, index) => publicPlayer(rating, profilesById.get(rating.user_id), index + 1));
+  const entries = ratings.map((rating, index) => publicPlayer(rating, profilesById.get(rating.user_id), from + index + 1));
 
   const { data: myRating } = await supabase
     .from('user_ratings')
@@ -97,10 +100,12 @@ export async function GET(request) {
   return Response.json({
     ok: true,
     mode,
+    page,
     limit,
     entries,
     currentUser,
-    total: entries.length
+    total: count || entries.length,
+    totalPages: Math.max(1, Math.ceil((count || entries.length) / limit))
   });
 }
 

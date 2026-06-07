@@ -34,7 +34,7 @@ export async function GET(request, { params }) {
   const participantUserId = gameParticipantUserId(game, userIds, user.id);
   const isParticipant = [game.white_user_id, game.black_user_id].includes(participantUserId);
   const isFinished = ['checkmate', 'draw', 'resigned', 'abandoned'].includes(game.status);
-  if (!isParticipant && !user.isAdmin && !isFinished) {
+  if (!isParticipant && !user.isAdmin && !isFinished && game.spectator_allowed === false) {
     return Response.json({ ok: false, error: 'Forbidden.' }, { status: 403 });
   }
 

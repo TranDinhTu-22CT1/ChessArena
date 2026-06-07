@@ -1,6 +1,7 @@
 import { rateLimit } from '../../../../../lib/rateLimit';
 import { analyzeOnlineGameForUser } from '../../../../../lib/antiCheat';
 import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../../lib/admin';
+import { safeArray } from '../../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +16,7 @@ async function loadRecentCompletedGames(supabase, userId, limit) {
     .limit(limit);
 
   if (error) throw error;
-  return games;
+  return safeArray(games);
 }
 
 function scanSummary(reports) {
@@ -88,7 +89,7 @@ export async function POST(request) {
         .order('ply', { ascending: true });
       if (movesError) throw movesError;
 
-      const analysis = await analyzeOnlineGameForUser(game, moves, userId);
+      const analysis = await analyzeOnlineGameForUser(game, safeArray(moves), userId);
       const reportPayload = {
         user_id: userId,
         game_id: game.id,

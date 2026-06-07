@@ -1,4 +1,4 @@
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { readJsonPayload, safeArray } from '../../../../lib/validation';
 import {
   DEFAULT_ONLINE_RATING,
@@ -8,7 +8,6 @@ import {
   onlineSummary,
   publicGame,
   requireOnlineUser,
-  touchPresence
 } from '../../../../lib/online';
 
 export const runtime = 'nodejs';
@@ -22,6 +21,21 @@ function correlationId(request, payload = {}) {
     payload.correlationId || request.headers.get('x-correlation-id') || crypto.randomUUID(),
     120
   );
+}
+
+function normalizeMatchmakingRegion(value) {
+  const region = String(value || '').trim().toLowerCase();
+  if (['vn', 'vietnam', 'asia/ho_chi_minh', 'asia/saigon'].includes(region)) return 'vn';
+  if (
+    region === 'sea'
+    || region.startsWith('asia/bangkok')
+    || region.startsWith('asia/singapore')
+    || region.startsWith('asia/jakarta')
+    || region.startsWith('asia/manila')
+    || region.startsWith('asia/kuala_lumpur')
+  ) return 'sea';
+  if (region === 'asia' || region.startsWith('asia/')) return 'asia';
+  return 'global';
 }
 
 function rpcFailure(error) {
@@ -43,7 +57,11 @@ function rpcFailure(error) {
       hint: error?.hint
     });
     return Response.json(
-      { ok: false, status: 'unavailable', error: 'Matchmaking database migration is required. Apply backend/supabase/schema.sql.' }
+      {
+        ok: false,
+        status: 'unavailable',
+        error: 'Matchmaking database migration is required. Apply backend/supabase/migrations/20260606_matchmaking_v2.sql.'
+      }
     );
   }
   if (error?.code === '42501') {
@@ -63,165 +81,14 @@ function isMissingRpcSignature(error) {
 }
 
 async function findGameRpc(supabase, params) {
-  const nextResult = await supabase.rpc('quick_match_find_game', params);
-  if (!isMissingRpcSignature(nextResult.error)) return nextResult;
+  const v2Result = await supabase.rpc('quick_match_find_game_v2', params);
+  if (!isMissingRpcSignature(v2Result.error)) return v2Result;
+
+  const legacyResult = await supabase.rpc('quick_match_find_game', params);
+  if (!isMissingRpcSignature(legacyResult.error)) return legacyResult;
 
   const { p_idempotency_key: _ignored, ...legacyParams } = params;
-  const legacyResult = await supabase.rpc('quick_match_find_game', legacyParams);
-  if (legacyResult.error) {
-    console.error('[matchmaking] quick_match_find_game failed', {
-      next: {
-        code: nextResult.error?.code,
-        message: nextResult.error?.message,
-        details: nextResult.error?.details,
-        hint: nextResult.error?.hint
-      },
-      legacy: {
-        code: legacyResult.error?.code,
-        message: legacyResult.error?.message,
-        details: legacyResult.error?.details,
-        hint: legacyResult.error?.hint
-      }
-    });
-  }
-  return legacyResult;
-}
-
-async function rescueWaitingMatch(supabase, user, timeControl, mode) {
-  const now = new Date().toISOString();
-  const staleBefore = new Date(Date.now() - 45_000).toISOString();
-  const { data: activeGame } = await supabase
-    .from('online_games')
-    .select('id')
-    .eq('status', 'active')
-    .or(`white_user_id.eq.${user.id},black_user_id.eq.${user.id}`)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (activeGame) return { status: 'matched', game_id: activeGame.id, rescued: true };
-
-  let { data: myTicket, error: ticketError } = await supabase
-    .from('online_match_queue')
-    .select('id, user_id, display_name, rating, time_control, mode, status, joined_at')
-    .eq('user_id', user.id)
-    .eq('status', 'waiting')
-    .order('joined_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (ticketError) throw ticketError;
-
-  if (!myTicket) {
-    const inserted = await supabase
-      .from('online_match_queue')
-      .insert({
-        user_id: user.id,
-        firebase_uid: user.firebaseUid,
-        display_name: user.displayName,
-        time_control: timeControl,
-        mode,
-        rating: DEFAULT_ONLINE_RATING,
-        pool: 'standard',
-        status: 'waiting',
-        joined_at: now,
-        last_seen: now,
-        updated_at: now
-      })
-      .select('id, user_id, display_name, rating, time_control, mode, status, joined_at')
-      .single();
-    if (inserted.error) throw inserted.error;
-    myTicket = inserted.data;
-  } else {
-    const refreshed = await supabase
-      .from('online_match_queue')
-      .update({ last_seen: now, updated_at: now })
-      .eq('id', myTicket.id)
-      .eq('status', 'waiting')
-      .select('id, user_id, display_name, rating, time_control, mode, status, joined_at')
-      .maybeSingle();
-    myTicket = refreshed.data || myTicket;
-  }
-
-  await touchPresence(supabase, user, { status: 'queue', currentGameId: null });
-  const { data: opponentRows = [], error: opponentError } = await supabase
-    .from('online_match_queue')
-    .select('id, user_id, display_name, rating, joined_at')
-    .neq('user_id', user.id)
-    .eq('status', 'waiting')
-    .eq('time_control', timeControl)
-    .eq('mode', mode)
-    .gte('last_seen', staleBefore)
-    .order('joined_at', { ascending: true })
-    .limit(3);
-  if (opponentError) throw opponentError;
-
-  const opponents = safeArray(opponentRows);
-
-  for (const opponent of opponents) {
-    const { data: claimed } = await supabase
-      .from('online_match_queue')
-      .update({ status: 'claimed', claimed_by: user.id, claimed_at: now, updated_at: now })
-      .eq('id', opponent.id)
-      .eq('status', 'waiting')
-      .select('id, user_id, display_name, rating')
-      .maybeSingle();
-    if (!claimed) continue;
-
-    const userIsWhite = Math.random() < 0.5;
-    const whiteUserId = userIsWhite ? user.id : claimed.user_id;
-    const blackUserId = userIsWhite ? claimed.user_id : user.id;
-    const whiteName = userIsWhite ? user.displayName : claimed.display_name;
-    const blackName = userIsWhite ? claimed.display_name : user.displayName;
-    const { data: game, error: gameError } = await supabase
-      .from('online_games')
-      .insert({
-        status: 'active',
-        match_type: 'quick',
-        white_user_id: whiteUserId,
-        black_user_id: blackUserId,
-        white_name: whiteName,
-        black_name: blackName,
-        fen: 'start',
-        pgn: '',
-        turn: 'w',
-        result: '*',
-        time_control: timeControl,
-        mode,
-        rated: true,
-        last_move_at: now,
-        started_at: now,
-        updated_at: now,
-        matchmaking_ticket_white: userIsWhite ? myTicket.id : claimed.id,
-        matchmaking_ticket_black: userIsWhite ? claimed.id : myTicket.id,
-        matchmaking_pool: 'rescue'
-      })
-      .select('id')
-      .single();
-    if (gameError) {
-      await supabase.from('online_match_queue').update({ status: 'waiting', claimed_by: null, claimed_at: null, updated_at: now }).eq('id', claimed.id).eq('status', 'claimed');
-      throw gameError;
-    }
-
-    await Promise.all([
-      supabase
-        .from('online_match_queue')
-        .update({ status: 'matched', matched_game_id: game.id, updated_at: now })
-        .in('id', [myTicket.id, claimed.id]),
-      supabase
-        .from('online_presence')
-        .update({ status: 'playing', current_game_id: game.id, current_queue_ticket_id: null, last_seen: now, updated_at: now })
-        .in('user_id', [user.id, claimed.user_id])
-    ]);
-    return {
-      status: 'matched',
-      game_id: game.id,
-      queue_ticket_id: myTicket.id,
-      mode,
-      pool: 'rescue',
-      rescued: true
-    };
-  }
-
-  return { status: 'waiting', queue_ticket_id: myTicket.id, mode, pool: 'rescue', rescued: true };
+  return supabase.rpc('quick_match_find_game', legacyParams);
 }
 
 async function matchedResponse(supabase, result, userId) {
@@ -247,11 +114,15 @@ async function matchedResponse(supabase, result, userId) {
 
 export async function POST(request) {
   const startedAt = Date.now();
-  const blocked = rateLimit(request, { scope: 'online-matchmaking', limit: 30, windowMs: 60_000 });
-  if (blocked) return blocked;
-
   const context = await requireOnlineUser();
   if (context.error) return context.error;
+  const blocked = await distributedRateLimit(request, {
+    scope: 'online-matchmaking',
+    identity: context.user.id,
+    limit: 30,
+    windowMs: 60_000
+  });
+  if (blocked) return blocked;
 
   const payload = await readJsonPayload(request);
   if (!payload) {
@@ -277,7 +148,7 @@ export async function POST(request) {
     payload.idempotencyKey || request.headers.get('idempotency-key') || `${sessionId || requestId}:${timeControl}`,
     120
   );
-  const region = cleanClientValue(payload.region, 40) || 'global';
+  const region = normalizeMatchmakingRegion(payload.region);
   const requestedRange = Number(payload.ratingRangePreference);
   const ratingRangePreference = Number.isFinite(requestedRange)
     ? Math.max(25, Math.min(1000, Math.trunc(requestedRange)))
@@ -295,21 +166,7 @@ export async function POST(request) {
     p_idempotency_key: idempotencyKey
   });
   let { data: result, error } = rpcResult;
-  if (error) {
-    try {
-      result = await rescueWaitingMatch(supabase, user, timeControl, mode);
-      error = null;
-    } catch {
-      return rpcFailure(error);
-    }
-  } else if (result?.status === 'waiting') {
-    try {
-      const rescued = await rescueWaitingMatch(supabase, user, timeControl, mode);
-      if (rescued.status === 'matched') result = rescued;
-    } catch (rescueError) {
-      console.error('[matchmaking] rescue lookup failed', { message: rescueError?.message });
-    }
-  }
+  if (error) return rpcFailure(error);
 
   supabase.from('matchmaking_events').insert({
     user_id: user.id,
@@ -330,6 +187,15 @@ export async function POST(request) {
   }).then(() => {}, () => {});
 
   if (result?.status === 'matched') return matchedResponse(supabase, result, user.id);
+  if (result?.status === 'owned_elsewhere') {
+    return Response.json({
+      ok: false,
+      status: 'owned_elsewhere',
+      error: 'Matchmaking is active in another tab or device.',
+      queueTicketId: result.queue_ticket_id ?? null,
+      leaseExpiresAt: result.lease_expires_at ?? null
+    }, { status: 409 });
+  }
   if (result?.status === 'cooldown') {
     return Response.json({
       ok: false,
@@ -342,8 +208,12 @@ export async function POST(request) {
     ok: true,
     status: 'waiting',
     queueTicketId: result?.queue_ticket_id ?? null,
+    generation: result?.generation ?? null,
+    leaseExpiresAt: result?.lease_expires_at ?? null,
     estimatedWait: result?.estimated_wait ?? null,
     ratingWindow: result?.rating_window ?? null,
+    region: result?.region ?? region,
+    regionLimit: result?.region_limit ?? null,
     rating: result?.rating ?? DEFAULT_ONLINE_RATING,
     mode: result?.mode ?? mode,
     pool: result?.pool ?? 'standard',

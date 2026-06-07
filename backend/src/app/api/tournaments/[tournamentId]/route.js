@@ -1,5 +1,6 @@
 import { decorateGameRatings, publicGame, requireOnlineUser } from '../../../../lib/online';
 import { rateLimit } from '../../../../lib/rateLimit';
+import { pairPublicTournament, syncTournamentLifecycle } from '../../../../lib/tournaments';
 
 export const runtime = 'nodejs';
 
@@ -25,13 +26,15 @@ export async function GET(request, { params }) {
 
   const { tournamentId } = await params;
   const { supabase, user } = context;
-  const { data: tournament, error: tournamentError } = await supabase
+  const { data: storedTournament, error: tournamentError } = await supabase
     .from('arena_tournaments')
     .select('*')
     .eq('id', tournamentId)
     .maybeSingle();
   if (tournamentError) return Response.json({ ok: false, error: tournamentError.message }, { status: 500 });
-  if (!tournament) return Response.json({ ok: false, error: 'Không tìm thấy giải đấu.' }, { status: 404 });
+  if (!storedTournament) return Response.json({ ok: false, error: 'Không tìm thấy giải đấu.' }, { status: 404 });
+  const syncedTournament = await syncTournamentLifecycle(supabase, storedTournament);
+  const { tournament } = await pairPublicTournament(supabase, syncedTournament);
 
   const [{ data: playerRows }, { data: gameLinkRows }] = await Promise.all([
     supabase
@@ -95,7 +98,10 @@ export async function GET(request, { params }) {
       endsAt: tournament.ends_at,
       joined: Boolean(myStanding),
       playerCount: players.length,
-      gameCount: gameLinks.length
+      gameCount: gameLinks.length,
+      pairingSystem: tournament.pairing_system || 'arena',
+      maxPlayers: tournament.max_players || 100,
+      currentRound: tournament.current_round || 0
     },
     standings,
     myStanding,

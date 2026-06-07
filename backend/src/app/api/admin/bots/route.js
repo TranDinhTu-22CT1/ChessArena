@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
+import { uploadDataAsset } from '../../../../lib/storage';
 
 export const runtime = 'nodejs';
 
@@ -7,13 +8,34 @@ function cleanText(value, fallback, max = 160) {
   return String(value || fallback).trim().replace(/\s+/g, ' ').slice(0, max) || fallback;
 }
 
-function cleanBotPayload(payload) {
+function cleanAvatarImage(value) {
+  const input = String(value || '').trim();
+  if (!input) return '/chessarena-mark.svg';
+  if (/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=\r\n]+$/i.test(input)) {
+    return input.length <= 160_000 ? input : '/chessarena-mark.svg';
+  }
+  return cleanText(input, '/chessarena-mark.svg', 500);
+}
+
+async function cleanBotPayload(payload, ownerUserId = null) {
+  let avatarUrl = cleanAvatarImage(payload?.avatarUrl || payload?.avatar_url);
+  if (avatarUrl.startsWith('data:image/')) {
+    const asset = await uploadDataAsset({
+      ownerUserId,
+      dataUrl: avatarUrl,
+      mimeType: avatarUrl.slice(5, avatarUrl.indexOf(';')),
+      originalName: `${payload?.name || 'bot'}-avatar.webp`,
+      purpose: 'bot-avatars',
+      maxBytes: 2 * 1024 * 1024
+    });
+    avatarUrl = asset.url;
+  }
   return {
     name: cleanText(payload?.name, 'Event Bot', 48),
     elo: Math.max(250, Math.min(3200, Number(payload?.elo) || 1200)),
     mood: cleanText(payload?.mood, 'Custom admin bot', 120),
     chat: cleanText(payload?.chat, 'Ready for a themed game.', 220),
-    avatar_url: cleanText(payload?.avatarUrl || payload?.avatar_url, '/chessarena-mark.svg', 500),
+    avatar_url: avatarUrl,
     event_tag: cleanText(payload?.eventTag || payload?.event_tag, 'seasonal', 40).toLowerCase(),
     active: payload?.active !== false,
     sort_order: Math.max(0, Math.min(999, Number(payload?.sortOrder || payload?.sort_order) || 50)),
@@ -72,10 +94,10 @@ export async function POST(request) {
     if (rawBots.length !== 5) {
       return Response.json({ ok: false, error: 'Bot batch must contain exactly 5 bots.' }, { status: 400 });
     }
-    const rows = rawBots.map((bot, index) => cleanBotPayload({
+    const rows = await Promise.all(rawBots.map((bot, index) => cleanBotPayload({
       ...bot,
       sortOrder: bot?.sortOrder ?? bot?.sort_order ?? 50 + index
-    }));
+    }, context.admin?.id || null)));
     const { data, error } = await context.supabase
       .from('bot_personas')
       .insert(rows)
@@ -91,7 +113,7 @@ export async function POST(request) {
 
   const { data, error } = await context.supabase
     .from('bot_personas')
-    .insert(cleanBotPayload(payload))
+    .insert(await cleanBotPayload(payload, context.admin?.id || null))
     .select('*')
     .single();
 
@@ -116,7 +138,7 @@ export async function PATCH(request) {
 
   const { data, error } = await context.supabase
     .from('bot_personas')
-    .update({ ...cleanBotPayload(payload), updated_at: new Date().toISOString() })
+    .update({ ...(await cleanBotPayload(payload, context.admin?.id || null)), updated_at: new Date().toISOString() })
     .eq('id', botId)
     .select('*')
     .single();

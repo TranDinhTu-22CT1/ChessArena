@@ -4,9 +4,9 @@ const MOMO_TEST_ENDPOINT = 'https://test-payment.momo.vn/v2/gateway/api/create';
 const MOMO_LIVE_ENDPOINT = 'https://payment.momo.vn/v2/gateway/api/create';
 
 export const MOMO_AMOUNTS = {
-  plus: { monthly: 50000, yearly: 500000 },
-  pro: { monthly: 100000, yearly: 1000000 },
-  master: { monthly: 150000, yearly: 1500000 }
+  plus: { monthly: 125000, yearly: 1250000 },
+  pro: { monthly: 250000, yearly: 2500000 },
+  master: { monthly: 500000, yearly: 5000000 }
 };
 
 function momoConfig() {

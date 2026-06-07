@@ -1,6 +1,6 @@
 import { apiUrl } from './config';
 
-export async function requestStockfishMove(fen, elo, options = {}, timeoutMs = 5000) {
+export async function requestStockfishMove(fen, elo, options = {}, timeoutMs = 12000) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 

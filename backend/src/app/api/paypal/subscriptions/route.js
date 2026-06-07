@@ -1,4 +1,4 @@
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
 import { assertPayPalPlanVisible, createPayPalSubscription } from '../../../../lib/paypal';
 
@@ -30,7 +30,7 @@ function approveLink(subscription) {
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'paypal-subscription-create', limit: 12, windowMs: 60_000 });
+  const blocked = await distributedRateLimit(request, { scope: 'paypal-subscription-create', limit: 12, windowMs: 60_000 });
   if (blocked) return blocked;
 
   const context = await requireOnlineUser();

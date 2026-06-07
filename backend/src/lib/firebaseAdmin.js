@@ -68,6 +68,30 @@ export async function firebaseUserExists(email) {
   }
 }
 
+export function getFirebaseUserProviders(user) {
+  return [...new Set(
+    (user?.providerData || [])
+      .map((provider) => provider?.providerId)
+      .filter(Boolean)
+  )];
+}
+
+export function getPasswordResetEligibility(user) {
+  const providers = getFirebaseUserProviders(user);
+
+  if (providers.includes('password')) {
+    return { allowed: true, provider: 'password', providers };
+  }
+
+  const provider = providers.includes('google.com')
+    ? 'google.com'
+    : providers.includes('github.com')
+      ? 'github.com'
+      : providers[0] || null;
+
+  return { allowed: false, provider, providers };
+}
+
 export async function createVerifiedFirebaseUser({ email, password, displayName }) {
   const firebaseAdmin = getFirebaseAdmin();
   return firebaseAdmin.auth().createUser({
@@ -106,6 +130,14 @@ export async function createFirebaseCustomToken(uid) {
 export async function updateFirebaseUserPassword(email, password) {
   const user = await firebaseUserExists(email);
   if (!user) return null;
+
+  const eligibility = getPasswordResetEligibility(user);
+  if (!eligibility.allowed) {
+    const error = new Error('Password reset is not available for this sign-in provider.');
+    error.code = 'auth/password-reset-provider-not-supported';
+    error.provider = eligibility.provider;
+    throw error;
+  }
 
   const firebaseAdmin = getFirebaseAdmin();
   return firebaseAdmin.auth().updateUser(user.uid, {

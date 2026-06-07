@@ -10,6 +10,8 @@ export default function GameBoard({
   whiteName,
   blackAvatarURL,
   whiteAvatarURL,
+  blackMembership,
+  whiteMembership,
   playerColor,
   clocks,
   capturedBlack,
@@ -61,6 +63,7 @@ export default function GameBoard({
         tone="black"
         name={blackName}
         avatarURL={blackAvatarURL}
+        membership={blackMembership}
         label={playerColor === 'b' ? 'You' : 'Opponent'}
         clock={formatClock(clocks.b)}
         captures={capturedBlack}
@@ -205,6 +208,7 @@ export default function GameBoard({
         tone="white"
         name={whiteName}
         avatarURL={whiteAvatarURL}
+        membership={whiteMembership}
         label={playerColor === 'w' ? 'You' : 'Opponent'}
         clock={formatClock(clocks.w)}
         captures={capturedWhite}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Chrome, Github, Lock, Mail, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { Chrome, Github, LoaderCircle, Lock, Mail, ShieldCheck, Sparkles, Swords, UserRound } from 'lucide-react';
 import BrandMark from './BrandMark';
 
 const text = {
@@ -7,14 +7,14 @@ const text = {
   recoverPassword: 'Kh\u00f4i ph\u1ee5c m\u1eadt kh\u1ea9u',
   signIn: '\u0110\u0103ng nh\u1eadp',
   forgotSubtitle: 'Nh\u1eadp email \u0111\u00e3 \u0111\u0103ng k\u00fd \u0111\u1ec3 nh\u1eadn li\u00ean k\u1ebft \u0111\u1eb7t l\u1ea1i m\u1eadt kh\u1ea9u.',
-  defaultSubtitle: 'L\u01b0u v\u00e1n \u0111\u1ea5u, xem l\u1ea1i l\u1ecbch s\u1eed v\u00e0 \u0111\u1ed3ng b\u1ed9 giao di\u1ec7n theo t\u00e0i kho\u1ea3n c\u1ee7a b\u1ea1n.',
-  platform: 'N\u1ec1n t\u1ea3ng c\u1edd vua c\u00e1 nh\u00e2n',
-  secureAccount: 'T\u00e0i kho\u1ea3n b\u1ea3o m\u1eadt',
-  heroTitle: 'Ch\u01a1i c\u1edd, l\u01b0u v\u00e1n \u0111\u1ea5u v\u00e0 ti\u1ebfp t\u1ee5c \u1edf b\u1ea5t k\u1ef3 thi\u1ebft b\u1ecb n\u00e0o.',
-  heroCopy: 'Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u01b0\u1ee3c b\u1ea3o v\u1ec7 b\u1eb1ng cookie HttpOnly. M\u00e0u giao di\u1ec7n v\u00e0 l\u1ecbch s\u1eed v\u00e1n c\u1edd \u0111\u01b0\u1ee3c t\u00e1ch ri\u00eang theo t\u1eebng ng\u01b0\u1eddi ch\u01a1i.',
-  benefitSession: 'Cookie HttpOnly cho phi\u00ean \u0111\u0103ng nh\u1eadp',
-  benefitTheme: '\u0110\u1ed3ng b\u1ed9 m\u00e0u giao di\u1ec7n theo t\u00e0i kho\u1ea3n',
-  benefitLogs: 'Nh\u1eadt k\u00fd v\u00e1n \u0111\u1ea5u ri\u00eang cho t\u1eebng ng\u01b0\u1eddi ch\u01a1i',
+  loginSubtitle: 'Tr\u1edf l\u1ea1i b\u00e0n c\u1edd v\u00e0 ti\u1ebfp t\u1ee5c chinh ph\u1ee5c nh\u1eefng th\u1eed th\u00e1ch m\u1edbi.',
+  registerSubtitle: 'Ch\u1ecdn cho m\u00ecnh m\u1ed9t danh x\u01b0ng v\u00e0 s\u1eb5n s\u00e0ng b\u01b0\u1edbc v\u00e0o cu\u1ed9c \u0111\u1ea5u.',
+  platform: 'N\u01a1i nh\u1eefng k\u1ef3 th\u1ee7 g\u1eb7p nhau',
+  secureAccount: 'Chess Arena',
+  heroTitle: 'B\u00e0n c\u1edd \u0111\u00e3 s\u1eb5n s\u00e0ng. \u0110\u1ebfn l\u01b0\u1ee3t b\u1ea1n.',
+  heroCopy: 'Ch\u00e0o m\u1eebng k\u1ef3 th\u1ee7! H\u00e3y b\u01b0\u1edbc v\u00e0o \u0111\u1ea5u tr\u01b0\u1eddng v\u00e0 vi\u1ebft n\u00ean v\u00e1n c\u1edd c\u1ee7a ri\u00eang m\u00ecnh.',
+  arenaReady: 'B\u00e0n c\u1edd \u0111ang ch\u1edd b\u1ea1n',
+  arenaCallout: 'M\u1ed9t n\u01b0\u1edbc \u0111i hay c\u00f3 th\u1ec3 thay \u0111\u1ed5i c\u1ea3 v\u00e1n \u0111\u1ea5u.',
   newPlayer: 'Ng\u01b0\u1eddi ch\u01a1i m\u1edbi',
   accountHelp: 'H\u1ed7 tr\u1ee3 t\u00e0i kho\u1ea3n',
   welcomeBack: 'Ch\u00e0o m\u1eebng tr\u1edf l\u1ea1i',
@@ -63,10 +63,30 @@ export default function AuthPage({
       : isForgot
         ? text.recoverPassword
         : text.signIn;
-  const subtitle = isOtpStep ? text.otpCopy : isForgot ? text.forgotSubtitle : text.defaultSubtitle;
+  const subtitle = isOtpStep
+    ? text.otpCopy
+    : isForgot
+      ? text.forgotSubtitle
+      : isRegister
+        ? text.registerSubtitle
+        : text.loginSubtitle;
+  const busyLabel = isOtpStep
+    ? otpState?.purpose === 'register'
+      ? 'Đang tạo tài khoản...'
+      : 'Đang cập nhật mật khẩu...'
+    : isRegister
+      ? 'Đang gửi mã OTP...'
+      : isForgot
+        ? 'Đang kiểm tra tài khoản...'
+        : 'Đang đăng nhập...';
 
   return (
     <section className="auth-page">
+      <div className="auth-background" aria-hidden="true">
+        <div className="auth-glow auth-glow-one" />
+        <div className="auth-glow auth-glow-two" />
+      </div>
+
       <div className="auth-copy">
         <div className="auth-brand">
           <BrandMark className="logo-mark-image" />
@@ -82,19 +102,36 @@ export default function AuthPage({
           <p>{text.heroCopy}</p>
         </div>
 
-        <div className="auth-benefits">
-          <span><ShieldCheck size={17} /> {text.benefitSession}</span>
-          <span><Sparkles size={17} /> {text.benefitTheme}</span>
-          <span><UserRound size={17} /> {text.benefitLogs}</span>
+        <div className="auth-arena" aria-hidden="true">
+          <div className="auth-arena-orbit auth-arena-orbit-outer" />
+          <div className="auth-arena-orbit auth-arena-orbit-inner" />
+          <div className="auth-arena-board">
+            {Array.from({ length: 64 }, (_, index) => <span key={index} />)}
+          </div>
+          <span className="auth-arena-piece auth-arena-king">&#9812;</span>
+          <span className="auth-arena-piece auth-arena-knight">&#9822;</span>
+          <Sparkles className="auth-arena-spark auth-arena-spark-one" size={22} />
+          <Sparkles className="auth-arena-spark auth-arena-spark-two" size={16} />
+          <div className="auth-arena-callout">
+            <span><Swords size={18} /> {text.arenaReady}</span>
+            <strong>{text.arenaCallout}</strong>
+          </div>
         </div>
       </div>
 
-      <form className="auth-card" onSubmit={onSubmitAuth} noValidate>
+      <form className="auth-card" onSubmit={onSubmitAuth} noValidate aria-busy={authBusy}>
         <div className="auth-card-header">
           <span>{isOtpStep ? text.secureAccount : isRegister ? text.newPlayer : isForgot ? text.accountHelp : text.welcomeBack}</span>
           <h1>{title}</h1>
           <p>{subtitle}</p>
         </div>
+
+        {authBusy && (
+          <div className="auth-progress visible" role="status" aria-live="polite">
+            <LoaderCircle size={17} aria-hidden="true" />
+            <span>{busyLabel}</span>
+          </div>
+        )}
 
         {isOtpStep ? (
           <div className="verification-panel">
@@ -115,6 +152,7 @@ export default function AuthPage({
                   inputMode="numeric"
                   placeholder="000000"
                   maxLength={6}
+                  disabled={authBusy}
                 />
               </div>
             </label>
@@ -128,12 +166,14 @@ export default function AuthPage({
                     value={authForm.newPassword}
                     onChange={(event) => onAuthFormChange({ newPassword: event.target.value })}
                     placeholder={text.enterPassword}
+                    disabled={authBusy}
                   />
                 </div>
               </label>
             )}
             <button className="auth-primary" type="button" onClick={onVerifyOtp} disabled={authBusy || otpSecondsLeft <= 0 || authForm.otp.length !== 6}>
-              {authBusy ? 'Đang xử lý...' : text.completeOtp}
+              {authBusy && <LoaderCircle className="auth-button-spinner" size={18} aria-hidden="true" />}
+              <span>{authBusy ? busyLabel : text.completeOtp}</span>
             </button>
             <button className="auth-secondary" type="button" onClick={onResendOtp} disabled={authBusy}>
               {text.resendOtp}
@@ -150,6 +190,7 @@ export default function AuthPage({
                     value={authForm.displayName}
                     onChange={(event) => onAuthFormChange({ displayName: event.target.value })}
                     placeholder={text.exampleName}
+                    disabled={authBusy}
                   />
                 </div>
               </label>
@@ -164,6 +205,7 @@ export default function AuthPage({
                   value={authForm.email}
                   onChange={(event) => onAuthFormChange({ email: event.target.value })}
                   placeholder="ban@example.com"
+                  disabled={authBusy}
                 />
               </div>
             </label>
@@ -178,6 +220,7 @@ export default function AuthPage({
                     value={authForm.password}
                     onChange={(event) => onAuthFormChange({ password: event.target.value })}
                     placeholder={text.enterPassword}
+                    disabled={authBusy}
                   />
                 </div>
               </label>
@@ -189,6 +232,7 @@ export default function AuthPage({
                   type="checkbox"
                   checked={Boolean(authForm.remember)}
                   onChange={(event) => onAuthFormChange({ remember: event.target.checked })}
+                  disabled={authBusy}
                 />
                 <span>
                   {text.remember}
@@ -198,7 +242,8 @@ export default function AuthPage({
             )}
 
             <button className="auth-primary" type="submit" disabled={authBusy}>
-              {authBusy ? 'Đang xử lý...' : isRegister ? text.createAccount : isForgot ? 'G\u1eedi m\u00e3 OTP' : text.signIn}
+              {authBusy && <LoaderCircle className="auth-button-spinner" size={18} aria-hidden="true" />}
+              <span>{authBusy ? busyLabel : isRegister ? text.createAccount : isForgot ? 'G\u1eedi m\u00e3 OTP' : text.signIn}</span>
             </button>
 
             {!isForgot && (

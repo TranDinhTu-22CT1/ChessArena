@@ -282,17 +282,21 @@ export function useAuthSession() {
       return;
     }
 
+    setAuthBusy(true);
     try {
       if (authMode === 'forgot') {
+        setAuthInfo('Đang kiểm tra tài khoản và gửi mã OTP...');
         await sendOtp('reset');
         return;
       }
 
       if (authMode === 'register') {
+        setAuthInfo('Đang kiểm tra thông tin và gửi mã OTP...');
         await sendOtp('register');
         return;
       }
 
+      setAuthInfo('Đang xác thực tài khoản và tạo phiên đăng nhập...');
       const credential = isBuiltInTestUser(authForm.email, authForm.password)
         ? await fetch(apiUrl('/api/auth/test-login'), {
           method: 'POST',
@@ -311,6 +315,8 @@ export function useAuthSession() {
       await createBackendSession(credential.user);
     } catch (error) {
       setAuthError(formatAuthError(error));
+    } finally {
+      setAuthBusy(false);
     }
   };
 
@@ -327,9 +333,14 @@ export function useAuthSession() {
       return;
     }
 
-    try {
-      if (!otpState) return;
+    if (!otpState || authBusy) return;
 
+    setAuthBusy(true);
+    setAuthInfo(otpState.purpose === 'register'
+      ? 'Đang xác nhận OTP và tạo tài khoản...'
+      : 'Đang xác nhận OTP và cập nhật mật khẩu...');
+
+    try {
       const response = await fetch(apiUrl('/api/auth/otp/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -351,26 +362,34 @@ export function useAuthSession() {
       if (otpState.purpose === 'register') {
         const credential = await signInWithEmailAndPassword(auth, otpState.email, authForm.password);
         await createBackendSession(credential.user);
-        return;
+        return { ok: true, purpose: 'register' };
       }
 
       setOtpState(null);
       setAuthMode('login');
       setAuthForm((form) => ({ ...form, password: '', newPassword: '', otp: '' }));
       setAuthInfo('Mật khẩu đã được cập nhật. Bạn có thể đăng nhập bằng mật khẩu mới.');
+      return { ok: true, purpose: 'reset' };
     } catch (error) {
       setAuthError(error.message || 'Không thể xác nhận OTP.');
+      return { ok: false };
+    } finally {
+      setAuthBusy(false);
     }
   };
 
   const resendOtp = async () => {
-    if (!otpState) return;
+    if (!otpState || authBusy) return;
     clearAuthMessage();
 
+    setAuthBusy(true);
+    setAuthInfo('Đang gửi lại mã OTP...');
     try {
       await sendOtp(otpState.purpose);
     } catch (error) {
       setAuthError(error.message || 'Không thể gửi lại OTP.');
+    } finally {
+      setAuthBusy(false);
     }
   };
 

@@ -1,5 +1,6 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { gameParticipantUserId, relatedOnlineUserIds, requireOnlineUser } from '../../../../lib/online';
+import { uploadDataAsset } from '../../../../lib/storage';
 
 export const runtime = 'nodejs';
 
@@ -118,7 +119,7 @@ async function profileRecord(supabase, userId) {
 export async function profilePayload(supabase, userId, { includePrivate = false, relatedUserIds = null } = {}) {
   const profile = await profileRecord(supabase, userId);
   const participantIds = Array.isArray(relatedUserIds) && relatedUserIds.length ? relatedUserIds : [userId];
-  const [ratingsResult, gamesResult, recentGamesResult, reviewsResult, refundRowsResult, puzzleResult] = await Promise.all([
+  const [ratingsResult, gamesResult, recentGamesResult, reviewsResult, refundRowsResult, puzzleResult, membershipResult] = await Promise.all([
     supabase
       .from('user_ratings')
       .select('user_id, mode, rating, games_played, wins, losses, draws, provisional')
@@ -136,7 +137,7 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
       .or(participantFilter(participantIds))
       .in('status', ['checkmate', 'draw', 'resigned'])
       .order('finished_at', { ascending: false, nullsFirst: false })
-      .limit(12),
+      .limit(10),
     supabase
       .from('game_reviews')
       .select('game_id, accuracy, average_centipawn_loss, blunders, mistakes, inaccuracies, best_moves, total_moves, updated_at')
@@ -151,7 +152,12 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
       .from('personal_puzzles')
       .select('id, status')
       .in('user_id', participantIds)
-      .limit(200)
+      .limit(200),
+    supabase
+      .from('user_memberships')
+      .select('tier, status, current_period_end')
+      .eq('user_id', userId)
+      .maybeSingle()
   ]);
 
   const ratings = mergeRatings(optionalRows(ratingsResult), userId);
@@ -160,6 +166,7 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
   const reviews = optionalRows(reviewsResult);
   const refundRows = optionalRows(refundRowsResult);
   const puzzles = optionalRows(puzzleResult);
+  const membership = membershipResult.error ? null : membershipResult.data;
   const record = profile || {};
   const summary = games.reduce((total, game) => {
     const participantUserId = gameParticipantUserId(game, participantIds, userId);
@@ -198,6 +205,7 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
     emailVerified: includePrivate ? Boolean(record.email_verified) : null,
     photoURL: record.photo_url,
     createdAt: record.created_at,
+    membershipTier: membership?.status === 'active' ? membership.tier : 'free',
     ratings,
     summary,
     skillLab: {
@@ -270,12 +278,27 @@ export async function POST(request) {
 
   const payload = await request.json().catch(() => null);
   const displayName = cleanDisplayName(payload?.displayName);
-  const photoURL = cleanAvatarImage(payload?.photoURL);
+  let photoURL = cleanAvatarImage(payload?.photoURL);
   if (displayName.length < 2) {
     return Response.json({ ok: false, error: 'Display name must contain at least 2 characters.' }, { status: 400 });
   }
   if (photoURL === undefined) {
     return Response.json({ ok: false, error: 'Avatar image could not be processed. Please choose another image.' }, { status: 400 });
+  }
+  if (photoURL?.startsWith('data:image/')) {
+    try {
+      const asset = await uploadDataAsset({
+        ownerUserId: context.user.id,
+        dataUrl: photoURL,
+        mimeType: photoURL.slice(5, photoURL.indexOf(';')),
+        originalName: 'avatar.webp',
+        purpose: 'avatars',
+        maxBytes: 2 * 1024 * 1024
+      });
+      photoURL = asset.url;
+    } catch (error) {
+      return Response.json({ ok: false, error: error.message || 'Avatar upload failed.' }, { status: 400 });
+    }
   }
 
   const now = new Date().toISOString();

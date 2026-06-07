@@ -10,6 +10,14 @@ const vendorChunks = {
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_API_URL || 'http://localhost:3000',
+        changeOrigin: true
+      }
+    }
+  },
   build: {
     rollupOptions: {
       output: {

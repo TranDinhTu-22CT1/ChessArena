@@ -1,13 +1,15 @@
 import React from 'react';
-import { Check, Copy, LogIn, RefreshCw, Search, Swords, UserMinus, UserPlus, Users, X } from 'lucide-react';
+import { Check, Copy, Loader2, LogIn, RefreshCw, Search, Swords, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { createFriendGame } from '../../api/online';
 import { fetchFriends, removeFriendship, respondFriendRequest, searchUsers, sendFriendRequest } from '../../api/friends';
+import Pagination from '../../components/Pagination';
 
 const TABS = [
   { id: 'friends', label: 'Bạn bè' },
   { id: 'requests', label: 'Lời mời' },
   { id: 'search', label: 'Tìm người chơi' }
 ];
+const PAGE_SIZE = 8;
 
 function presenceLabel(presence) {
   if (!presence?.online) return 'Offline';
@@ -114,14 +116,18 @@ function SearchResult({ user, onAdd, busyId }) {
 
 function formatInviteExpiry(value) {
   if (!value) return '10 phút';
-  return new Intl.DateTimeFormat('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function pageSlice(items, page) {
+  return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 }
 
 export default function FriendsPage({ authUser, onLogin }) {
   const [activeTab, setActiveTab] = React.useState('friends');
+  const [friendsPage, setFriendsPage] = React.useState(1);
+  const [requestsPage, setRequestsPage] = React.useState(1);
+  const [searchPage, setSearchPage] = React.useState(1);
   const [friends, setFriends] = React.useState([]);
   const [incoming, setIncoming] = React.useState([]);
   const [outgoing, setOutgoing] = React.useState([]);
@@ -156,6 +162,7 @@ export default function FriendsPage({ authUser, onLogin }) {
   React.useEffect(() => {
     if (!authUser || query.trim().length < 2) {
       setResults([]);
+      setSearchPage(1);
       return undefined;
     }
     const timer = window.setTimeout(async () => {
@@ -164,6 +171,7 @@ export default function FriendsPage({ authUser, onLogin }) {
       try {
         const data = await searchUsers(query);
         setResults(data.users || []);
+        setSearchPage(1);
       } catch (error) {
         setMessage(error.message);
       } finally {
@@ -248,6 +256,14 @@ export default function FriendsPage({ authUser, onLogin }) {
     }
   };
 
+  const requestItems = React.useMemo(() => [
+    ...incoming.map((item) => ({ ...item, direction: 'incoming' })),
+    ...outgoing.map((item) => ({ ...item, direction: 'outgoing' }))
+  ], [incoming, outgoing]);
+  const friendsTotalPages = Math.max(1, Math.ceil(friends.length / PAGE_SIZE));
+  const requestsTotalPages = Math.max(1, Math.ceil(requestItems.length / PAGE_SIZE));
+  const searchTotalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+
   if (!authUser) {
     return (
       <section className="friends-auth-required">
@@ -261,20 +277,55 @@ export default function FriendsPage({ authUser, onLogin }) {
 
   return (
     <section className="friends-page">
+      {/* CSS Animation cho spinner */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+        .loading-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 60px 0;
+          color: #888;
+        }
+      `}</style>
+
       <header className="friends-hero">
         <div>
           <span><Users size={18} /> ChessArena Social</span>
           <h1>Bạn bè và thách đấu</h1>
           <p>Quản lý danh sách bạn bè, theo dõi trạng thái online và tạo lời mời chơi cờ trực tiếp.</p>
         </div>
-        <button disabled={loading} onClick={loadFriends} type="button">
-          <RefreshCw size={17} /> {loading ? 'Đang tải' : 'Tải lại'}
+        <button
+          disabled={loading}
+          onClick={loadFriends}
+          type="button"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          {/* Thêm class xoay vòng vào icon khi đang loading */}
+          <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+          {loading ? 'Đang tải...' : 'Tải lại'}
         </button>
       </header>
 
       <nav className="friends-tabs" aria-label="Friends tabs">
         {TABS.map((tab) => (
-          <button className={activeTab === tab.id ? 'active' : ''} key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">
+          <button
+            className={activeTab === tab.id ? 'active' : ''}
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id);
+              setFriendsPage(1);
+              setRequestsPage(1);
+              setSearchPage(1);
+            }}
+            type="button"
+          >
             {tab.label}
             {tab.id === 'requests' && incoming.length > 0 && <b>{incoming.length}</b>}
           </button>
@@ -293,49 +344,82 @@ export default function FriendsPage({ authUser, onLogin }) {
         </article>
       )}
 
+      {/* TAB BẠN BÈ */}
       {activeTab === 'friends' && (
         <div className="friends-list">
-          {!loading && friends.length === 0 && <p className="friends-empty">Chưa có bạn bè. Mở tab Tìm người chơi để gửi lời mời kết bạn.</p>}
-          {friends.map((item) => (
-            <FriendPlayer item={item} busyId={busyId} key={item.id} onChallenge={challenge} onRemove={remove} />
-          ))}
+          {loading ? (
+            <div className="loading-container">
+              <Loader2 size={40} className="animate-spin" />
+            </div>
+          ) : friends.length === 0 ? (
+            <p className="friends-empty">Chưa có bạn bè. Mở tab Tìm người chơi để gửi lời mời kết bạn.</p>
+          ) : (
+            <>
+              {pageSlice(friends, friendsPage).map((item) => (
+                <FriendPlayer item={item} busyId={busyId} key={item.id} onChallenge={challenge} onRemove={remove} />
+              ))}
+              <Pagination page={friendsPage} totalPages={friendsTotalPages} onPageChange={setFriendsPage} label="Phân trang bạn bè" />
+            </>
+          )}
         </div>
       )}
 
+      {/* TAB LỜI MỜI */}
       {activeTab === 'requests' && (
         <div className="friends-list">
-          <h2>Lời mời đến</h2>
-          {incoming.length === 0 && <p className="friends-empty">Chưa có lời mời kết bạn mới.</p>}
-          {incoming.map((item) => (
-            <RequestCard
-              item={item}
-              busyId={busyId}
-              key={item.id}
-              onAccept={(request) => respond(request, 'accepted')}
-              onDecline={(request) => respond(request, 'declined')}
-            />
-          ))}
-          <h2>Lời mời đã gửi</h2>
-          {outgoing.length === 0 && <p className="friends-empty">Bạn chưa gửi lời mời nào đang chờ phản hồi.</p>}
-          {outgoing.map((item) => (
-            <RequestCard item={item} outgoing busyId={busyId} key={item.id} onCancel={remove} />
-          ))}
+          {loading ? (
+            <div className="loading-container">
+              <Loader2 size={40} className="animate-spin" />
+            </div>
+          ) : requestItems.length === 0 ? (
+            <p className="friends-empty">Chưa có lời mời kết bạn nào.</p>
+          ) : (
+            <>
+              {pageSlice(requestItems, requestsPage).map((item) => (
+                item.direction === 'incoming' ? (
+                  <RequestCard
+                    item={item}
+                    busyId={busyId}
+                    key={item.id}
+                    onAccept={(request) => respond(request, 'accepted')}
+                    onDecline={(request) => respond(request, 'declined')}
+                  />
+                ) : (
+                  <RequestCard item={item} outgoing busyId={busyId} key={item.id} onCancel={remove} />
+                )
+              ))}
+              <Pagination page={requestsPage} totalPages={requestsTotalPages} onPageChange={setRequestsPage} label="Phân trang lời mời" />
+            </>
+          )}
         </div>
       )}
 
+      {/* TAB TÌM NGƯỜI CHƠI */}
       {activeTab === 'search' && (
         <div className="friends-search-panel">
           <label className="friends-search-box">
             <Search size={18} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo username hoặc tên hiển thị..." />
           </label>
-          {searching && <p className="friends-empty">Đang tìm người chơi...</p>}
-          {!searching && query.trim().length >= 2 && results.length === 0 && <p className="friends-empty">Không tìm thấy người chơi phù hợp.</p>}
-          <div className="friends-list">
-            {results.map((user) => (
-              <SearchResult user={user} busyId={busyId} key={user.id} onAdd={addFriend} />
-            ))}
-          </div>
+
+          {searching ? (
+            <div className="loading-container">
+              <Loader2 size={40} className="animate-spin" />
+            </div>
+          ) : query.trim().length >= 2 && results.length === 0 ? (
+            <p className="friends-empty">Không tìm thấy người chơi phù hợp.</p>
+          ) : (
+            <>
+              <div className="friends-list">
+                {pageSlice(results, searchPage).map((user) => (
+                  <SearchResult user={user} busyId={busyId} key={user.id} onAdd={addFriend} />
+                ))}
+              </div>
+              {results.length > 0 && (
+                <Pagination page={searchPage} totalPages={searchTotalPages} onPageChange={setSearchPage} label="Phân trang tìm người chơi" />
+              )}
+            </>
+          )}
         </div>
       )}
     </section>

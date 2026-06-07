@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import './styles.css';
 import { apiUrl } from './api/config';
 import { fetchPublicBots } from './api/bots';
@@ -28,7 +29,6 @@ import {
   promotionPopoverStyle,
   squareCenter
 } from './game/gameView';
-import AuthPage from './components/AuthPage';
 import AiCoachChat from './components/AiCoachChat';
 import GameBoard from './components/GameBoard';
 import MatchPanel from './components/MatchPanel';
@@ -36,6 +36,8 @@ import ResultDialog from './components/ResultDialog';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import ToastHost, { notify } from './components/ToastHost';
+import vietnamFlag from './assets/flags/vietnam.svg';
+import unitedKingdomFlag from './assets/flags/united-kingdom.svg';
 import {
   buildCoachInsight,
   coachBehaviorFromMode,
@@ -56,7 +58,6 @@ import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
 const FINISHED_GAME_KEY = 'chess-arena-finished-game';
 const ROUTE_CHUNK_RELOAD_KEY = 'chess-arena-route-chunk-reload';
-const ACADEMIC_NOTICE_KEY = 'chess-arena-academic-notice-seen';
 
 function lazyWithReload(importer) {
   return React.lazy(async () => {
@@ -79,20 +80,27 @@ function lazyWithReload(importer) {
 }
 
 const AdminPage = lazyWithReload(() => import('./routes/Admin/AdminPage'));
+const AcademicNoticePage = lazyWithReload(() => import('./routes/use/AcademicNoticePage'));
 const AchievementsPage = lazyWithReload(() => import('./routes/use/AchievementsPage'));
 const BeginnerGuidePage = lazyWithReload(() => import('./routes/use/BeginnerGuidePage'));
 const CoachLabPage = lazyWithReload(() => import('./routes/use/CoachLabPage'));
 const HistoryPage = lazyWithReload(() => import('./routes/use/HistoryPage'));
 const HomePage = lazyWithReload(() => import('./routes/use/HomePage'));
 const FriendsPage = lazyWithReload(() => import('./routes/use/FriendsPage'));
+const ForgotPasswordPage = lazyWithReload(() => import('./routes/use/ForgotPasswordPage'));
 const LeaderboardPage = lazyWithReload(() => import('./routes/use/LeaderboardPage'));
+const LoginPage = lazyWithReload(() => import('./routes/use/LoginPage'));
+const LocalBoardPage = lazyWithReload(() => import('./routes/use/LocalBoardPage'));
 const MembershipPage = lazyWithReload(() => import('./routes/use/MembershipPage'));
 const NotificationsPage = lazyWithReload(() => import('./routes/use/NotificationsPage'));
 const NotFoundPage = lazyWithReload(() => import('./routes/use/NotFoundPage'));
 const OnlinePage = lazyWithReload(() => import('./routes/use/OnlinePage'));
 const ProfilePage = lazyWithReload(() => import('./routes/use/ProfilePage'));
 const ReviewPage = lazyWithReload(() => import('./routes/use/ReviewPage'));
+const RegisterPage = lazyWithReload(() => import('./routes/use/RegisterPage'));
 const PuzzlePage = lazyWithReload(() => import('./routes/use/PuzzlePage'));
+const SupportPage = lazyWithReload(() => import('./routes/use/SupportPage'));
+const SupportTicketsPage = lazyWithReload(() => import('./routes/use/SupportTicketsPage'));
 const TournamentsPage = lazyWithReload(() => import('./routes/use/TournamentsPage'));
 
 function storedFinishedOutcome() {
@@ -158,34 +166,109 @@ function ModerationBanner({ status }) {
   );
 }
 
-function AcademicNoticeModal({ visible, onClose }) {
+const ACADEMIC_NOTICE_KEY = 'chessarena-academic-notice-seen';
+
+function academicNoticeUserKey(user) {
+  return String(user?.uid || user?.id || user?.email || 'guest');
+}
+
+function hasSeenAcademicNotice(user) {
+  try {
+    return window.localStorage.getItem(`${ACADEMIC_NOTICE_KEY}:${academicNoticeUserKey(user)}`) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markAcademicNoticeSeen(user) {
+  try {
+    window.localStorage.setItem(`${ACADEMIC_NOTICE_KEY}:${academicNoticeUserKey(user)}`, '1');
+  } catch {
+    // localStorage may be unavailable; showing the notice again is safer than hiding it globally.
+  }
+}
+
+function AcademicNoticeModal({ visible, authUser, onClose, onOpenPage }) {
+  const [language, setLanguage] = React.useState('vi');
+  const [imageOpen, setImageOpen] = React.useState(false);
+
   if (!visible) return null;
 
+  const isVietnamese = language === 'vi';
+
   return (
-    <div className="academic-notice-layer" role="presentation">
-      <section className="academic-notice-modal" role="dialog" aria-modal="true" aria-labelledby="academic-notice-title">
-        <button className="academic-notice-close" type="button" onClick={onClose} aria-label="Đóng thông báo">
-          ×
-        </button>
-        <span>Thông báo học thuật</span>
-        <h2 id="academic-notice-title">ChessArena là website dùng cho đồ án học thuật</h2>
-        <p>
-          Website này được xây dựng để phục vụ học tập, thực tập và trình bày đồ án. Các chức năng, dữ liệu và thanh toán
-          đang dùng cho môi trường thử nghiệm, không phải dịch vụ thương mại chính thức.
-        </p>
-        <p>
-          Một số bộ quân, giao diện bàn cờ hoặc tài sản liên quan đến Chess.com thuộc quyền sở hữu trí tuệ của Chess.com.
-          Nội dung được sử dụng trong phạm vi minh họa học thuật; ChessArena không đại diện, không liên kết và không thay thế Chess.com.
-        </p>
-        <div className="academic-paypal-box">
-          <strong>Tài khoản PayPal Sandbox người mua</strong>
-          <code>sb-go9aa51399356@personal.example.com</code>
-          <code>L$U!*w@0</code>
+    <div className="academic-notice-layer" role="dialog" aria-modal="true" aria-label="Thông báo học thuật">
+      <section className="academic-notice-modal">
+        <div className="academic-notice-language" aria-label="Chọn ngôn ngữ">
+          <button type="button" className={isVietnamese ? 'active' : ''} onClick={() => setLanguage('vi')}>
+            <span><img src={vietnamFlag} alt="" /></span> VI
+          </button>
+          <button type="button" className={!isVietnamese ? 'active' : ''} onClick={() => setLanguage('en')}>
+            <span><img src={unitedKingdomFlag} alt="" /></span> EN
+          </button>
         </div>
-        <button className="academic-notice-primary" type="button" onClick={onClose}>
-          Tôi đã hiểu
+        <span>Academic Notice</span>
+        <h2>{isVietnamese ? 'Trước khi tiếp tục, bạn nên biết rõ ChessArena được dùng trong phạm vi nào.' : 'Before continuing, here is what ChessArena is built for.'}</h2>
+        {isVietnamese ? (
+          <>
+            <p>
+              ChessArena là sản phẩm học thuật do cá nhân phát triển để thử nghiệm giao diện, ghép trận, phân tích ván
+              và luồng thanh toán sandbox. Website không phải dịch vụ thương mại chính thức.
+            </p>
+            <p>
+              Một số bộ quân, màu bàn cờ hoặc tài sản tham khảo liên quan đến Chess.com thuộc quyền sở hữu của Chess.com.
+              Hãy bấm <strong>Xem trang thông báo</strong> để xem thông tin chủ sở hữu, bản quyền và hướng dẫn kiểm thử thanh toán.
+            </p>
+          </>
+        ) : (
+          <>
+            <p>
+              ChessArena is a personal academic project built to test UI, matchmaking, game review, and sandbox payment flows.
+              It is not an official commercial service.
+            </p>
+            <p>
+              Some referenced Chess.com-related piece sets, board themes, or interface assets remain the property of Chess.com.
+              Press <strong>View notice page</strong> to see ownership, copyright, and sandbox payment details.
+            </p>
+          </>
+        )}
+        <div className="academic-notice-actions">
+          <button
+            type="button"
+            className="academic-notice-primary"
+            onClick={() => {
+              markAcademicNoticeSeen(authUser);
+              onOpenPage();
+            }}
+          >
+            {isVietnamese ? 'Xem trang thông báo' : 'View notice page'}
+          </button>
+          <button
+            type="button"
+            className="academic-notice-close"
+            onClick={() => {
+              markAcademicNoticeSeen(authUser);
+              onClose();
+            }}
+          >
+            {isVietnamese ? 'Đã hiểu' : 'Got it'}
+          </button>
+        </div>
+        <button type="button" className="academic-notice-image" onClick={() => setImageOpen(true)}>
+          <span>{isVietnamese ? 'Ảnh minh họa vị trí mở lại popup' : 'Image: where to reopen this popup'}</span>
         </button>
       </section>
+      {imageOpen && createPortal(
+        <div className="academic-image-lightbox" role="dialog" aria-modal="true" aria-label="Xem ảnh thông báo">
+          <button type="button" className="academic-image-close" onClick={() => setImageOpen(false)} aria-label="Đóng ảnh">
+            ×
+          </button>
+          <div className="academic-image-preview">
+            <span>{isVietnamese ? 'Ảnh sẽ được thêm tại đây' : 'Image will be added here'}</span>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -213,6 +296,7 @@ export default function App() {
   const [membership, setMembership] = React.useState(null);
   const [moderationStatus, setModerationStatus] = React.useState(null);
   const [notificationCount, setNotificationCount] = React.useState(0);
+  const previousNotificationCountRef = React.useRef(0);
   const [hintMove, setHintMove] = React.useState(null);
   const [premoveQueue, setPremoveQueue] = React.useState([]);
   const [suggestionMove, setSuggestionMove] = React.useState(null);
@@ -234,14 +318,8 @@ export default function App() {
   const [promotionRequest, setPromotionRequest] = React.useState(null);
   const [resultDismissed, setResultDismissed] = React.useState(false);
   const [appSettling, setAppSettling] = React.useState(false);
-  const [academicNoticeOpen, setAcademicNoticeOpen] = React.useState(() => {
-    try {
-      return window.localStorage.getItem(ACADEMIC_NOTICE_KEY) !== '1';
-    } catch {
-      return true;
-    }
-  });
   const [isOffline, setIsOffline] = React.useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+  const [academicNoticeOpen, setAcademicNoticeOpen] = React.useState(false);
   const {
     userName,
     authMode,
@@ -284,18 +362,56 @@ export default function App() {
     setMobileSidebarOpen,
     navigate
   } = useAppRoute({ gameMode, setGameMode });
+  const openAuth = React.useCallback((mode = 'login') => {
+    const nextMode = mode === 'register' ? 'register' : mode === 'forgot' ? 'forgot' : 'login';
+    clearAuthMessage();
+    setOtpState(null);
+    setAuthMode(nextMode);
+    navigate(nextMode === 'register' ? 'register' : nextMode === 'forgot' ? 'forgotPassword' : 'login');
+  }, [clearAuthMessage, navigate, setAuthMode, setOtpState]);
+  const handleVerifyOtp = React.useCallback(async () => {
+    const result = await verifyOtp();
+    if (result?.ok && result.purpose === 'reset') {
+      navigate('login');
+    }
+  }, [navigate, verifyOtp]);
   const aiTimerRef = React.useRef(null);
   const premoveRef = React.useRef([]);
-  const { ensureAudioContext, playMoveSound, playUiSound, speakCoachText, stopSpeech } = useGameAudio();
+  const { ensureAudioContext, playMoveSound, playUiSound, speakCoachText, stopSpeech } = useGameAudio({ pieceSet, theme });
 
-  const closeAcademicNotice = React.useCallback(() => {
-    try {
-      window.localStorage.setItem(ACADEMIC_NOTICE_KEY, '1');
-    } catch {
-      // localStorage can be unavailable in locked-down browsers.
+  React.useEffect(() => {
+    if (authUser && ['login', 'register', 'forgotPassword'].includes(route)) {
+      navigate('home');
+      return;
     }
-    setAcademicNoticeOpen(false);
-  }, []);
+    if (authUser) return;
+
+    if (route === 'register' && authMode !== 'register' && !otpState) {
+      clearAuthMessage();
+      setAuthMode('register');
+    } else if (route === 'forgotPassword' && authMode !== 'forgot' && !otpState) {
+      clearAuthMessage();
+      setAuthMode('forgot');
+    } else if (route === 'login' && authMode !== 'login' && !otpState) {
+      clearAuthMessage();
+      setAuthMode('login');
+    } else if (
+      authMode
+      && route !== 'login'
+      && route !== 'register'
+      && route !== 'forgotPassword'
+      && route !== 'admin'
+      && route !== 'academicNotice'
+      && !(route === 'profile' && window.location.pathname.startsWith('/profile/'))
+    ) {
+      navigate(authMode === 'register' ? 'register' : authMode === 'forgot' ? 'forgotPassword' : 'login');
+    }
+  }, [authMode, authUser, clearAuthMessage, navigate, otpState, route, setAuthMode]);
+
+  React.useEffect(() => {
+    if (!authUser || hasSeenAcademicNotice(authUser)) return;
+    setAcademicNoticeOpen(true);
+  }, [authUser]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -388,7 +504,27 @@ export default function App() {
     const loadNotificationCount = () => {
       fetchNotifications({ page: 1, limit: 5 })
         .then((data) => {
-          if (!cancelled) setNotificationCount(data.unreadCount || 0);
+          if (cancelled) return;
+          const nextCount = data.unreadCount || 0;
+          if (
+            nextCount > previousNotificationCountRef.current
+            && typeof window.Notification !== 'undefined'
+            && window.Notification.permission === 'granted'
+          ) {
+            const latest = data.notifications?.find((item) => !item.readAt);
+            const browserNotification = new window.Notification(latest?.title || 'ChessArena', {
+              body: latest?.body || `Bạn có ${nextCount} thông báo chưa đọc.`,
+              icon: '/chessarena-mark.svg',
+              tag: latest?.id || 'chessarena-notifications'
+            });
+            browserNotification.onclick = () => {
+              window.focus();
+              navigate('notifications');
+              browserNotification.close();
+            };
+          }
+          previousNotificationCountRef.current = nextCount;
+          setNotificationCount(nextCount);
         })
         .catch(() => {
           if (!cancelled) setNotificationCount(0);
@@ -406,6 +542,7 @@ export default function App() {
   const isActiveOnlineRoute = route === 'online';
   const isActivePuzzleRoute = isPuzzleRoute(route);
   const isPublicProfileRoute = route === 'profile' && window.location.pathname.startsWith('/profile/');
+  const isPublicInfoRoute = route === 'academicNotice';
   const game = gameState.chess;
   const history = gameState.moves;
   const gameFen = game.fen();
@@ -557,7 +694,7 @@ export default function App() {
     game,
     gameFinished,
     timeWinner,
-    clockRunning: gameMode === 'local' || botGameStarted || isCoachGame,
+    clockRunning: route !== 'local' && (gameMode === 'local' || botGameStarted || isCoachGame),
     setClocks,
     setTimeWinner,
     setResultDismissed
@@ -796,8 +933,15 @@ export default function App() {
     try {
       const suggestedMove = suggestionMove ?? await requestStockfishMove(game.fen(), aiLevel.elo, {
         moves: history.map((item) => `${item.from}${item.to}${item.promotion ?? ''}`),
-        variant: gameVariant
+        variant: gameVariant,
+        fullStrength: true
       });
+      const legalMove = game.moves({ verbose: true }).some((move) => (
+        move.from === suggestedMove.from
+        && move.to === suggestedMove.to
+        && (move.promotion ?? '') === (suggestedMove.promotion ?? '')
+      ));
+      if (!legalMove) throw new Error('Stockfish returned an illegal hint.');
       setHintMove({ from: suggestedMove.from, to: suggestedMove.to });
       setEngineError('');
     } catch {
@@ -1061,6 +1205,7 @@ export default function App() {
   const whiteAvatarURL = playerColor === 'w' ? authUser?.photoURL : null;
   const blackAvatarURL = playerColor === 'b' ? authUser?.photoURL : null;
   const aiCoachContext = React.useMemo(() => {
+    const hasBoardContext = (isActiveGameRoute && !isActiveOnlineRoute) || route === 'review';
     const safeGame = reviewMode ? displayGame : game;
     const latestMove = history.at(-1);
     const activeReview = currentReviewAnalysis || latestCoachAnalysis || null;
@@ -1068,16 +1213,17 @@ export default function App() {
     return {
       route,
       mode: gameMode,
-      fen: safeGame.fen(),
-      pgn: safeGame.pgn(),
-      turn: safeGame.turn(),
-      playerColor,
-      latestMove: latestMove ? `${latestMove.san || `${latestMove.from || ''}${latestMove.to || ''}`}` : '',
-      recentMoves: history.slice(-12).map((move, index) => {
+      hasBoardContext,
+      fen: hasBoardContext ? safeGame.fen() : '',
+      pgn: hasBoardContext ? safeGame.pgn() : '',
+      turn: hasBoardContext ? safeGame.turn() : '',
+      playerColor: hasBoardContext ? playerColor : '',
+      latestMove: hasBoardContext && latestMove ? `${latestMove.san || `${latestMove.from || ''}${latestMove.to || ''}`}` : '',
+      recentMoves: hasBoardContext ? history.slice(-12).map((move, index) => {
         const ply = history.length - Math.min(12, history.length) + index + 1;
         return `${ply}. ${move.color === 'w' ? 'White' : 'Black'} ${move.san || `${move.from}${move.to}`}`;
-      }),
-      review: activeReview ? {
+      }) : [],
+      review: hasBoardContext && activeReview ? {
         label: activeReview.label,
         tone: activeReview.tone,
         bestMove: activeReview.bestMove || activeReview.bestSan || '',
@@ -1085,7 +1231,7 @@ export default function App() {
         winLoss: activeReview.winLoss
       } : null
     };
-  }, [currentReviewAnalysis, displayGame, game, gameMode, history, latestCoachAnalysis, playerColor, reviewMode, route]);
+  }, [currentReviewAnalysis, displayGame, game, gameMode, history, isActiveGameRoute, isActiveOnlineRoute, latestCoachAnalysis, playerColor, reviewMode, route]);
 
   if (route === 'admin') {
     return (
@@ -1106,7 +1252,15 @@ export default function App() {
       <ToastHost />
       <OfflineOverlay visible={isOffline} />
       <ModerationBanner status={moderationStatus} />
-      <AcademicNoticeModal visible={academicNoticeOpen} onClose={closeAcademicNotice} />
+      <AcademicNoticeModal
+        visible={academicNoticeOpen}
+        authUser={authUser}
+        onClose={() => setAcademicNoticeOpen(false)}
+        onOpenPage={() => {
+          setAcademicNoticeOpen(false);
+          navigate('academicNotice');
+        }}
+      />
       {appSettling && <RouteLoading label={authBusy ? 'Đang xác thực tài khoản...' : 'Đang chuyển trang...'} />}
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
       <Sidebar
@@ -1145,12 +1299,12 @@ export default function App() {
           }
           navigate(nextRoute);
         }}
-        onLogin={() => setAuthMode('login')}
-        onRegister={() => setAuthMode('register')}
+        onLogin={() => openAuth('login')}
+        onRegister={() => openAuth('register')}
         onLogout={logout}
       />
 
-      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute ? 'game-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
+      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute && route !== 'local' ? 'game-route-shell' : ''} ${route === 'local' ? 'local-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
         <TopHeader
           activeRoute={route === 'onlineReview' ? 'history' : route}
           apiOnline={apiOnline}
@@ -1162,6 +1316,7 @@ export default function App() {
           notificationCount={notificationCount}
           onOpenAcademicNotice={() => setAcademicNoticeOpen(true)}
           onOpenNotifications={() => navigate('notifications')}
+          onOpenSupport={() => navigate('support')}
           onToggleSettings={() => setSettingsOpen((value) => !value)}
           onCloseSettings={() => setSettingsOpen(false)}
           onResetTheme={resetTheme}
@@ -1171,8 +1326,8 @@ export default function App() {
           onSetPieceSet={setPieceSet}
         />
 
-        {authMode && !authUser && !isPublicProfileRoute && (
-          <AuthPage
+        {route === 'login' && !authUser && (
+          <LoginPage
             authMode={authMode}
             authForm={authForm}
             authMessage={authMessage}
@@ -1184,16 +1339,48 @@ export default function App() {
             onSubmitAuth={submitAuth}
             onProviderSignIn={signInProvider}
             onSetAuthMode={(mode) => {
-              clearAuthMessage();
-              setOtpState(null);
-              setAuthMode(mode);
+              openAuth(mode);
             }}
-            onVerifyOtp={verifyOtp}
+            onVerifyOtp={handleVerifyOtp}
             onResendOtp={resendOtp}
           />
         )}
 
-        {(!authMode || authUser || isPublicProfileRoute) && (
+        {route === 'register' && !authUser && (
+          <RegisterPage
+            authForm={authForm}
+            authMessage={authMessage}
+            authMessageTone={authMessageTone}
+            authBusy={authBusy}
+            otpState={otpState}
+            otpSecondsLeft={otpSecondsLeft}
+            onAuthFormChange={(patch) => setAuthForm((form) => ({ ...form, ...patch }))}
+            onSubmitAuth={submitAuth}
+            onProviderSignIn={signInProvider}
+            onSetAuthMode={(mode) => openAuth(mode)}
+            onVerifyOtp={handleVerifyOtp}
+            onResendOtp={resendOtp}
+          />
+        )}
+
+        {route === 'forgotPassword' && !authUser && (
+          <ForgotPasswordPage
+            authForm={authForm}
+            authMessage={authMessage}
+            authMessageTone={authMessageTone}
+            authBusy={authBusy}
+            otpState={otpState}
+            otpSecondsLeft={otpSecondsLeft}
+            onAuthFormChange={(patch) => setAuthForm((form) => ({ ...form, ...patch }))}
+            onSubmitAuth={submitAuth}
+            onProviderSignIn={signInProvider}
+            onSetAuthMode={(mode) => openAuth(mode)}
+            onVerifyOtp={handleVerifyOtp}
+            onResendOtp={resendOtp}
+          />
+        )}
+
+        {route !== 'login' && route !== 'register' && route !== 'forgotPassword' && (!authMode || authUser || isPublicProfileRoute || isPublicInfoRoute) && (
         <React.Suspense fallback={<RouteLoading />}>
         {route === 'home' && (
           <HomePage
@@ -1238,7 +1425,7 @@ export default function App() {
             profileUserId={window.location.pathname.startsWith('/profile/')
               ? decodeURIComponent(window.location.pathname.split('/').filter(Boolean).at(-1) || '')
               : ''}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
             onNavigate={navigate}
             onProfileUpdated={updateSessionProfile}
           />
@@ -1247,7 +1434,7 @@ export default function App() {
         {route === 'history' && (
           <HistoryPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
             onOpenReview={(onlineGameId) => {
               window.history.pushState(null, '', `/history/review/${encodeURIComponent(onlineGameId)}`);
               window.dispatchEvent(new window.PopStateEvent('popstate'));
@@ -1258,14 +1445,14 @@ export default function App() {
         {route === 'friends' && (
           <FriendsPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
           />
         )}
 
         {route === 'notifications' && (
           <NotificationsPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
             onNavigate={() => {}}
             onUnreadChange={setNotificationCount}
           />
@@ -1274,14 +1461,14 @@ export default function App() {
         {route === 'leaderboard' && (
           <LeaderboardPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
           />
         )}
 
         {route === 'achievements' && (
           <AchievementsPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
             onNavigate={navigate}
           />
         )}
@@ -1289,7 +1476,23 @@ export default function App() {
         {route === 'tournaments' && (
           <TournamentsPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
+            onNavigate={navigate}
+          />
+        )}
+
+        {route === 'support' && (
+          <SupportPage
+            authUser={authUser}
+            onLogin={() => openAuth('login')}
+            onNavigate={navigate}
+          />
+        )}
+
+        {route === 'supportTickets' && (
+          <SupportTicketsPage
+            authUser={authUser}
+            onLogin={() => openAuth('login')}
             onNavigate={navigate}
           />
         )}
@@ -1297,7 +1500,7 @@ export default function App() {
         {route === 'coachLab' && (
           <CoachLabPage
             authUser={authUser}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
             onNavigate={navigate}
           />
         )}
@@ -1310,9 +1513,21 @@ export default function App() {
           <MembershipPage
             authUser={authUser}
             membership={membership}
-            onLogin={() => setAuthMode('login')}
+            onLogin={() => openAuth('login')}
             onMembershipUpdated={setMembership}
           />
+        )}
+
+        {route === 'local' && (
+          <LocalBoardPage
+            pieceSet={pieceSet}
+            theme={theme}
+            membership={membership}
+          />
+        )}
+
+        {route === 'academicNotice' && (
+          <AcademicNoticePage onNavigate={navigate} />
         )}
 
         {route === 'notFound' && (
@@ -1325,8 +1540,9 @@ export default function App() {
               authUser={authUser}
               userName={userName}
               pieceSet={pieceSet}
+              theme={theme}
               membership={membership}
-              onLogin={() => setAuthMode('login')}
+              onLogin={() => openAuth('login')}
               onNavigate={navigate}
               historyOnly
               historyReviewGameId={decodeURIComponent(window.location.pathname.split('/').filter(Boolean).at(-1) || '')}
@@ -1336,17 +1552,17 @@ export default function App() {
 
         {isActiveOnlineRoute && (
           <>
-            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} membership={membership} onLogin={() => setAuthMode('login')} onNavigate={navigate} />
+            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} theme={theme} membership={membership} onLogin={() => openAuth('login')} onNavigate={navigate} />
           </>
         )}
 
         {isActivePuzzleRoute && (
           <>
-            <PuzzlePage activeRoute={route} pieceSet={pieceSet} membership={membership} onNavigate={navigate} />
+            <PuzzlePage activeRoute={route} pieceSet={pieceSet} membership={membership} authUser={authUser} onNavigate={navigate} />
           </>
         )}
 
-        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'achievements' && route !== 'tournaments' && route !== 'coachLab' && route !== 'beginnerGuide' && route !== 'membership' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
+        {route !== 'home' && route !== 'profile' && route !== 'friends' && route !== 'notifications' && route !== 'history' && route !== 'leaderboard' && route !== 'achievements' && route !== 'tournaments' && route !== 'support' && route !== 'supportTickets' && route !== 'coachLab' && route !== 'beginnerGuide' && route !== 'membership' && route !== 'academicNotice' && route !== 'local' && route !== 'notFound' && route !== 'onlineReview' && !isActivePuzzleRoute && !isActiveOnlineRoute && (
         <>
         <section className={`game-layout ${reviewMode ? 'review-page-layout' : ''}`}>
           <GameBoard
@@ -1354,6 +1570,8 @@ export default function App() {
             whiteName={whiteName}
             blackAvatarURL={blackAvatarURL}
             whiteAvatarURL={whiteAvatarURL}
+            blackMembership={playerColor === 'b' ? membership : null}
+            whiteMembership={playerColor === 'w' ? membership : null}
             playerColor={playerColor}
             clocks={clocks}
             capturedBlack={capturedBlack}
@@ -1461,7 +1679,8 @@ export default function App() {
       <AiCoachChat
         authUser={authUser}
         context={aiCoachContext}
-        onLogin={() => setAuthMode('login')}
+        onLogin={() => openAuth('login')}
+        onNavigate={navigate}
       />
 
       {showResultDialog && (

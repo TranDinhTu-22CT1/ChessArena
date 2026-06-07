@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Filter, History, LogIn, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Filter, History, Loader2, LogIn, RefreshCw, ShieldCheck } from 'lucide-react';
 import { fetchOnlineHistory } from '../../api/online';
 import Pagination, { getUrlPage, setUrlPage } from '../../components/Pagination';
 
@@ -10,11 +10,7 @@ const REVIEW_FILTERS = new Set(['all', 'reviewed', 'unreviewed']);
 function formatDate(value) {
   if (!value) return '-';
   return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   }).format(new Date(value));
 }
 
@@ -37,19 +33,8 @@ function setUrlFilters(next) {
 
 function gameResult(game) {
   if (game.result === '1/2-1/2') return { label: 'Hòa', tone: 'draw' };
-  const won = (game.result === '1-0' && game.playerColor === 'w')
-    || (game.result === '0-1' && game.playerColor === 'b');
+  const won = (game.result === '1-0' && game.playerColor === 'w') || (game.result === '0-1' && game.playerColor === 'b');
   return { label: won ? 'Thắng' : 'Thua', tone: won ? 'win' : 'loss' };
-}
-
-function reviewPriority(game) {
-  const result = gameResult(game);
-  const moveCount = (game.moves || []).length;
-  if (result.tone === 'loss' && moveCount >= 20) return 'Nên review: tìm nước đi làm mất thế trận';
-  if (result.tone === 'loss') return 'Nên review: xem lại khai cuộc và cách thoát thế khó';
-  if (result.tone === 'draw') return 'Nên review: tìm cơ hội chuyển hòa thành thắng';
-  if (moveCount >= 45) return 'Nên review: kỹ thuật chuyển hóa lợi thế';
-  return 'Review nhanh: giữ thói quen tốt';
 }
 
 export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
@@ -111,33 +96,59 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
 
   return (
     <section className="history-page">
+      <style>{`
+      .history-header h1 { color: #ffffff !important; }
+        .history-page { color: var(--text-adaptive, #111827); }
+        .loading-container { display: flex; justify-content: center; padding: 40px; }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .history-row {
+          background: var(--bg-surface-adaptive, #ffffff);
+          border: 1px solid var(--border-adaptive, #e5e7eb);
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+        }
+        .history-row b { text-transform: uppercase; font-size: 12px; padding: 4px 8px; border-radius: 4px; }
+        .history-row b.win { background: #dcfce7; color: #166534; }
+        .history-row b.loss { background: #fee2e2; color: #991b1b; }
+        .history-row b.draw { background: #f3f4f6; color: #374151; }
+      `}</style>
+
       <header className="history-header">
         <div>
           <span><History size={17} /> Lịch sử online</span>
           <h1>Các trận đã chơi</h1>
           <p>Tổng cộng <strong>{total}</strong> trận phù hợp. Đang ở trang <strong>{page}</strong>.</p>
         </div>
-        <button onClick={() => loadHistory(page, filters)} disabled={loading}>
-          <RefreshCw size={17} /> {loading ? 'Đang tải' : 'Tải lại'}
+        <button onClick={() => loadHistory(page, filters)} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <RefreshCw size={17} className={loading ? "animate-spin" : ""} /> {loading ? 'Đang tải' : 'Tải lại'}
         </button>
       </header>
 
-      <div className="history-filters" aria-label="Lọc lịch sử online">
+      <div className="history-filters">
         <span><Filter size={16} /> Bộ lọc</span>
-        <select value={filters.result} onChange={(event) => updateFilters({ result: event.target.value })}>
+        <select value={filters.result} onChange={(e) => updateFilters({ result: e.target.value })}>
           <option value="all">Mọi kết quả</option>
           <option value="win">Thắng</option>
           <option value="loss">Thua</option>
           <option value="draw">Hòa</option>
         </select>
-        <select value={filters.mode} onChange={(event) => updateFilters({ mode: event.target.value })}>
+        <select value={filters.mode} onChange={(e) => updateFilters({ mode: e.target.value })}>
           <option value="all">Mọi chế độ</option>
           <option value="bullet">Bullet</option>
           <option value="blitz">Blitz</option>
           <option value="rapid">Rapid</option>
           <option value="classical">Classical</option>
         </select>
-        <select value={filters.review} onChange={(event) => updateFilters({ review: event.target.value })}>
+        <select value={filters.review} onChange={(e) => updateFilters({ review: e.target.value })}>
           <option value="all">Tất cả review</option>
           <option value="reviewed">Đã review</option>
           <option value="unreviewed">Chưa review</option>
@@ -145,43 +156,37 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
       </div>
 
       {message && <p className="history-message">{message}</p>}
-      {!loading && games.length === 0 && <p className="history-empty">Không có trận nào phù hợp với bộ lọc hiện tại.</p>}
 
-      <div className="history-list">
-        {games.map((game) => {
-          const white = game.white || {};
-          const black = game.black || {};
-          const opponent = white.you ? black : white;
-          const result = gameResult(game);
-          const player = game.playerColor === 'w' ? white : black;
-          const ratingDelta = player?.ratingDelta;
-          const ratingDeltaText = Number.isFinite(ratingDelta)
-            ? `${ratingDelta > 0 ? '+' : ''}${ratingDelta} rating`
-            : '';
-          return (
-            <button className="history-row" key={game.id} onClick={() => onOpenReview(game.id)}>
-              <b className={result.tone}>{result.label}</b>
-              <span>
-                <strong>vs {opponent?.name || 'Player'}</strong>
-                {ratingDeltaText && <small className={ratingDelta > 0 ? 'rating-up' : ratingDelta < 0 ? 'rating-down' : ''}>{ratingDeltaText}</small>}
-                <small>{game.mode || 'rapid'} - {game.timeControl} - {(game.moves || []).length} nước</small>
-                {game.review && <small>Đã lưu review: accuracy {game.review.accuracy}% - {game.review.blunders} blunder - {game.review.mistakes} mistake</small>}
-                <small>{reviewPriority(game)}</small>
-              </span>
-              <time>{formatDate(game.finishedAt)}</time>
-              <em>{game.endReason === 'timeout' ? 'Hết giờ' : game.status}</em>
-              <ArrowRight size={18} />
-            </button>
-          );
-        })}
-      </div>
+      {loading ? (
+        <div className="loading-container">
+          <Loader2 size={40} className="animate-spin" />
+        </div>
+      ) : games.length === 0 ? (
+        <p className="history-empty">Không có trận nào phù hợp với bộ lọc hiện tại.</p>
+      ) : (
+        <div className="history-list">
+          {games.map((game) => {
+            const white = game.white || {};
+            const black = game.black || {};
+            const opponent = white.you ? black : white;
+            const result = gameResult(game);
+            return (
+              <button className="history-row" key={game.id} onClick={() => onOpenReview(game.id)}>
+                <b className={result.tone}>{result.label}</b>
+                <span style={{ flex: 1 }}>
+                  <strong style={{ display: 'block' }}>vs {opponent?.name || 'Player'}</strong>
+                  <small style={{ color: 'var(--text-muted, #6b7280)' }}>
+                    {game.mode || 'rapid'} • {(game.moves || []).length} nước • {formatDate(game.finishedAt)}
+                  </small>
+                </span>
+                <ArrowRight size={18} />
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        onPageChange={changePage}
-        label="Phân trang lịch sử trận đấu"
-      />
+      <Pagination page={page} totalPages={totalPages} onPageChange={changePage} label="Phân trang" />
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { createFirebaseCustomToken, ensureVerifiedFirebaseUser } from '../../../../lib/firebaseAdmin';
-import { rateLimit } from '../../../../lib/rateLimit';
+import { distributedRateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +12,7 @@ function testAccountsEnabled() {
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'auth-test-login', limit: 10, windowMs: 60_000 });
+  const blocked = await distributedRateLimit(request, { scope: 'auth-test-login', limit: 10, windowMs: 60_000 });
   if (blocked) return blocked;
 
   if (!testAccountsEnabled()) {

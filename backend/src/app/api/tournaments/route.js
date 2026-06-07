@@ -2,6 +2,7 @@ import { syncAchievements } from '../../../lib/achievements';
 import { requireOnlineUser } from '../../../lib/online';
 import { rateLimit } from '../../../lib/rateLimit';
 import { readJsonPayload } from '../../../lib/validation';
+import { pairPublicTournament, syncTournamentLifecycle } from '../../../lib/tournaments';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +16,9 @@ function publicTournament(row, players = []) {
     endsAt: row.ends_at,
     playerCount: row.playerCount ?? players.length,
     gameCount: row.gameCount ?? 0,
+    pairingSystem: row.pairing_system || 'arena',
+    maxPlayers: row.max_players || 100,
+    currentRound: row.current_round || 0,
     joined: Boolean(row.joined),
     players: players.map((item, index) => ({
       rank: index + 1,
@@ -65,7 +69,10 @@ async function loadTournaments(context) {
   if (['scheduled', 'open', 'running', 'finished', 'cancelled'].includes(status)) query = query.eq('status', status);
   const { data: tournamentRows, error, count = 0 } = await query;
   if (error) throw error;
-  const tournaments = Array.isArray(tournamentRows) ? tournamentRows : [];
+  const tournaments = await Promise.all((Array.isArray(tournamentRows) ? tournamentRows : []).map(async (item) => {
+    const synced = await syncTournamentLifecycle(context.supabase, item);
+    return (await pairPublicTournament(context.supabase, synced)).tournament;
+  }));
 
   const ids = tournaments.map((item) => item.id);
   const { data: playerRows } = ids.length
@@ -145,6 +152,13 @@ export async function POST(request) {
     if (!tournament) return Response.json({ ok: false, error: 'Không tìm thấy giải đấu.' }, { status: 404 });
     if (!['scheduled', 'open', 'running'].includes(tournament.status)) {
       return Response.json({ ok: false, error: 'Giải đấu chưa mở tham gia.' }, { status: 409 });
+    }
+    const { count: playerCount = 0 } = await context.supabase
+      .from('arena_tournament_players')
+      .select('*', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId);
+    if ((playerCount || 0) >= (tournament.max_players || 100)) {
+      return Response.json({ ok: false, error: 'Giải đấu đã đủ người.' }, { status: 409 });
     }
 
     const { data, error } = await context.supabase

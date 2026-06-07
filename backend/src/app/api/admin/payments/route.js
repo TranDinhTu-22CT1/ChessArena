@@ -1,5 +1,6 @@
 import { requireAdminPermission, requireAdminUser } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
+import { safeArray } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
@@ -24,9 +25,25 @@ export async function GET(request) {
     .range(from, to);
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+  const userIds = (data || []).map((item) => item.user_id).filter(Boolean);
+  const { data: transactions = [] } = userIds.length
+    ? await context.supabase
+      .from('payment_transactions')
+      .select('*')
+      .in('user_id', userIds)
+      .order('occurred_at', { ascending: false })
+    : { data: [] };
+  const transactionRows = safeArray(transactions);
   return Response.json({
     ok: true,
-    payments: data || [],
+    payments: (data || []).map((membership) => {
+      const userTransactions = transactionRows.filter((item) => item.user_id === membership.user_id);
+      return {
+        ...membership,
+        latestTransaction: userTransactions[0] || null,
+        transactionCount: userTransactions.length
+      };
+    }),
     page,
     limit,
     total: count || 0,

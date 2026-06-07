@@ -1,7 +1,8 @@
 import React from 'react';
 import { UserRound } from 'lucide-react';
+import MembershipBadge from './MembershipBadge';
 
-export default function PlayerCard({ tone, name, label, clock, captures, avatarURL, materialLead = 0, active }) {
+export default function PlayerCard({ tone, name, label, clock, captures, avatarURL, membership, materialLead = 0, active }) {
   return (
     <section className={`player-card ${tone} ${active ? 'active' : ''}`}>
       <div className="avatar">
@@ -10,7 +11,10 @@ export default function PlayerCard({ tone, name, label, clock, captures, avatarU
       <div className="player-main">
         <div>
           <p>{label}</p>
-          <h2>{name}</h2>
+          <div className="player-name-with-badge">
+            <h2>{name}</h2>
+            <MembershipBadge membership={membership} compact />
+          </div>
         </div>
         <div className="captures">
           {captures.map((piece, index) => (

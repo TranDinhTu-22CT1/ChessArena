@@ -2,6 +2,49 @@ import React from 'react';
 import { Bot, CalendarDays, Pencil, Save, Search, X } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 
+const BOT_AVATAR_MAX_SIZE = 5 * 1024 * 1024;
+const BOT_AVATAR_EDGE = 160;
+
+function resizedBotAvatarData(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectURL = URL.createObjectURL(file);
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = BOT_AVATAR_EDGE;
+      canvas.height = BOT_AVATAR_EDGE;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        URL.revokeObjectURL(objectURL);
+        reject(new Error('Không thể xử lý ảnh bot.'));
+        return;
+      }
+      const crop = Math.min(image.naturalWidth, image.naturalHeight);
+      const left = (image.naturalWidth - crop) / 2;
+      const top = (image.naturalHeight - crop) / 2;
+      context.drawImage(image, left, top, crop, crop, 0, 0, BOT_AVATAR_EDGE, BOT_AVATAR_EDGE);
+      URL.revokeObjectURL(objectURL);
+      resolve(canvas.toDataURL('image/webp', 0.86));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectURL);
+      reject(new Error('Không thể đọc ảnh bot đã chọn.'));
+    };
+    image.src = objectURL;
+  });
+}
+
+async function readBotAvatarFile(file) {
+  if (!file) return '';
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    throw new Error('Chọn ảnh bot dạng PNG, JPG hoặc WebP.');
+  }
+  if (file.size > BOT_AVATAR_MAX_SIZE) {
+    throw new Error('Ảnh bot tối đa 5 MB.');
+  }
+  return resizedBotAvatarData(file);
+}
+
 function botToForm(bot) {
   return {
     name: bot.name || '',
@@ -96,6 +139,16 @@ export default function BotsSection({
     }
   };
 
+  const selectBatchAvatar = async (index, file) => {
+    const avatarUrl = await readBotAvatarFile(file);
+    if (avatarUrl) onUpdateBotForm(index, { avatarUrl });
+  };
+
+  const selectEditingAvatar = async (file) => {
+    const avatarUrl = await readBotAvatarFile(file);
+    if (avatarUrl) setEditingBotForm((form) => ({ ...form, avatarUrl }));
+  };
+
   return (
     <section className="admin-panel">
       <div className="admin-panel-head">
@@ -137,6 +190,9 @@ export default function BotsSection({
               </label>
               <label>Avatar URL
                 <input value={botForm.avatarUrl} onChange={(event) => onUpdateBotForm(index, { avatarUrl: event.target.value })} placeholder="/chessarena-mark.svg" />
+              </label>
+              <label>Ảnh từ máy
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => selectBatchAvatar(index, event.target.files?.[0]).catch((error) => window.alert(error.message))} />
               </label>
               <label>Phong cách bot
                 <textarea value={botForm.mood} onChange={(event) => onUpdateBotForm(index, { mood: event.target.value })} placeholder="Mô tả tính cách, độ khó, phong cách chơi..." />
@@ -198,6 +254,7 @@ export default function BotsSection({
                 <label>Mã sự kiện <input value={editingBotForm.eventTag} onChange={(event) => setEditingBotForm((form) => ({ ...form, eventTag: event.target.value }))} /></label>
                 <label>Thứ tự <input type="number" value={editingBotForm.sortOrder} onChange={(event) => setEditingBotForm((form) => ({ ...form, sortOrder: event.target.value }))} /></label>
                 <label>Avatar URL <input value={editingBotForm.avatarUrl} onChange={(event) => setEditingBotForm((form) => ({ ...form, avatarUrl: event.target.value }))} /></label>
+                <label>Ảnh từ máy <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => selectEditingAvatar(event.target.files?.[0]).catch((error) => window.alert(error.message))} /></label>
                 <label>Phong cách <textarea value={editingBotForm.mood} onChange={(event) => setEditingBotForm((form) => ({ ...form, mood: event.target.value }))} /></label>
                 <label>Câu chat <textarea value={editingBotForm.chat} onChange={(event) => setEditingBotForm((form) => ({ ...form, chat: event.target.value }))} /></label>
                 <label className="admin-check"><input type="checkbox" checked={editingBotForm.active} onChange={() => setEditingBotForm((form) => ({ ...form, active: !form.active }))} /> Đang bật</label>

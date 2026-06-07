@@ -6,6 +6,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   RefreshCw,
   Settings,
   Shield,
@@ -27,6 +28,7 @@ import {
   fetchAdminMe,
   fetchAdminPayments,
   fetchAdminSummary,
+  fetchAdminSupportRequests,
   fetchAdminUserDetail,
   fetchAdminUsers,
   fetchAdminTournaments,
@@ -41,6 +43,7 @@ import {
   updateAdminBot,
   updateAdminEvent,
   updateAdminMatchStatus,
+  updateAdminSupportRequest,
   updateAdminTournamentStatus,
   updateAntiCheatReport,
   updateModerationReport
@@ -59,6 +62,7 @@ import ModerationSection from './ModerationSection';
 import OverviewSection from './OverviewSection';
 import PaymentsSection from './PaymentsSection';
 import PlayersSection from './PlayersSection';
+import SupportSection from './SupportSection';
 import TournamentsSection from './TournamentsSection';
 import { defaultBotForm, NAV_ITEMS } from './adminUtils';
 
@@ -68,6 +72,7 @@ const ICONS = {
   CreditCard,
   FileText,
   LayoutDashboard,
+  MessageSquare,
   Settings,
   Shield,
   ShieldAlert,
@@ -98,6 +103,10 @@ export default function AdminPage() {
   const [fairPlayTotalPages, setFairPlayTotalPages] = React.useState(1);
   const [fairPlayFilters, setFairPlayFilters] = React.useState({ status: 'all', minRisk: 0, search: '' });
   const [moderationReports, setModerationReports] = React.useState([]);
+  const [supportRequests, setSupportRequests] = React.useState([]);
+  const [supportPage, setSupportPage] = React.useState(() => getUrlPage('page'));
+  const [supportTotalPages, setSupportTotalPages] = React.useState(1);
+  const [supportStatus, setSupportStatus] = React.useState('');
   const [matches, setMatches] = React.useState([]);
   const [matchesPage, setMatchesPage] = React.useState(() => getUrlPage('page'));
   const [matchesTotalPages, setMatchesTotalPages] = React.useState(1);
@@ -130,7 +139,10 @@ export default function AdminPage() {
     title: 'Giải nhanh ChessArena',
     timeControl: '300+0',
     durationMinutes: 30,
-    startsAt: ''
+    startsAt: '',
+    pairingSystem: 'arena',
+    maxPlayers: 100,
+    autoManage: true
   });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState(() => sectionFromPath());
@@ -151,7 +163,9 @@ export default function AdminPage() {
     nextPaymentsPage = paymentsPage,
     nextBotsPage = botsPage,
     nextEventsPage = eventsPage,
-    nextAuditPage = auditPage
+    nextAuditPage = auditPage,
+    nextSupportPage = supportPage,
+    nextSupportStatus = supportStatus
   ) => {
     const activeSection = section;
     setLoading(true);
@@ -166,6 +180,7 @@ export default function AdminPage() {
         usersData,
         reportsData,
         moderationData,
+        supportData,
         matchesData,
         tournamentsData,
         paymentsData,
@@ -178,6 +193,7 @@ export default function AdminPage() {
         activeSection === 'players' ? fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }) : Promise.resolve(null),
         activeSection === 'fairplay' ? fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }) : Promise.resolve(null),
         activeSection === 'moderation' ? fetchModerationReports({ page: nextModerationPage, limit: 10 }).catch(() => ({ reports: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'support' ? fetchAdminSupportRequests({ page: nextSupportPage, limit: 10, status: nextSupportStatus }).catch(() => ({ requests: [], totalPages: 1 })) : Promise.resolve(null),
         activeSection === 'matches' ? fetchAdminMatches({ page: nextMatchesPage, limit: 10 }) : Promise.resolve(null),
         activeSection === 'tournaments' ? fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })) : Promise.resolve(null),
         activeSection === 'payments' ? fetchAdminPayments({ page: nextPaymentsPage, limit: 10 }) : Promise.resolve(null),
@@ -198,6 +214,10 @@ export default function AdminPage() {
       if (moderationData) {
         setModerationReports(moderationData.reports || []);
         setModerationTotalPages(moderationData.totalPages || 1);
+      }
+      if (supportData) {
+        setSupportRequests(supportData.requests || []);
+        setSupportTotalPages(supportData.totalPages || 1);
       }
       if (matchesData) {
         setMatches(matchesData.matches || []);
@@ -231,12 +251,14 @@ export default function AdminPage() {
     } catch (error) {
       const text = error.message || 'Không thể tải trang quản trị.';
       setMessage(text);
-      setLoginRequired(true);
+      if (error.status === 401 || error.status === 403) {
+        setLoginRequired(true);
+      }
       notify(text, 'error');
     } finally {
       setLoading(false);
     }
-  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, matchesPage, moderationPage, paymentsPage, search, section, tournamentsPage, userPage]);
+  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, matchesPage, moderationPage, paymentsPage, search, section, supportPage, supportStatus, tournamentsPage, userPage]);
 
   const changeSection = React.useCallback((nextSection) => {
     const nextPath = adminSectionPath(nextSection);
@@ -249,6 +271,7 @@ export default function AdminPage() {
     if (nextSection === 'tournaments') setTournamentsPage(1);
     if (nextSection === 'fairplay') setFairPlayPage(1);
     if (nextSection === 'moderation') setModerationPage(1);
+    if (nextSection === 'support') setSupportPage(1);
     if (nextSection === 'payments') setPaymentsPage(1);
     if (nextSection === 'bots') {
       setBotsPage(1);
@@ -287,6 +310,19 @@ export default function AdminPage() {
     setUrlPage(nextPage, 'page');
     load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, nextPage);
   }, [fairPlayFilters, fairPlayPage, load, matchesPage, search, tournamentsPage, userPage]);
+
+  const changeSupportPage = React.useCallback((nextPage) => {
+    setSupportPage(nextPage);
+    setUrlPage(nextPage, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, eventsPage, auditPage, nextPage, supportStatus);
+  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, supportStatus, tournamentsPage, userPage]);
+
+  const changeSupportStatus = React.useCallback((nextStatus) => {
+    setSupportStatus(nextStatus);
+    setSupportPage(1);
+    setUrlPage(1, 'page');
+    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, eventsPage, auditPage, 1, nextStatus);
+  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
 
   const changePaymentsPage = React.useCallback((nextPage) => {
     setPaymentsPage(nextPage);
@@ -329,6 +365,7 @@ export default function AdminPage() {
       if (nextSection === 'tournaments') setTournamentsPage(getUrlPage('page'));
       if (nextSection === 'fairplay') setFairPlayPage(getUrlPage('page'));
       if (nextSection === 'moderation') setModerationPage(getUrlPage('page'));
+      if (nextSection === 'support') setSupportPage(getUrlPage('page'));
       if (nextSection === 'payments') setPaymentsPage(getUrlPage('page'));
       if (nextSection === 'bots') {
         setBotsPage(getUrlPage('botPage'));
@@ -569,6 +606,17 @@ export default function AdminPage() {
     await load();
   };
 
+  const changeSupportRequestStatus = async (request, status, adminNote = '') => {
+    try {
+      await updateAdminSupportRequest(request.id, status, adminNote);
+      notify('Đã cập nhật yêu cầu hỗ trợ.', 'success');
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+      notify(error.message, 'error');
+    }
+  };
+
   const changeAntiCheatStatus = async (reportId, status) => {
     try {
       const data = await updateAntiCheatReport(reportId, status);
@@ -732,6 +780,32 @@ export default function AdminPage() {
             totalPages={moderationTotalPages}
             onPageChange={changeModerationPage}
             onChangeStatus={changeModerationStatus}
+          />
+        )}
+        {section === 'support' && (
+          <SupportSection
+            requests={supportRequests}
+            page={supportPage}
+            totalPages={supportTotalPages}
+            status={supportStatus}
+            onStatusFilter={changeSupportStatus}
+            onPageChange={changeSupportPage}
+            onChangeStatus={changeSupportRequestStatus}
+            onReload={() => load(
+              search,
+              userPage,
+              fairPlayPage,
+              fairPlayFilters,
+              matchesPage,
+              tournamentsPage,
+              moderationPage,
+              paymentsPage,
+              botsPage,
+              eventsPage,
+              auditPage,
+              supportPage,
+              supportStatus
+            )}
           />
         )}
         {section === 'payments' && (
