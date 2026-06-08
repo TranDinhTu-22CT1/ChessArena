@@ -1,10 +1,12 @@
 import React from 'react';
 import { CreditCard, Database } from 'lucide-react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { billingCycleLabel, paymentStatusLabel, tierLabel, time } from './adminUtils';
 
 export default function PaymentsSection({
   payments,
+  loading = false,
   page,
   totalPages,
   onPageChange,
@@ -36,7 +38,8 @@ export default function PaymentsSection({
         </div>
       )}
       <div className="admin-table-list">
-        {payments.length === 0 && <p className="admin-message">Chưa có dữ liệu thanh toán ở trang này.</p>}
+        {loading && <LoadingBlock label="Đang tải dữ liệu thanh toán" />}
+        {!loading && payments.length === 0 && <p className="admin-message">Chưa có dữ liệu thanh toán ở trang này.</p>}
         {payments.map((payment) => (
           <article className="admin-report-card" key={payment.user_id}>
             <div>

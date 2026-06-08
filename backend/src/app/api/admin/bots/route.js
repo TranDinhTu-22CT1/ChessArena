@@ -8,6 +8,10 @@ function cleanText(value, fallback, max = 160) {
   return String(value || fallback).trim().replace(/\s+/g, ' ').slice(0, max) || fallback;
 }
 
+function batchTag() {
+  return `batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function cleanAvatarImage(value) {
   const input = String(value || '').trim();
   if (!input) return '/chessarena-mark.svg';
@@ -94,8 +98,10 @@ export async function POST(request) {
     if (rawBots.length !== 5) {
       return Response.json({ ok: false, error: 'Bot batch must contain exactly 5 bots.' }, { status: 400 });
     }
+    const sharedEventTag = cleanText(payload?.eventTag || payload?.event_tag, batchTag(), 40).toLowerCase();
     const rows = await Promise.all(rawBots.map((bot, index) => cleanBotPayload({
       ...bot,
+      eventTag: sharedEventTag,
       sortOrder: bot?.sortOrder ?? bot?.sort_order ?? 50 + index
     }, context.admin?.id || null)));
     const { data, error } = await context.supabase
@@ -146,4 +152,40 @@ export async function PATCH(request) {
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   await writeAdminAudit(context.supabase, context.admin, 'bot.update', { botId, name: data.name, active: data.active });
   return Response.json({ ok: true, bot: data });
+}
+
+export async function DELETE(request) {
+  const blocked = rateLimit(request, { scope: 'admin-bots-delete', limit: 30, windowMs: 60_000 });
+  if (blocked) return blocked;
+
+  const context = await requireAdminUser();
+  if (context.error) return context.error;
+  const permissionError = requireAdminPermission(context, 'content:manage');
+  if (permissionError) return permissionError;
+  const csrfError = await requireAdminCsrf(request, context);
+  if (csrfError) return csrfError;
+
+  const payload = await request.json().catch(() => null);
+  const botId = String(payload?.botId || '').trim();
+  const eventTag = String(payload?.eventTag || payload?.event_tag || '').trim().toLowerCase();
+
+  if (!botId && !eventTag) {
+    return Response.json({ ok: false, error: 'Missing bot id or event tag.' }, { status: 400 });
+  }
+
+  const query = context.supabase.from('bot_personas').delete();
+  const { data = [], error } = botId
+    ? await query.eq('id', botId).select('id, name, event_tag')
+    : await query.eq('event_tag', eventTag).select('id, name, event_tag');
+
+  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  await writeAdminAudit(context.supabase, context.admin, botId ? 'bot.delete' : 'bot.batch_delete', {
+    botId: botId || undefined,
+    eventTag: eventTag || undefined,
+    count: data.length,
+    names: data.map((bot) => bot.name)
+  });
+
+  return Response.json({ ok: true, deleted: data.length, bots: data });
 }

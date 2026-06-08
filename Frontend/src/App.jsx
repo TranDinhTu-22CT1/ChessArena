@@ -43,7 +43,7 @@ import {
   coachBehaviorFromMode,
   coachLessonFromMode
 } from './coach/coach';
-import { BOT_PERSONAS, mergeBotPersonas } from './data/bots';
+import { BOT_PERSONAS, groupBotPersonas, mergeBotPersonas } from './data/bots';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useApiGameLog } from './hooks/useApiGameLog';
 import { useAppRoute } from './hooks/useAppRoute';
@@ -283,6 +283,7 @@ export default function App() {
   const [playerColor, setPlayerColor] = React.useState('w');
   const [sideChoice, setSideChoice] = React.useState('w');
   const [aiElo, setAiElo] = React.useState(1600);
+  const [selectedBotId, setSelectedBotId] = React.useState('');
   const [timeControlId, setTimeControlId] = React.useState(DEFAULT_TIME_CONTROL.id);
   const [clocks, setClocks] = React.useState(() => ({ w: DEFAULT_TIME_CONTROL.baseSeconds, b: DEFAULT_TIME_CONTROL.baseSeconds }));
   const [timeWinner, setTimeWinner] = React.useState(null);
@@ -547,7 +548,13 @@ export default function App() {
   const history = gameState.moves;
   const gameFen = game.fen();
   const userId = safeUserId(userName);
-  const aiLevel = AI_LEVELS.find((level) => level.elo === Number(aiElo)) ?? AI_LEVELS[2];
+  const aiLevel = React.useMemo(() => (
+    AI_LEVELS.find((level) => level.elo === Number(aiElo)) ?? {
+      elo: Number(aiElo) || 1320,
+      label: `${Number(aiElo) || 1320} Custom Stockfish`,
+      search: 'UCI limited strength'
+    }
+  ), [aiElo]);
   const timeControl = TIME_CONTROLS.find((control) => control.id === timeControlId) ?? DEFAULT_TIME_CONTROL;
   const aiColor = playerColor === 'w' ? 'b' : 'w';
   const isCoachGame = gameMode === 'coach';
@@ -629,9 +636,11 @@ export default function App() {
     }))
     .filter((arrow) => arrow.from && arrow.to);
   const botPersonas = React.useMemo(() => mergeBotPersonas(customBots), [customBots]);
-  const activeBotPersona = botPersonas.reduce((closest, persona) => (
-    Math.abs(persona.elo - Number(aiElo)) < Math.abs(closest.elo - Number(aiElo)) ? persona : closest
-  ), botPersonas[0] || BOT_PERSONAS[0]);
+  const botGroups = React.useMemo(() => groupBotPersonas(botPersonas), [botPersonas]);
+  const activeBotPersona = botPersonas.find((persona) => selectedBotId && persona.id === selectedBotId)
+    ?? botPersonas.reduce((closest, persona) => (
+      Math.abs(persona.elo - Number(aiElo)) < Math.abs(closest.elo - Number(aiElo)) ? persona : closest
+    ), botPersonas[0] || BOT_PERSONAS[0]);
   const aiDisplayName = `${activeBotPersona.name} (${aiLevel.elo})`;
   const latestPlayerMoveIndex = history.reduce((foundIndex, move, index) => (
     move.color === playerColor ? index : foundIndex
@@ -821,6 +830,7 @@ export default function App() {
   const startNewGame = async ({
     nextSideChoice = sideChoice,
     nextAiElo = aiElo,
+    nextBotId = selectedBotId,
     nextTimeControl = timeControl,
     nextBotGameStarted = false,
     nextVariant = gameVariant,
@@ -845,6 +855,7 @@ export default function App() {
     setPlayerColor(resolvedPlayerColor);
     setSideChoice(nextSideChoice);
     setAiElo(Number(nextAiElo));
+    setSelectedBotId(nextBotId || '');
     setFlipped(resolvedPlayerColor === 'b');
     setSelected(null);
     setLegalTargets([]);
@@ -869,7 +880,7 @@ export default function App() {
     setGameId(newLocalGameId());
     resetSavedGameLog();
     stopSpeech();
-    resetBotAssistance((botPersonas.find((persona) => persona.elo === Number(nextAiElo)) ?? activeBotPersona).chat);
+    resetBotAssistance((botPersonas.find((persona) => (nextBotId && persona.id === nextBotId) || persona.elo === Number(nextAiElo)) ?? activeBotPersona).chat);
 
     try {
       const response = await fetch(apiUrl('/api/game/new'), {
@@ -989,13 +1000,13 @@ export default function App() {
     startNewGame({ nextSideChoice: choice });
   };
 
-  const changeAiElo = (elo) => {
+  const changeAiElo = (elo, botId = '') => {
     if (isCoachGame) {
       resetCoachMatch({ nextAiElo: Number(elo), nextLesson: coachLesson });
       return;
     }
     playUiSound('tap');
-    startNewGame({ nextSideChoice: sideChoice, nextAiElo: Number(elo) });
+    startNewGame({ nextSideChoice: sideChoice, nextAiElo: Number(elo), nextBotId: botId });
   };
 
   const changeTimeControl = (controlId) => {
@@ -1627,6 +1638,7 @@ export default function App() {
             aiLevel={aiLevel}
             activeBotPersona={activeBotPersona}
             botPersonas={botPersonas}
+            botGroups={botGroups}
             botOptions={botOptions}
             botChatText={botChatText}
             coachMode={coachMode}

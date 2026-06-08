@@ -52,6 +52,7 @@ export const SEASONAL_BOT_PERSONAS = [
 
 export function normalizeBotPersona(bot) {
   return {
+    id: bot?.id || `${bot?.name || 'bot'}-${bot?.elo || 1320}`,
     elo: Number(bot?.elo) || 1320,
     avatar: bot?.avatar_url || bot?.avatar || animalAvatar('\u265f', '#d8ddff'),
     name: String(bot?.name || 'Event Bot').slice(0, 40),
@@ -64,7 +65,7 @@ export function normalizeBotPersona(bot) {
 
 export function mergeBotPersonas(customBots = []) {
   const seen = new Set();
-  return [...customBots.map(normalizeBotPersona), ...SEASONAL_BOT_PERSONAS, ...BOT_PERSONAS]
+  return [...customBots.map(normalizeBotPersona), ...BOT_PERSONAS]
     .filter((bot) => bot.active)
     .filter((bot) => {
       const key = `${bot.name}:${bot.elo}`;
@@ -72,6 +73,29 @@ export function mergeBotPersonas(customBots = []) {
       seen.add(key);
       return true;
     });
+}
+
+export function groupBotPersonas(botPersonas = []) {
+  const groups = [];
+  const byTag = new Map();
+
+  botPersonas.forEach((bot) => {
+    const tag = bot.eventTag || 'stockfish';
+    if (!byTag.has(tag)) {
+      byTag.set(tag, {
+        id: tag,
+        label: tag === 'stockfish' ? 'Stockfish roster' : tag,
+        bots: []
+      });
+      groups.push(byTag.get(tag));
+    }
+    byTag.get(tag).bots.push(bot);
+  });
+
+  return groups.map((group) => ({
+    ...group,
+    bots: group.bots.sort((first, second) => first.elo - second.elo)
+  }));
 }
 
 export const BOT_CHAT_LINES = {

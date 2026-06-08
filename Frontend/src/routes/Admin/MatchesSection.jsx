@@ -1,4 +1,5 @@
 import React from 'react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { gameModeLabel, gameStatusLabel, resultLabel, time } from './adminUtils';
 
@@ -6,7 +7,7 @@ function isStale(match) {
   return match.status === 'active' && match.updated_at && Date.now() - new Date(match.updated_at).getTime() > 15 * 60 * 1000;
 }
 
-export default function MatchesSection({ matches, page, totalPages, onPageChange, onChangeStatus }) {
+export default function MatchesSection({ matches, loading = false, page, totalPages, onPageChange, onChangeStatus }) {
   return (
     <section className="admin-panel">
       <div className="admin-panel-head">
@@ -17,7 +18,8 @@ export default function MatchesSection({ matches, page, totalPages, onPageChange
       </div>
 
       <div className="admin-table-list">
-        {matches.length === 0 ? (
+        {loading && <LoadingBlock label="Đang tải danh sách trận đấu" />}
+        {!loading && matches.length === 0 ? (
           <p className="admin-message">Chưa có trận đấu nào ở trang này.</p>
         ) : matches.map((match) => (
           <article className="admin-report-card" key={match.id}>

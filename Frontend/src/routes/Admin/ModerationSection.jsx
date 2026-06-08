@@ -1,8 +1,9 @@
 import React from 'react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { time } from './adminUtils';
 
-export default function ModerationSection({ reports, page, totalPages, onPageChange, onChangeStatus }) {
+export default function ModerationSection({ reports, loading = false, page, totalPages, onPageChange, onChangeStatus }) {
   return (
     <section className="admin-panel">
       <div className="admin-panel-head">
@@ -12,7 +13,8 @@ export default function ModerationSection({ reports, page, totalPages, onPageCha
         </div>
       </div>
       <div className="admin-report-list">
-        {reports.length === 0 && <p>Chưa có báo cáo người chơi.</p>}
+        {loading && <LoadingBlock label="Đang tải báo cáo người chơi" />}
+        {!loading && reports.length === 0 && <p>Chưa có báo cáo người chơi.</p>}
         {reports.map((report) => (
           <article className="admin-report-card admin-moderation-card" key={report.id}>
             <div>

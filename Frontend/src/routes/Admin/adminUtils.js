@@ -4,10 +4,9 @@ export const NAV_ITEMS = [
   { id: 'matches', label: 'Trận đấu', iconName: 'Swords' },
   { id: 'tournaments', label: 'Giải đấu', iconName: 'Trophy' },
   { id: 'fairplay', label: 'Chống gian lận', iconName: 'ShieldAlert' },
-  { id: 'moderation', label: 'Báo cáo', iconName: 'Shield' },
   { id: 'support', label: 'Hỗ trợ', iconName: 'MessageSquare' },
   { id: 'payments', label: 'Thanh toán', iconName: 'CreditCard' },
-  { id: 'bots', label: 'Bot & sự kiện', iconName: 'Bot' },
+  { id: 'bots', label: 'Bot & thẻ', iconName: 'Bot' },
   { id: 'audit', label: 'Nhật ký', iconName: 'FileText' },
   { id: 'config', label: 'Cấu hình', iconName: 'Settings' }
 ];

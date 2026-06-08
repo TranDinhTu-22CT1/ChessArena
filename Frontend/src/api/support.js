@@ -5,6 +5,9 @@ async function readJson(response) {
     error: response.ok ? '' : `Support request failed with HTTP ${response.status}.`
   }));
   if (!response.ok || data.ok === false) {
+    if (response.status === 404) {
+      throw new Error('API hỗ trợ chưa khả dụng trên deployment hiện tại. Kiểm tra VITE_API_URL hoặc redeploy backend để có /api/support/requests.');
+    }
     throw new Error(data.error || 'Support request failed.');
   }
   return data;

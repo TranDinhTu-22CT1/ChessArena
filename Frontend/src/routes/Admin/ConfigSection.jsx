@@ -1,9 +1,11 @@
 import React from 'react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 
 export default function ConfigSection({
   admin,
   config,
   testAdmin,
+  loading = false,
   onGrantTestAdmin,
   onRevokeTestAdmin
 }) {
@@ -21,6 +23,7 @@ export default function ConfigSection({
         </div>
       </div>
       <div className="admin-config-grid">
+        {loading && <LoadingBlock label="Đang tải cấu hình hệ thống" />}
         {Object.entries(config || {}).map(([key, value]) => (
           <div key={key}>
             <strong>{key}</strong>

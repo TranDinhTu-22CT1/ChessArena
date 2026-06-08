@@ -15,6 +15,7 @@ export default function MatchPanel({
   aiLevel,
   activeBotPersona,
   botPersonas = BOT_PERSONAS,
+  botGroups = [],
   botOptions,
   botChatText,
   coachMode,
@@ -71,6 +72,7 @@ export default function MatchPanel({
           aiLevel={aiLevel}
           activeBotPersona={activeBotPersona}
           botPersonas={botPersonas}
+          botGroups={botGroups}
           botOptions={botOptions}
           botChatText={botChatText}
           coachMode={coachMode}
@@ -94,6 +96,7 @@ export default function MatchPanel({
           coachInsight={coachInsight}
           activeBotPersona={activeBotPersona}
           botPersonas={botPersonas}
+          botGroups={botGroups}
           botOptions={botOptions}
           botChatText={botChatText}
           coachLesson={coachLesson}
@@ -164,6 +167,7 @@ export default function MatchPanel({
         gameMode={gameMode}
         activeBotPersona={activeBotPersona}
         botPersonas={botPersonas}
+        botGroups={botGroups}
         aiElo={aiElo}
         aiLevel={aiLevel}
         coachInsight={coachInsight}
@@ -243,6 +247,7 @@ function BotSetup(props) {
     aiLevel,
     activeBotPersona,
     botPersonas,
+    botGroups,
     botOptions,
     botChatText,
     coachMode,
@@ -312,7 +317,7 @@ function BotSetup(props) {
               <strong>{activeBotPersona.name} <span>{aiLevel.elo}</span></strong>
             </div>
           </div>
-          <BotFamily aiElo={aiElo} botPersonas={botPersonas} onChangeAiElo={onChangeAiElo} />
+          <BotFamily aiElo={aiElo} activeBotPersona={activeBotPersona} botPersonas={botPersonas} botGroups={botGroups} onChangeAiElo={onChangeAiElo} />
         </>
       )}
       {isCoachGame ? (
@@ -469,7 +474,7 @@ function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight
   );
 }
 
-function ModeLobby({ gameMode, activeBotPersona, botPersonas = BOT_PERSONAS, aiElo, aiLevel, coachInsight, coachMode, coachSpeechText, onChangeAiElo, onSetCoachMode }) {
+function ModeLobby({ gameMode, activeBotPersona, botPersonas = BOT_PERSONAS, botGroups = [], aiElo, aiLevel, coachInsight, coachMode, coachSpeechText, onChangeAiElo, onSetCoachMode }) {
   if (gameMode === 'bot') {
     return (
       <section className="bot-lobby" aria-label="Play Bots">
@@ -484,20 +489,7 @@ function ModeLobby({ gameMode, activeBotPersona, botPersonas = BOT_PERSONAS, aiE
             <strong>{activeBotPersona.name} <span>{aiLevel.elo}</span></strong>
           </div>
         </div>
-        <BotFamily aiElo={aiElo} botPersonas={botPersonas} onChangeAiElo={onChangeAiElo} />
-        {[
-          ['Beginner', 15],
-          ['Intermediate', 15],
-          ['Advanced', 20],
-          ['Master', 10],
-          ['Adaptive', 5]
-        ].map(([label, count], index) => (
-          <button className="bot-category-row" key={label} type="button">
-            <img src={botPersonas[index % botPersonas.length]?.avatar || BOT_PERSONAS[index % BOT_PERSONAS.length].avatar} alt="" />
-            <strong>{label}</strong>
-            <span>{count} bots</span>
-          </button>
-        ))}
+        <BotFamily aiElo={aiElo} activeBotPersona={activeBotPersona} botPersonas={botPersonas} botGroups={botGroups} onChangeAiElo={onChangeAiElo} />
       </section>
     );
   }
@@ -570,28 +562,44 @@ function PanelOptions({ timeControlId, gameVariant, onChangeTimeControl, onChang
   );
 }
 
-function BotFamily({ aiElo, botPersonas = BOT_PERSONAS, onChangeAiElo }) {
+function BotFamily({ aiElo, activeBotPersona, botPersonas = BOT_PERSONAS, botGroups = [], onChangeAiElo }) {
+  const groups = botGroups.length ? botGroups : [{ id: 'stockfish', label: 'Stockfish roster', bots: botPersonas }];
   return (
     <div className="bot-family-card">
       <div>
         <strong>Bot roster</strong>
-        <span>{botPersonas.length} bots</span>
+        <span>{groups.length} groups | {botPersonas.length} bots</span>
       </div>
-      <div className="bot-avatar-row">
-        {botPersonas.map((bot) => (
-          <button
-            className={Number(aiElo) === bot.elo ? 'active' : ''}
-            key={`${bot.name}-${bot.elo}`}
-            onClick={() => onChangeAiElo(bot.elo)}
-            title={`${bot.name} - ELO ${bot.elo}`}
-          >
-            <img src={bot.avatar} alt={bot.name} />
-            {bot.eventTag && <span>{bot.eventTag}</span>}
-          </button>
+      <div className="bot-group-list">
+        {groups.map((group) => (
+          <div className="bot-roster-group" key={group.id}>
+            <div>
+              <strong>{group.label}</strong>
+              <span>{group.bots.length} bots</span>
+            </div>
+            <div className="bot-avatar-row">
+              {group.bots.map((bot) => (
+                <button
+                  className={Number(aiElo) === bot.elo && activeBotKey(bot) === activeBotKey(activeBotPersona) ? 'active' : ''}
+                  key={`${bot.name}-${bot.elo}-${bot.id || ''}`}
+                  onClick={() => onChangeAiElo(bot.elo, bot.id || '')}
+                  title={`${bot.name} - ELO ${bot.elo}`}
+                  type="button"
+                >
+                  <img src={bot.avatar} alt={bot.name} />
+                  <span>{bot.elo}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
   );
+}
+
+function activeBotKey(bot) {
+  return bot?.id || `${bot?.name || 'bot'}-${bot?.elo || 0}`;
 }
 
 function MoveList({ history, reviewMode, reviewPly, stockfishReview, onSetReviewMode, onSetResultDismissed, onSetReviewPly }) {

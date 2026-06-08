@@ -1,5 +1,6 @@
 import React from 'react';
 import { CalendarClock, Crown, Trophy, Users } from 'lucide-react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 
 const TIME_CONTROLS = [
@@ -34,6 +35,7 @@ export default function TournamentsSection({
   onChangeTournamentForm,
   onSubmitTournament,
   page,
+  loading = false,
   totalPages,
   onPageChange,
   onChangeStatus
@@ -137,7 +139,8 @@ export default function TournamentsSection({
       </form>
 
       <div className="admin-table-list">
-        {tournaments.length === 0 ? (
+        {loading && <LoadingBlock label="Đang tải danh sách giải đấu" />}
+        {!loading && tournaments.length === 0 ? (
           <p className="admin-message">Chưa có giải đấu nào ở trang này.</p>
         ) : tournaments.map((item) => (
           <article className="admin-report-card" key={item.id}>

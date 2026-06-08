@@ -43,7 +43,13 @@ export default function Pagination({ page, totalPages, onPageChange, label = 'Ph
     if (Number.isFinite(nextPage)) go(Math.floor(nextPage));
   };
 
-  if (safeTotalPages <= 1) return null;
+  if (safeTotalPages <= 1) {
+    return (
+      <nav className="pagination pagination-single" aria-label={label}>
+        <span>Trang {safePage} / {safeTotalPages}</span>
+      </nav>
+    );
+  }
 
   return (
     <nav className="pagination" aria-label={label}>

@@ -1506,9 +1506,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
                 setReviewMode(false);
                 if (terminalGame) setShowResultDialog(true);
               }}>{openedFromHistory ? 'Back to history' : 'Close review'}</button>
-              {terminalGame && !outcome?.aborted && (
-                <button className="danger" onClick={() => setReportOpen(true)}><Flag size={18} /> Report player</button>
-              )}
             </div>
           )}
 
@@ -1552,7 +1549,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
           onNewGame={startQueue}
           onLeaderboard={() => onNavigate?.('leaderboard')}
           onRematch={() => requestRematch('request')}
-          onReport={() => setReportOpen(true)}
         />
       )}
       {reportOpen && (
@@ -1639,7 +1635,7 @@ function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, l
   );
 }
 
-function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLeaderboard, onRematch, onReport }) {
+function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLeaderboard, onRematch }) {
   const ratingDelta = selfPlayer?.ratingDelta;
   const hasRatingDelta = Number.isFinite(ratingDelta) && game?.rated !== false;
   const ratingAfter = selfPlayer?.ratingAfter ?? selfPlayer?.rating;
@@ -1680,7 +1676,6 @@ function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premium
           <button onClick={onNewGame}><Search size={18} /> New game</button>
           {!outcome.aborted && <button onClick={onLeaderboard}><BarChart3 size={18} /> Leaderboard</button>}
           {!outcome.aborted && <button disabled={rematchBusy || (rematch?.requestedByYou && rematchPending)} onClick={onRematch}><RotateCcw size={18} /> Rematch</button>}
-          {!outcome.aborted && <button className="danger" onClick={onReport}><Flag size={18} /> Report</button>}
         </div>
       </div>
     </div>

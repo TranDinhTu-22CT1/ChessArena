@@ -1,9 +1,17 @@
 import React from 'react';
 import { Activity, Bot, CreditCard, Database, FileText, Gauge, MessageSquare, RefreshCw, Shield, ShieldAlert, Swords, Users } from 'lucide-react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import StatCard from './StatCard';
 
 function quotaLabel(value, suffix, fallback = 'Chưa đặt giới hạn') {
   return value ? `${value.toLocaleString('vi-VN')} ${suffix}` : fallback;
+}
+
+function waitLabel(value) {
+  const ms = Math.round(Number(value || 0));
+  if (!ms) return '0 ms';
+  if (ms >= 1000) return `${(ms / 1000).toFixed(ms >= 10_000 ? 1 : 2)} giây`;
+  return `${ms} ms`;
 }
 
 export default function OverviewSection({ summary, admin, loading, onLoad, onSectionChange }) {
@@ -16,6 +24,12 @@ export default function OverviewSection({ summary, admin, loading, onLoad, onSec
 
   return (
     <>
+      {loading && !summary && (
+        <section className="admin-panel">
+          <LoadingBlock label="Đang tải tổng quan admin" />
+        </section>
+      )}
+
       <section className="admin-stats admin-stats-wide">
         <StatCard icon={Users} label="Tổng người chơi" value={summary?.users} />
         <StatCard icon={Activity} label="Đang online" value={summary?.onlineUsers} />
@@ -34,8 +48,8 @@ export default function OverviewSection({ summary, admin, loading, onLoad, onSec
         <StatCard icon={Database} label="Webhook" value={summary?.webhookConfigured ? 'Sẵn sàng' : 'Thiếu'} />
         <StatCard icon={Database} label="Supabase" value={summary?.supabaseStatus || '--'} />
         <StatCard icon={Database} label="Firebase" value={summary?.firebaseStatus || '--'} />
-        <StatCard icon={Gauge} label="Match P95" value={`${matchmaking?.latestP95Ms || 0} ms`} tone={(matchmaking?.latestP95Ms || 0) > 1000 ? 'danger' : ''} />
-        <StatCard icon={Gauge} label="Match P99" value={`${matchmaking?.latestP99Ms || 0} ms`} tone={(matchmaking?.latestP99Ms || 0) > 2000 ? 'danger' : ''} />
+        <StatCard icon={Gauge} label="Ghép trận P95" value={waitLabel(matchmaking?.latestP95Ms)} tone={(matchmaking?.latestP95Ms || 0) > 10_000 ? 'danger' : ''} />
+        <StatCard icon={Gauge} label="Ghép trận P99" value={waitLabel(matchmaking?.latestP99Ms)} tone={(matchmaking?.latestP99Ms || 0) > 15_000 ? 'danger' : ''} />
         <StatCard icon={ShieldAlert} label="Match integrity" value={matchmaking?.integrityIssues || 0} tone={matchmaking?.integrityIssues ? 'danger' : ''} />
         <StatCard icon={Database} label="Outbox pending" value={matchmaking?.pendingOutboxEvents || 0} tone={(matchmaking?.pendingOutboxEvents || 0) > 100 ? 'danger' : ''} />
       </section>
@@ -48,12 +62,15 @@ export default function OverviewSection({ summary, admin, loading, onLoad, onSec
         </div>
         <div className="admin-session-grid">
           <div><strong>Tỷ lệ ghép</strong><span>{matchmaking?.successRate ?? 100}%</span></div>
-          <div><strong>P50 mới nhất</strong><span>{matchmaking?.latestP50Ms || 0} ms</span></div>
+          <div><strong>Thời gian ghép P50</strong><span>{waitLabel(matchmaking?.latestP50Ms)}</span></div>
           <div><strong>Rating gap</strong><span>{matchmaking?.latestAverageRatingGap || 0} Elo</span></div>
           <div><strong>Matched events</strong><span>{matchmaking?.matchedPlayers || 0}</span></div>
           <div><strong>Waiting events</strong><span>{matchmaking?.waitingEvents || 0}</span></div>
           <div><strong>Trạng thái</strong><span>{matchmaking?.available === false ? 'Cần migration v2' : matchmaking?.integrityIssues ? 'Cần xử lý' : 'Ổn định'}</span></div>
         </div>
+        <p className="admin-metric-note">
+          Đây là thời gian chờ ghép trận, không phải ping mạng. P95 nghĩa là khoảng 95% lượt ghép trong bucket mới nhất chờ không quá mốc này.
+        </p>
       </section>
       <section className="admin-panel admin-chat-limit-panel">
         <div className="admin-panel-head">
@@ -134,7 +151,7 @@ export default function OverviewSection({ summary, admin, loading, onLoad, onSec
             <span>Chủ hệ thống</span>
           </div>
           <div>
-            <strong>Hết hạn phiên</strong>
+            <strong>Đăng nhập lúc</strong>
             <span>{admin?.expiresAt ? new Date(admin.expiresAt).toLocaleString('vi-VN') : '--'}</span>
           </div>
           <div>

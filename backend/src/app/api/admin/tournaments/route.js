@@ -130,7 +130,7 @@ export async function POST(request) {
   const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
   const status = startsAt.getTime() <= Date.now() ? 'open' : 'scheduled';
 
-  const { data: tournament, error } = await context.supabase
+  let { data: tournament, error } = await context.supabase
     .from('arena_tournaments')
     .insert({
       title: cleanText(payload.title, 'Giải nhanh ChessArena'),
@@ -138,7 +138,7 @@ export async function POST(request) {
       time_control: cleanTimeControl(payload.timeControl),
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
-      created_by: context.admin.id,
+      created_by: context.admin.id || null,
       pairing_system: cleanPairingSystem(payload.pairingSystem),
       max_players: Math.max(2, Math.min(1000, Math.floor(Number(payload.maxPlayers) || 100))),
       auto_manage: payload.autoManage !== false,
@@ -146,6 +146,25 @@ export async function POST(request) {
     })
     .select('*')
     .single();
+
+  if (error && /pairing_system|max_players|auto_manage|column/i.test(error.message || '')) {
+    const fallback = await context.supabase
+      .from('arena_tournaments')
+      .insert({
+        title: cleanText(payload.title, 'ChessArena tournament'),
+        status,
+        time_control: cleanTimeControl(payload.timeControl),
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        created_by: context.admin.id || null,
+        updated_at: new Date().toISOString()
+      })
+      .select('*')
+      .single();
+
+    tournament = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 

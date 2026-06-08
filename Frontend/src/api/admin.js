@@ -8,6 +8,11 @@ async function readJson(response) {
     ? await response.json().catch(() => ({}))
     : {};
   if (!response.ok || data.ok === false) {
+    if (response.status === 404 && response.url.includes('/api/admin/support')) {
+      const error = new Error('API hộp thư hỗ trợ chưa khả dụng trên deployment hiện tại. Kiểm tra VITE_API_URL hoặc redeploy backend để có /api/admin/support.');
+      error.status = response.status;
+      throw error;
+    }
     const error = new Error(data.error || `Yêu cầu admin thất bại (HTTP ${response.status}).`);
     error.status = response.status;
     throw error;
@@ -283,6 +288,16 @@ export async function updateAdminBot(botId, payload) {
     credentials: 'include',
     headers: adminWriteHeaders(),
     body: JSON.stringify({ botId, ...payload })
+  });
+  return readJson(response);
+}
+
+export async function deleteAdminBot(payload) {
+  const response = await fetch(apiUrl('/api/admin/bots'), {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify(payload)
   });
   return readJson(response);
 }

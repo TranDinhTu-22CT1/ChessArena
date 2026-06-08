@@ -1,6 +1,8 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { FileImage, FileVideo, Paperclip, Send, X } from 'lucide-react';
 import { fetchAdminSupportThread, sendAdminSupportMessage } from '../../api/admin';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { time } from './adminUtils';
 
@@ -38,18 +40,22 @@ function readAttachment(file) {
   });
 }
 
-function AttachmentPreview({ attachment, removable = false, onRemove }) {
+function AttachmentPreview({ attachment, removable = false, onRemove, onPreview }) {
   const source = attachment?.url || attachment?.dataUrl;
   const isImage = String(attachment?.mimeType || '').startsWith('image/');
   const isVideo = String(attachment?.mimeType || '').startsWith('video/');
   return (
     <div className="support-ticket-attachment-wrap">
-      <a className="support-ticket-attachment" href={source} target="_blank" rel="noreferrer">
+      <button
+        className="support-ticket-attachment"
+        type="button"
+        onClick={() => onPreview?.({ ...attachment, source, isImage, isVideo })}
+      >
         {isImage && <img src={source} alt={attachment.name || 'Ảnh đính kèm'} />}
         {isVideo && <video src={source} controls preload="metadata" />}
         {!isImage && !isVideo && <FileImage size={22} />}
         <span>{isImage ? <FileImage size={14} /> : <FileVideo size={14} />} {attachment.name || 'File đính kèm'}</span>
-      </a>
+      </button>
       {removable && (
         <button type="button" className="support-attachment-remove" onClick={onRemove} aria-label="Xóa tệp">
           <X size={14} />
@@ -66,6 +72,7 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
   const [loading, setLoading] = React.useState(true);
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [preview, setPreview] = React.useState(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -132,8 +139,27 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
             {request.page_url && <small>Trang: {request.page_url}</small>}
           </div>
 
-          <div className="support-thread-list admin-thread-list">
+          <section className="support-ticket-section">
+            <strong>Nội dung</strong>
+            {request.message ? <p>{request.message}</p> : <p className="support-ticket-empty-line">Không có nội dung.</p>}
+          </section>
+
+          <section className="support-ticket-section">
+            <strong>Ảnh / tệp đính kèm</strong>
+            {request.attachments?.length > 0 ? (
+              <div className="support-ticket-media-grid">
+                {request.attachments.map((attachment) => (
+                  <AttachmentPreview attachment={attachment} onPreview={setPreview} key={attachment.id || attachment.name} />
+                ))}
+              </div>
+            ) : (
+              <p className="support-ticket-empty-line">Không có ảnh.</p>
+            )}
+          </section>
+
+          <div className={`support-thread-list admin-thread-list ${!loading && messages.length === 0 ? 'empty' : ''}`}>
             {loading && <p>Đang tải hội thoại...</p>}
+            {!loading && messages.length === 0 && <p className="support-ticket-empty-line">Không có nội dung hội thoại.</p>}
             {messages.map((message) => (
               <article className={`support-thread-message ${message.senderType === 'admin' ? 'admin' : 'user'}`} key={message.id}>
                 <strong>{message.senderType === 'admin' ? 'Admin' : request.users?.display_name || 'Người chơi'}</strong>
@@ -141,7 +167,7 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
                 {message.attachments?.length > 0 && (
                   <div className="support-ticket-media-grid">
                     {message.attachments.map((attachment) => (
-                      <AttachmentPreview attachment={attachment} key={attachment.id || attachment.name} />
+                      <AttachmentPreview attachment={attachment} onPreview={setPreview} key={attachment.id || attachment.name} />
                     ))}
                   </div>
                 )}
@@ -166,6 +192,7 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
                     <AttachmentPreview
                       attachment={attachment}
                       removable
+                      onPreview={setPreview}
                       onRemove={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
                       key={attachment.id}
                     />
@@ -203,6 +230,20 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
           <button type="button" onClick={() => onChangeStatus(request, 'dismissed', note)}>Đóng ticket</button>
         </footer>
       </section>
+      {preview && (
+        <div className="admin-media-preview-layer" role="dialog" aria-modal="true" onMouseDown={() => setPreview(null)}>
+          <button type="button" className="admin-media-preview-close" onClick={() => setPreview(null)} aria-label="Đóng ảnh">
+            <X size={22} />
+          </button>
+          <div className="admin-media-preview-frame" onMouseDown={(event) => event.stopPropagation()}>
+            {preview.isVideo ? (
+              <video src={preview.source} controls autoPlay />
+            ) : (
+              <img src={preview.source} alt={preview.name || 'Ảnh đính kèm'} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -212,6 +253,7 @@ export default function SupportSection({
   page,
   totalPages,
   status,
+  loading = false,
   onStatusFilter,
   onPageChange,
   onChangeStatus,
@@ -241,7 +283,8 @@ export default function SupportSection({
       </div>
 
       <div className="admin-report-list">
-        {requests.length === 0 && <div className="support-empty-state"><strong>Chưa có yêu cầu hỗ trợ</strong></div>}
+        {loading && <LoadingBlock label="Đang tải yêu cầu hỗ trợ" />}
+        {!loading && requests.length === 0 && <div className="support-empty-state"><strong>Chưa có yêu cầu hỗ trợ</strong></div>}
         {requests.map((request) => (
           <article className="admin-report-card admin-support-card clickable" key={request.id} onClick={() => setSelectedRequest(request)}>
             <div>
@@ -261,7 +304,7 @@ export default function SupportSection({
 
       <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} label="Phân trang yêu cầu hỗ trợ" />
 
-      {selectedRequest && (
+      {selectedRequest && createPortal((
         <SupportTicketModal
           request={selectedRequest}
           note={noteFor(selectedRequest)}
@@ -273,7 +316,7 @@ export default function SupportSection({
             setSelectedRequest(null);
           }}
         />
-      )}
+      ), document.body)}
     </section>
   );
 }

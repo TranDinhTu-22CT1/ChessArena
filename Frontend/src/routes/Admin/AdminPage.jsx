@@ -20,6 +20,7 @@ import {
   createAdminBot,
   createAdminEvent,
   createAdminTournament,
+  deleteAdminBot,
   fetchAdminAuditLogs,
   fetchAdminBots,
   fetchAdminConfig,
@@ -197,7 +198,7 @@ export default function AdminPage() {
         activeSection === 'matches' ? fetchAdminMatches({ page: nextMatchesPage, limit: 10 }) : Promise.resolve(null),
         activeSection === 'tournaments' ? fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })) : Promise.resolve(null),
         activeSection === 'payments' ? fetchAdminPayments({ page: nextPaymentsPage, limit: 10 }) : Promise.resolve(null),
-        activeSection === 'bots' ? fetchAdminBots({ page: nextBotsPage, limit: 10 }).catch(() => ({ bots: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'bots' ? fetchAdminBots({ page: nextBotsPage, limit: 50 }).catch(() => ({ bots: [], totalPages: 1 })) : Promise.resolve(null),
         activeSection === 'bots' ? fetchAdminEvents({ page: nextEventsPage, limit: 10 }).catch(() => ({ events: [], totalPages: 1 })) : Promise.resolve(null),
         activeSection === 'audit' ? fetchAdminAuditLogs({ page: nextAuditPage, limit: 20 }) : Promise.resolve(null),
         activeSection === 'config' ? fetchAdminConfig() : Promise.resolve(null)
@@ -544,6 +545,28 @@ export default function AdminPage() {
     }
   };
 
+  const deleteBot = async (botId) => {
+    try {
+      await deleteAdminBot({ botId });
+      notify('Da xoa bot khoi Supabase.', 'success');
+      await load();
+    } catch (error) {
+      notify(error.message, 'error');
+      throw error;
+    }
+  };
+
+  const deleteBotGroup = async (eventTag) => {
+    try {
+      await deleteAdminBot({ eventTag });
+      notify('Da xoa nhom bot khoi Supabase.', 'success');
+      await load();
+    } catch (error) {
+      notify(error.message, 'error');
+      throw error;
+    }
+  };
+
   const saveEvent = async (eventId, payload) => {
     try {
       await updateAdminEvent(eventId, payload);
@@ -742,6 +765,7 @@ export default function AdminPage() {
         {section === 'matches' && (
           <MatchesSection
             matches={matches}
+            loading={loading}
             page={matchesPage}
             totalPages={matchesTotalPages}
             onPageChange={changeMatchesPage}
@@ -751,6 +775,7 @@ export default function AdminPage() {
         {section === 'tournaments' && (
           <TournamentsSection
             tournaments={tournaments}
+            loading={loading}
             tournamentForm={tournamentForm}
             onChangeTournamentForm={(patch) => setTournamentForm((form) => ({ ...form, ...patch }))}
             onSubmitTournament={submitTournament}
@@ -763,6 +788,7 @@ export default function AdminPage() {
         {section === 'fairplay' && (
           <FairPlaySection
             reports={reports}
+            loading={loading}
             filters={fairPlayFilters}
             page={fairPlayPage}
             totalPages={fairPlayTotalPages}
@@ -776,6 +802,7 @@ export default function AdminPage() {
         {section === 'moderation' && (
           <ModerationSection
             reports={moderationReports}
+            loading={loading}
             page={moderationPage}
             totalPages={moderationTotalPages}
             onPageChange={changeModerationPage}
@@ -785,6 +812,7 @@ export default function AdminPage() {
         {section === 'support' && (
           <SupportSection
             requests={supportRequests}
+            loading={loading}
             page={supportPage}
             totalPages={supportTotalPages}
             status={supportStatus}
@@ -811,6 +839,7 @@ export default function AdminPage() {
         {section === 'payments' && (
           <PaymentsSection
             payments={payments}
+            loading={loading}
             page={paymentsPage}
             totalPages={paymentsTotalPages}
             onPageChange={changePaymentsPage}
@@ -823,6 +852,7 @@ export default function AdminPage() {
           <BotsSection
             bots={bots}
             events={events}
+            loading={loading}
             botsPage={botsPage}
             botsTotalPages={botsTotalPages}
             eventsPage={eventsPage}
@@ -836,6 +866,8 @@ export default function AdminPage() {
             onSubmitEvent={submitEvent}
             onUpdateEventForm={(patch) => setEventForm((form) => ({ ...form, ...patch }))}
             onSaveBot={saveBot}
+            onDeleteBot={deleteBot}
+            onDeleteBotGroup={deleteBotGroup}
             onSaveEvent={saveEvent}
             onToggleBot={(bot) => updateAdminBot(bot.id, { ...bot, active: !bot.active }).then(() => load())}
             onToggleEvent={(item) => updateAdminEvent(item.id, { ...item, active: !item.active }).then(() => load())}
@@ -844,6 +876,7 @@ export default function AdminPage() {
         {section === 'audit' && (
           <AuditSection
             logs={auditLogs}
+            loading={loading}
             page={auditPage}
             totalPages={auditTotalPages}
             onPageChange={changeAuditPage}
@@ -854,6 +887,7 @@ export default function AdminPage() {
             admin={admin}
             config={config}
             testAdmin={testAdmin}
+            loading={loading}
             onGrantTestAdmin={() => changeTestAdminAccess(true)}
             onRevokeTestAdmin={() => changeTestAdminAccess(false)}
           />

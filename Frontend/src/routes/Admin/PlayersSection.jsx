@@ -1,5 +1,6 @@
 import React from 'react';
 import { Ban, CheckCircle2, ExternalLink, Search, Shield, ShieldAlert, UserCog } from 'lucide-react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { activeBan, activeMute, time } from './adminUtils';
 
@@ -37,6 +38,7 @@ export default function PlayersSection({
       </div>
 
       <div className="admin-user-list">
+        {loading && <LoadingBlock label="Đang tải danh sách người chơi" />}
         {users.map((user) => {
           const ban = activeBan(user);
           const mute = activeMute(user);

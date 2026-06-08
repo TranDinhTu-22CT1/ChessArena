@@ -1,5 +1,6 @@
 import React from 'react';
 import { Ban, CheckCircle2, Filter, Search } from 'lucide-react';
+import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { pct, time } from './adminUtils';
 
@@ -14,6 +15,7 @@ const STATUS_LABELS = {
 export default function FairPlaySection({
   reports,
   filters,
+  loading = false,
   page,
   totalPages,
   onFilterChange,
@@ -64,7 +66,8 @@ export default function FairPlaySection({
       </div>
 
       <div className="admin-report-list">
-        {reports.length === 0 && <p>Không có báo cáo anti-cheat phù hợp bộ lọc hiện tại.</p>}
+        {loading && <LoadingBlock label="Đang tải báo cáo fair play" />}
+        {!loading && reports.length === 0 && <p>Không có báo cáo anti-cheat phù hợp bộ lọc hiện tại.</p>}
         {reports.map((report) => {
           const details = report.details || {};
           const isBanned = Boolean(report.activeBan);

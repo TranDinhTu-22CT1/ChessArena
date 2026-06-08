@@ -7,7 +7,6 @@ const CATEGORIES = [
   { value: 'account', label: 'Tài khoản / đăng nhập' },
   { value: 'billing', label: 'Thanh toán / gói thành viên' },
   { value: 'online', label: 'Chơi online / kết nối' },
-  { value: 'moderation', label: 'Báo cáo người chơi' },
   { value: 'puzzle', label: 'Puzzle / luyện tập' },
   { value: 'tournament', label: 'Giải đấu' },
   { value: 'technical', label: 'Lỗi kỹ thuật' },
@@ -46,7 +45,7 @@ function inferCategory(text) {
   if (/otp|đăng nhập|dang nhap|mật khẩu|mat khau|email|tài khoản|tai khoan/.test(value)) return 'account';
   if (/thanh toán|thanh toan|paypal|momo|gói|goi|membership|premium|refund|hoàn tiền|hoan tien/.test(value)) return 'billing';
   if (/online|kết nối|ket noi|lag|ghép trận|ghep tran|matchmaking/.test(value)) return 'online';
-  if (/báo cáo|bao cao|report|vi phạm|vi pham|xúc phạm|xuc pham|quấy rối|gian lận|admin/.test(value)) return 'moderation';
+  if (/báo cáo|bao cao|report|vi phạm|vi pham|xúc phạm|xuc pham|quấy rối|gian lận|admin/.test(value)) return 'general';
   if (/puzzle|rating/.test(value)) return 'puzzle';
   if (/giải đấu|giai dau|tournament/.test(value)) return 'tournament';
   if (/bug|lỗi|loi|crash|không bấm|khong bam/.test(value)) return 'technical';

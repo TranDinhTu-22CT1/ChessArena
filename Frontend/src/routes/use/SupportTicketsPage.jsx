@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { FileImage, FileVideo, LifeBuoy, LogIn, Paperclip, RefreshCw, Send, X } from 'lucide-react';
 import { fetchMySupportRequests, fetchSupportMessages, sendSupportMessage } from '../../api/support';
 import Pagination, { getUrlPage, setUrlPage } from '../../components/Pagination';
@@ -137,8 +138,28 @@ function TicketThreadModal({ ticket, onClose, onTicketUpdated }) {
           <button type="button" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
         </header>
 
-        <div className="support-thread-list">
+        <div className="support-ticket-modal-body">
+          <section className="support-ticket-section">
+            <strong>Nội dung</strong>
+            {ticket.message ? <p>{ticket.message}</p> : <p className="support-ticket-empty-line">Không có nội dung.</p>}
+          </section>
+
+          <section className="support-ticket-section">
+            <strong>Ảnh / tệp đính kèm</strong>
+            {ticket.attachments?.length > 0 ? (
+              <div className="support-ticket-media-grid">
+                {ticket.attachments.map((attachment) => (
+                  <AttachmentPreview attachment={attachment} key={attachment.id || attachment.name} />
+                ))}
+              </div>
+            ) : (
+              <p className="support-ticket-empty-line">Không có ảnh.</p>
+            )}
+          </section>
+
+        <div className={`support-thread-list ${!loading && thread.length === 0 ? 'empty' : ''}`}>
           {loading && <p className="support-faq-empty">Đang tải hội thoại...</p>}
+          {!loading && thread.length === 0 && <p className="support-ticket-empty-line">Không có nội dung hội thoại.</p>}
           {!loading && thread.map((message) => (
             <article className={`support-thread-message ${message.senderType === 'admin' ? 'admin' : 'user'}`} key={message.id}>
               <strong>{message.senderType === 'admin' ? 'Hỗ trợ ChessArena' : 'Bạn'}</strong>
@@ -154,6 +175,7 @@ function TicketThreadModal({ ticket, onClose, onTicketUpdated }) {
             </article>
           ))}
           {error && <p className="support-form-error">{error}</p>}
+        </div>
         </div>
 
         {!closed ? (
@@ -274,13 +296,13 @@ export default function SupportTicketsPage({ authUser, onLogin, onNavigate }) {
 
       <Pagination page={page} totalPages={totalPages} onPageChange={changePage} label="Phân trang ticket hỗ trợ" />
 
-      {selectedTicket && (
+      {selectedTicket && createPortal((
         <TicketThreadModal
           ticket={selectedTicket}
           onClose={() => setSelectedTicket(null)}
           onTicketUpdated={() => load(page)}
         />
-      )}
+      ), document.body)}
     </main>
   );
 }
