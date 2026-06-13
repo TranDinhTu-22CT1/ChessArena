@@ -77,11 +77,20 @@ function saveHistory(authUser, messages) {
   }
 }
 
+function readableMessage(value) {
+  return String(value || '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/[ \t]+(?=\d+\.\s)/g, '\n')
+    .replace(/[ \t]+(?=[-•]\s)/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function MessageBubble({ message }) {
   return (
     <div className={`ai-coach-message ${message.role}`}>
       <span>{message.role === 'assistant' ? 'AI Coach' : 'Bạn'}</span>
-      <p>{message.content}</p>
+      <p>{message.role === 'assistant' ? readableMessage(message.content) : message.content}</p>
     </div>
   );
 }
@@ -91,7 +100,7 @@ export default function AiCoachChat({ authUser, context, onLogin, onNavigate }) 
   const [input, setInput] = React.useState('');
   const [messages, setMessages] = React.useState(initialMessages);
   const [busy, setBusy] = React.useState(false);
-  const [suggestionsOpen, setSuggestionsOpen] = React.useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = React.useState(true);
   const listRef = React.useRef(null);
   const hasBoardContext = Boolean(context?.hasBoardContext && context?.fen);
   const prompts = hasBoardContext ? BOARD_PROMPTS : GENERAL_PROMPTS;
@@ -117,7 +126,6 @@ export default function AiCoachChat({ authUser, context, onLogin, onNavigate }) 
       const nextMessages = [...messages, { role: 'user', content: cleanQuestion }, { role: 'assistant', content: SUPPORT_REDIRECT_MESSAGE }].slice(-HISTORY_LIMIT);
       setMessages(nextMessages);
       setInput('');
-      setSuggestionsOpen(false);
       setOpen(true);
       notify(SUPPORT_REDIRECT_MESSAGE, 'info');
       window.setTimeout(() => {
@@ -135,7 +143,6 @@ export default function AiCoachChat({ authUser, context, onLogin, onNavigate }) 
     const activeMessages = messages;
     setMessages([...activeMessages, { role: 'user', content: cleanQuestion }].slice(-HISTORY_LIMIT));
     setInput('');
-    setSuggestionsOpen(false);
     setBusy(true);
 
     try {
@@ -194,16 +201,27 @@ export default function AiCoachChat({ authUser, context, onLogin, onNavigate }) 
                 )}
               </div>
 
-              <details className="ai-coach-suggestions" open={suggestionsOpen} onToggle={(event) => setSuggestionsOpen(event.currentTarget.open)}>
-                <summary><ListPlus size={15} /> Gợi ý nhanh</summary>
-                <div>
-                  {prompts.map((prompt) => (
-                    <button type="button" key={prompt} onClick={() => submitQuestion(prompt)} disabled={busy}>
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              </details>
+              <section className={`ai-coach-suggestions ${suggestionsOpen ? 'open' : 'collapsed'}`} aria-label="Gợi ý nhanh">
+                <button
+                  type="button"
+                  className="ai-coach-suggestions-toggle"
+                  aria-expanded={suggestionsOpen}
+                  aria-controls="ai-coach-suggestion-list"
+                  onClick={() => setSuggestionsOpen((value) => !value)}
+                >
+                  <span><ListPlus size={15} /> Gợi ý nhanh</span>
+                  <ChevronDown size={16} />
+                </button>
+                {suggestionsOpen && (
+                  <div id="ai-coach-suggestion-list" role="listbox" aria-label="Danh sách gợi ý nhanh">
+                    {prompts.map((prompt) => (
+                      <button type="button" role="option" aria-selected="false" key={prompt} onClick={() => submitQuestion(prompt)} disabled={busy}>
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
 
               <form onSubmit={(event) => {
                 event.preventDefault();

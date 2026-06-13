@@ -1,6 +1,7 @@
-import { apiUrl } from './config';
+import { apiUrl, handleApiSession } from './config';
 
 async function readMembershipResponse(response) {
+  handleApiSession(response);
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || 'Could not load membership.');

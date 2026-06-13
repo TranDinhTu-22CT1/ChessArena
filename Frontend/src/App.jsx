@@ -1,6 +1,5 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import './styles.css';
 import { apiUrl } from './api/config';
 import { fetchPublicBots } from './api/bots';
 import { fetchMembership } from './api/membership';
@@ -36,6 +35,7 @@ import ResultDialog from './components/ResultDialog';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import ToastHost, { notify } from './components/ToastHost';
+import SystemStatePage from './components/SystemStatePage';
 import vietnamFlag from './assets/flags/vietnam.svg';
 import unitedKingdomFlag from './assets/flags/united-kingdom.svg';
 import {
@@ -58,6 +58,25 @@ import { gameModeFromRoute, isGameRoute, isPuzzleRoute, routeFromPath } from './
 const DEFAULT_TIME_CONTROL = TIME_CONTROLS[3];
 const FINISHED_GAME_KEY = 'chess-arena-finished-game';
 const ROUTE_CHUNK_RELOAD_KEY = 'chess-arena-route-chunk-reload';
+const AUTH_ROUTES = new Set(['login', 'register', 'forgotPassword']);
+const GUEST_ROUTES = new Set(['home', 'login', 'register', 'forgotPassword', 'admin', 'notFound']);
+
+function isGuestAccessibleRoute(route, pathname = '') {
+  return GUEST_ROUTES.has(route) || (route === 'profile' && pathname.startsWith('/profile/'));
+}
+
+function LoginRequiredNotice({ onLogin }) {
+  return (
+    <section className="login-required-route">
+      <div>
+        <span>ChessArena</span>
+        <h1>Đăng nhập</h1>
+        <p>Bạn cần đăng nhập để sử dụng chức năng này.</p>
+        <button type="button" onClick={onLogin}>Đăng nhập</button>
+      </div>
+    </section>
+  );
+}
 
 function lazyWithReload(importer) {
   return React.lazy(async () => {
@@ -125,9 +144,6 @@ function RouteLoading({ label = 'Đang tải bàn cờ...' }) {
           <span className="loading-dot two" />
           <span className="loading-dot three" />
         </div>
-        <div className="loading-board" aria-hidden="true">
-          {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
-        </div>
         <div className="loading-copy">
           <small>ChessArena</small>
           <strong>{label}</strong>
@@ -142,15 +158,18 @@ function RouteLoading({ label = 'Đang tải bàn cờ...' }) {
 function OfflineOverlay({ visible }) {
   if (!visible) return null;
   return (
-    <div className="offline-overlay" role="status" aria-live="polite">
-      <div className="offline-card">
-        <div className="offline-king">♔</div>
-        <span>Mất kết nối internet</span>
-        <h2>Ván cờ đang tạm dừng</h2>
-        <p>Kiểm tra mạng của bạn. ChessArena sẽ tự tiếp tục khi kết nối trở lại.</p>
-        <div className="offline-loader"><i /><i /><i /><i /></div>
-      </div>
-    </div>
+    <SystemStatePage
+      variant="offline"
+      eyebrow="Kết nối bị gián đoạn"
+      title="ChessArena đang chờ mạng trở lại"
+      description="Ván hiện tại được giữ nguyên trên thiết bị. Kiểm tra Wi-Fi hoặc dữ liệu di động, sau đó thử kết nối lại."
+      icon="wifi"
+      primaryLabel="Kiểm tra lại"
+      onPrimary={() => {
+        if (navigator.onLine) window.location.reload();
+      }}
+      overlay
+    />
   );
 }
 
@@ -167,9 +186,27 @@ function ModerationBanner({ status }) {
 }
 
 const ACADEMIC_NOTICE_KEY = 'chessarena-academic-notice-seen';
+const MODERATION_POLL_INTERVAL_MS = 45_000;
 
 function academicNoticeUserKey(user) {
   return String(user?.uid || user?.id || user?.email || 'guest');
+}
+
+function moveToLan(move) {
+  return `${move.from}${move.to}${move.promotion ?? ''}`;
+}
+
+function buildReviewPositionsFromMoves(moves, initialFen = null, variant = 'standard') {
+  return moves.map((move, index) => ({
+    ply: index + 1,
+    fen: createGameState(moves.slice(0, index), initialFen).chess.fen(),
+    move: moveToLan(move),
+    san: move.san,
+    piece: move.piece,
+    captured: move.captured,
+    variant,
+    priorMoves: moves.slice(0, index).map(moveToLan)
+  }));
 }
 
 function hasSeenAcademicNotice(user) {
@@ -255,17 +292,34 @@ function AcademicNoticeModal({ visible, authUser, onClose, onOpenPage }) {
           </button>
         </div>
         <button type="button" className="academic-notice-image" onClick={() => setImageOpen(true)}>
-          <span>{isVietnamese ? 'Ảnh minh họa vị trí mở lại popup' : 'Image: where to reopen this popup'}</span>
+          <img src="/Hình ảnh mở lại popup.png" alt="" />
+          <span>
+            <strong>{isVietnamese ? 'Mở lại thông báo bất cứ lúc nào' : 'Reopen this notice at any time'}</strong>
+            <small>{isVietnamese ? 'Nhấn để xem vị trí nút Thông tin trên thanh đầu trang.' : 'Open the image showing the Information button in the header.'}</small>
+          </span>
         </button>
       </section>
       {imageOpen && createPortal(
-        <div className="academic-image-lightbox" role="dialog" aria-modal="true" aria-label="Xem ảnh thông báo">
+        <div
+          className="academic-image-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xem ảnh thông báo"
+          onClick={() => setImageOpen(false)}
+        >
           <button type="button" className="academic-image-close" onClick={() => setImageOpen(false)} aria-label="Đóng ảnh">
             ×
           </button>
-          <div className="academic-image-preview">
-            <span>{isVietnamese ? 'Ảnh sẽ được thêm tại đây' : 'Image will be added here'}</span>
-          </div>
+          <figure className="academic-image-preview" onClick={(event) => event.stopPropagation()}>
+            <img
+              src="/Hình ảnh mở lại popup.png"
+              alt={isVietnamese ? 'Vị trí nút mở lại thông báo học thuật' : 'Location of the academic notice button'}
+            />
+            <figcaption>
+              <strong>{isVietnamese ? 'Nút Thông tin' : 'Information button'}</strong>
+              <span>{isVietnamese ? 'Nằm trên thanh đầu trang, cạnh trạng thái kết nối.' : 'Located in the header beside the connection status.'}</span>
+            </figcaption>
+          </figure>
         </div>,
         document.body
       )}
@@ -293,10 +347,12 @@ export default function App() {
   const [initialFen, setInitialFen] = React.useState(null);
   const [coachLesson, setCoachLesson] = React.useState(() => coachLessonFromMode('basic'));
   const [botGameStarted, setBotGameStarted] = React.useState(false);
+  const [localReviewNames, setLocalReviewNames] = React.useState({ w: 'White', b: 'Black' });
   const [manualResult, setManualResult] = React.useState(() => storedFinishedOutcome());
   const [membership, setMembership] = React.useState(null);
   const [moderationStatus, setModerationStatus] = React.useState(null);
   const [notificationCount, setNotificationCount] = React.useState(0);
+  const [onlineCoachContext, setOnlineCoachContext] = React.useState(null);
   const previousNotificationCountRef = React.useRef(0);
   const [hintMove, setHintMove] = React.useState(null);
   const [premoveQueue, setPremoveQueue] = React.useState([]);
@@ -381,7 +437,7 @@ export default function App() {
   const { ensureAudioContext, playMoveSound, playUiSound, speakCoachText, stopSpeech } = useGameAudio({ pieceSet, theme });
 
   React.useEffect(() => {
-    if (authUser && ['login', 'register', 'forgotPassword'].includes(route)) {
+    if (authUser && AUTH_ROUTES.has(route)) {
       navigate('home');
       return;
     }
@@ -396,16 +452,6 @@ export default function App() {
     } else if (route === 'login' && authMode !== 'login' && !otpState) {
       clearAuthMessage();
       setAuthMode('login');
-    } else if (
-      authMode
-      && route !== 'login'
-      && route !== 'register'
-      && route !== 'forgotPassword'
-      && route !== 'admin'
-      && route !== 'academicNotice'
-      && !(route === 'profile' && window.location.pathname.startsWith('/profile/'))
-    ) {
-      navigate(authMode === 'register' ? 'register' : authMode === 'forgot' ? 'forgotPassword' : 'login');
     }
   }, [authMode, authUser, clearAuthMessage, navigate, otpState, route, setAuthMode]);
 
@@ -473,12 +519,30 @@ export default function App() {
   React.useEffect(() => {
     if (!authUser) return undefined;
     let cancelled = false;
+    let inFlight = false;
+    let timer = null;
+
+    const scheduleNextCheck = (delay = MODERATION_POLL_INTERVAL_MS) => {
+      if (cancelled) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(checkModeration, delay);
+    };
+
     const checkModeration = async () => {
+      if (cancelled || inFlight) return;
+      if (document.hidden || !navigator.onLine) {
+        scheduleNextCheck();
+        return;
+      }
+
+      inFlight = true;
       try {
         const nextModeration = await fetchModerationStatus();
         if (cancelled) return;
         setModerationStatus(nextModeration);
         if (nextModeration?.banned) {
+          cancelled = true;
+          window.clearTimeout(timer);
           notify(nextModeration.ban?.reason || 'Tài khoản của bạn đã bị cấm.', 'error');
           await logout();
           navigate('home');
@@ -486,16 +550,33 @@ export default function App() {
       } catch (error) {
         if (cancelled) return;
         if (/ban|banned|cấm|hạn chế|restricted/i.test(error.message || '')) {
+          cancelled = true;
+          window.clearTimeout(timer);
           notify(error.message || 'Tài khoản của bạn đã bị cấm.', 'error');
           await logout();
           navigate('home');
         }
+      } finally {
+        inFlight = false;
+        scheduleNextCheck();
       }
     };
-    const timer = window.setInterval(checkModeration, 5_000);
+
+    const checkWhenActive = () => {
+      if (document.hidden || !navigator.onLine || cancelled || inFlight) return;
+      window.clearTimeout(timer);
+      void checkModeration();
+    };
+
+    scheduleNextCheck();
+    document.addEventListener('visibilitychange', checkWhenActive);
+    window.addEventListener('online', checkWhenActive);
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', checkWhenActive);
+      window.removeEventListener('online', checkWhenActive);
     };
   }, [authUser, logout, navigate]);
 
@@ -543,7 +624,8 @@ export default function App() {
   const isActiveOnlineRoute = route === 'online';
   const isActivePuzzleRoute = isPuzzleRoute(route);
   const isPublicProfileRoute = route === 'profile' && window.location.pathname.startsWith('/profile/');
-  const isPublicInfoRoute = route === 'academicNotice';
+  const isGuestRoute = isGuestAccessibleRoute(route, window.location.pathname);
+  const routeRequiresLogin = !authUser && !isGuestRoute && !isPublicProfileRoute;
   const game = gameState.chess;
   const history = gameState.moves;
   const gameFen = game.fen();
@@ -703,7 +785,7 @@ export default function App() {
     game,
     gameFinished,
     timeWinner,
-    clockRunning: route !== 'local' && (gameMode === 'local' || botGameStarted || isCoachGame),
+    clockRunning: route !== 'local' && (gameMode === 'local' || botGameStarted),
     setClocks,
     setTimeWinner,
     setResultDismissed
@@ -731,7 +813,7 @@ export default function App() {
   }, [premoveQueue]);
 
   React.useEffect(() => {
-    if (gameFinished || game.turn() !== aiColor || isAiThinking || !usesAiOpponent) return;
+    if (gameFinished || game.turn() !== aiColor || isAiThinking || !usesAiOpponent || !botGameStarted) return;
 
     let cancelled = false;
     setSelected(null);
@@ -797,7 +879,7 @@ export default function App() {
       }
     };
  
-  }, [aiColor, aiLevel, game, gameFinished, gameVariant, history, initialFen, usesAiOpponent]);
+  }, [aiColor, aiLevel, botGameStarted, game, gameFinished, gameVariant, history, initialFen, usesAiOpponent]);
 
   React.useEffect(() => {
     return () => {
@@ -904,11 +986,20 @@ export default function App() {
     startNewGame({ nextSideChoice: sideChoice, nextAiElo: aiElo, nextTimeControl: timeControl, nextBotGameStarted: true });
   };
 
+  const startCoachMatch = () => {
+    ensureAudioContext();
+    playUiSound('start');
+    setGameMode('coach');
+    if (route !== 'coach') navigate('coach');
+    resetCoachMatch({ nextLesson: coachLesson, startImmediately: true });
+  };
+
   const resetCoachMatch = ({
     nextCoachMode = coachMode,
     nextAiElo = aiElo,
     nextTimeControl = timeControl,
-    nextLesson = coachLessonFromMode(nextCoachMode)
+    nextLesson = coachLessonFromMode(nextCoachMode),
+    startImmediately = false
   } = {}) => {
     const nextBehavior = coachBehaviorFromMode(nextCoachMode);
     setBotOptions((current) => ({
@@ -922,7 +1013,7 @@ export default function App() {
       nextSideChoice: nextLesson.playerColor,
       nextAiElo,
       nextTimeControl,
-      nextBotGameStarted: true,
+      nextBotGameStarted: startImmediately,
       nextVariant: nextLesson.variant,
       nextInitialFen: nextLesson.fen,
       nextPlayerColor: nextLesson.playerColor,
@@ -1211,11 +1302,58 @@ export default function App() {
     navigate('review');
   };
 
-  const whiteName = playerColor === 'w' ? userName : aiDisplayName;
-  const blackName = playerColor === 'b' ? userName : aiDisplayName;
+  const reviewLocalGame = ({ moves = [], names = {} } = {}) => {
+    const safeMoves = Array.isArray(moves) ? moves : [];
+    if (safeMoves.length === 0) return;
+    if (aiTimerRef.current) {
+      window.clearTimeout(aiTimerRef.current);
+      aiTimerRef.current = null;
+    }
+
+    const nextState = createGameState(safeMoves, null);
+    setGameMode('local');
+    setInitialFen(null);
+    setGameVariant('standard');
+    setCoachLesson(null);
+    setGameState(nextState);
+    setPlayerColor('w');
+    setSideChoice('w');
+    setFlipped(false);
+    setSelected(null);
+    setLegalTargets([]);
+    setHintMove(null);
+    setPremoveQueue([]);
+    setSuggestionMove(null);
+    setThreatMove(null);
+    setLastMove(safeMoves.at(-1) ? { from: safeMoves.at(-1).from, to: safeMoves.at(-1).to } : null);
+    setPromotionRequest(null);
+    setIsAiThinking(false);
+    setTimeWinner(null);
+    setManualResult(null);
+    setBotGameStarted(false);
+    setReviewMode(true);
+    setReviewStarted(true);
+    setReviewPly(safeMoves.length);
+    setStockfishReview([]);
+    setPendingAnalysis(buildReviewPositionsFromMoves(safeMoves));
+    setStockfishStatus('loading');
+    setResultDismissed(true);
+    setGameId(newLocalGameId());
+    setLocalReviewNames({
+      w: names.w || 'White',
+      b: names.b || 'Black'
+    });
+    navigate('review');
+  };
+
+  const whiteName = gameMode === 'local' ? localReviewNames.w : playerColor === 'w' ? userName : aiDisplayName;
+  const blackName = gameMode === 'local' ? localReviewNames.b : playerColor === 'b' ? userName : aiDisplayName;
   const whiteAvatarURL = playerColor === 'w' ? authUser?.photoURL : null;
   const blackAvatarURL = playerColor === 'b' ? authUser?.photoURL : null;
   const aiCoachContext = React.useMemo(() => {
+    if ((isActiveOnlineRoute || route === 'onlineReview') && onlineCoachContext?.hasBoardContext) {
+      return { route, mode: 'online', ...onlineCoachContext };
+    }
     const hasBoardContext = (isActiveGameRoute && !isActiveOnlineRoute) || route === 'review';
     const safeGame = reviewMode ? displayGame : game;
     const latestMove = history.at(-1);
@@ -1242,7 +1380,7 @@ export default function App() {
         winLoss: activeReview.winLoss
       } : null
     };
-  }, [currentReviewAnalysis, displayGame, game, gameMode, history, isActiveGameRoute, isActiveOnlineRoute, latestCoachAnalysis, playerColor, reviewMode, route]);
+  }, [currentReviewAnalysis, displayGame, game, gameMode, history, isActiveGameRoute, isActiveOnlineRoute, latestCoachAnalysis, onlineCoachContext, playerColor, reviewMode, route]);
 
   if (route === 'admin') {
     return (
@@ -1258,8 +1396,10 @@ export default function App() {
     return <RouteLoading label="Đang kiểm tra phiên đăng nhập..." />;
   }
 
+  const isAuthRoute = route === 'login' || route === 'register' || route === 'forgotPassword';
+
   return (
-    <main className="app-shell" style={themeStyle} data-color-scheme={colorScheme}>
+    <main className={`app-shell ${isAuthRoute ? 'auth-layout-shell' : ''}`} style={themeStyle} data-color-scheme={colorScheme}>
       <ToastHost />
       <OfflineOverlay visible={isOffline} />
       <ModerationBanner status={moderationStatus} />
@@ -1274,6 +1414,7 @@ export default function App() {
       />
       {appSettling && <RouteLoading label={authBusy ? 'Đang xác thực tài khoản...' : 'Đang chuyển trang...'} />}
       {promotionRequest && <button className="promotion-cancel-layer" aria-label="Cancel promotion" onClick={cancelPromotion} tabIndex={-1} />}
+      {!isAuthRoute && (
       <Sidebar
         authUser={authUser}
         userName={userName}
@@ -1284,6 +1425,7 @@ export default function App() {
         onToggleMobile={() => setMobileSidebarOpen((open) => !open)}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onSelectPlayMode={(mode) => {
+          if (!authUser) return;
           setGameMode(mode);
           setReviewMode(false);
           if (mode === 'coach') {
@@ -1305,7 +1447,7 @@ export default function App() {
           setBotGameStarted(false);
         }}
         onNavigate={(nextRoute) => {
-          if (nextRoute !== 'coach' && isGameRoute(nextRoute) && (route === 'review' || game.isGameOver() || manualResult || timeWinner)) {
+          if (authUser && nextRoute !== 'coach' && isGameRoute(nextRoute) && (route === 'review' || game.isGameOver() || manualResult || timeWinner)) {
             startNewGame({ nextBotGameStarted: false });
           }
           navigate(nextRoute);
@@ -1314,8 +1456,10 @@ export default function App() {
         onRegister={() => openAuth('register')}
         onLogout={logout}
       />
+      )}
 
-      <section className={`content-shell ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute && route !== 'local' ? 'game-route-shell' : ''} ${route === 'local' ? 'local-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
+      <section className={`content-shell ${isAuthRoute ? 'auth-route-shell' : ''} ${route === 'review' ? 'review-route-shell' : ''} ${route === 'home' ? 'home-route-shell' : ''} ${route === 'profile' ? 'profile-route-shell' : ''} ${route === 'history' ? 'history-route-shell' : ''} ${isActiveGameRoute && !isActiveOnlineRoute && route !== 'local' ? 'game-route-shell' : ''} ${route === 'local' ? 'local-route-shell' : ''} ${isActiveOnlineRoute || route === 'onlineReview' ? 'online-route-shell' : ''} ${isActivePuzzleRoute ? 'puzzle-route-shell' : ''}`}>
+        {!isAuthRoute && (
         <TopHeader
           activeRoute={route === 'onlineReview' ? 'history' : route}
           apiOnline={apiOnline}
@@ -1325,7 +1469,13 @@ export default function App() {
           pieceSet={pieceSet}
           authUser={authUser}
           notificationCount={notificationCount}
-          onOpenAcademicNotice={() => setAcademicNoticeOpen(true)}
+          onOpenAcademicNotice={() => {
+            if (authUser) {
+              setAcademicNoticeOpen(true);
+              return;
+            }
+            navigate('academicNotice');
+          }}
           onOpenNotifications={() => navigate('notifications')}
           onOpenSupport={() => navigate('support')}
           onToggleSettings={() => setSettingsOpen((value) => !value)}
@@ -1336,6 +1486,7 @@ export default function App() {
           onApplyBoardPreset={applyBoardPreset}
           onSetPieceSet={setPieceSet}
         />
+        )}
 
         {route === 'login' && !authUser && (
           <LoginPage
@@ -1391,17 +1542,26 @@ export default function App() {
           />
         )}
 
-        {route !== 'login' && route !== 'register' && route !== 'forgotPassword' && (!authMode || authUser || isPublicProfileRoute || isPublicInfoRoute) && (
+        {route !== 'login' && route !== 'register' && route !== 'forgotPassword' && (!authMode || authUser || isGuestRoute || isPublicProfileRoute || routeRequiresLogin) && (
         <React.Suspense fallback={<RouteLoading />}>
+        {routeRequiresLogin ? (
+          <LoginRequiredNotice onLogin={() => openAuth('login')} />
+        ) : (
+        <>
         {route === 'home' && (
           <HomePage
             userName={userName}
+            authUser={authUser}
             history={history}
             reviewStats={reviewStats}
             timeControl={timeControl}
-            onStartNewGame={startNewGame}
+            onStartNewGame={(options) => {
+              if (authUser) startNewGame(options);
+            }}
             onNavigate={navigate}
-            onReviewGame={reviewGame}
+            onReviewGame={() => {
+              if (authUser) reviewGame();
+            }}
           />
         )}
 
@@ -1534,6 +1694,7 @@ export default function App() {
             pieceSet={pieceSet}
             theme={theme}
             membership={membership}
+            onReviewGame={reviewLocalGame}
           />
         )}
 
@@ -1555,6 +1716,7 @@ export default function App() {
               membership={membership}
               onLogin={() => openAuth('login')}
               onNavigate={navigate}
+              onCoachContextChange={setOnlineCoachContext}
               historyOnly
               historyReviewGameId={decodeURIComponent(window.location.pathname.split('/').filter(Boolean).at(-1) || '')}
             />
@@ -1563,7 +1725,7 @@ export default function App() {
 
         {isActiveOnlineRoute && (
           <>
-            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} theme={theme} membership={membership} onLogin={() => openAuth('login')} onNavigate={navigate} />
+            <OnlinePage authUser={authUser} userName={userName} pieceSet={pieceSet} theme={theme} membership={membership} onLogin={() => openAuth('login')} onNavigate={navigate} onCoachContextChange={setOnlineCoachContext} />
           </>
         )}
 
@@ -1668,7 +1830,7 @@ export default function App() {
             onChangeTimeControl={changeTimeControl}
             onChangeVariant={changeVariant}
             onUpdateBotOption={updateBotOption}
-            onStartBotMatch={startBotMatch}
+            onStartBotMatch={isCoachGame ? startCoachMatch : startBotMatch}
             onResignGame={resignGame}
             onShowHintMove={showHintMove}
             onUndoMove={undoMove}
@@ -1682,6 +1844,8 @@ export default function App() {
             onSetResultDismissed={setResultDismissed}
           />
         </section>
+        </>
+        )}
         </>
         )}
         </React.Suspense>

@@ -72,6 +72,7 @@ export async function POST(request, { params }) {
   }
   const expired = await expireOnlineGameOnClock(supabase, abandoned.game, moves);
   if (expired.timedOut) {
+    await createAntiCheatReportsForGame(supabase, expired.game, moves, { movetime: 110, maxPositions: 20 });
     publishOnlineGame(expired.game.id, { game: expired.game, moves });
     const responseGame = publicGame(await decorateGameRatings(supabase, expired.game), moves, user.id);
     return Response.json({ ok: false, error: 'Time expired. The game is over.', game: responseGame }, { status: 409 });
@@ -186,7 +187,7 @@ export async function POST(request, { params }) {
       ? Promise.all([
           applyOnlineRatingResult(supabase, updatedGame, updatedGame.result),
           applyTournamentResult(supabase, updatedGame, updatedGame.result),
-          createAntiCheatReportsForGame(supabase, updatedGame, nextMoves, { movetime: 80 })
+          createAntiCheatReportsForGame(supabase, updatedGame, nextMoves, { movetime: 110, maxPositions: 20 })
         ])
       : Promise.resolve()
   ]);

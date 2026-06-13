@@ -53,7 +53,7 @@ function reviewPositions(moves) {
   });
 }
 
-export default function LocalBoardPage({ pieceSet, theme, membership }) {
+export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGame }) {
   const [game, setGame] = React.useState(() => new Chess());
   const [moves, setMoves] = React.useState([]);
   const [selected, setSelected] = React.useState(null);
@@ -331,10 +331,16 @@ export default function LocalBoardPage({ pieceSet, theme, membership }) {
                   );
                 })}
               </div>
-              <button type="button" className="local-review-action" disabled={!canReview || moves.length === 0 || reviewBusy} onClick={runReview}>
+              <button type="button" className="local-review-action" disabled={moves.length === 0 || reviewBusy || (!onReviewGame && !canReview)} onClick={() => {
+                if (onReviewGame) {
+                  onReviewGame({ moves, names });
+                  return;
+                }
+                runReview();
+              }}>
                 <Sparkles size={17} /> {reviewBusy ? 'Đang đánh giá...' : 'Đánh giá ván đấu'}
               </button>
-              <small className="local-review-message">{reviewMessage || (!canReview ? 'Tính năng dành cho Plus, Pro và Master.' : 'Có thể đánh giá bất kỳ lúc nào sau khi đã đi quân.')}</small>
+              <small className="local-review-message">{reviewMessage || (onReviewGame ? 'Mở trang Game Review để phân tích ván đối kháng.' : !canReview ? 'Tính năng dành cho Plus, Pro và Master.' : 'Có thể đánh giá bất kỳ lúc nào sau khi đã đi quân.')}</small>
               {review.length > 0 && <div className="local-review-nav"><ChevronLeft size={15} /><span>Màu nước cờ thể hiện đánh giá Stockfish</span><ChevronRight size={15} /></div>}
             </section>
           </aside>

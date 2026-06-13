@@ -7,17 +7,17 @@ import { parseStockfishScore } from '../src/lib/stockfishEngine.js';
 test('hint analysis always uses maximum Stockfish strength', () => {
   assert.deepEqual(
     engineStrength(1320, true),
-    { skillLevel: 20, elo: null, movetime: 1800 }
+    { skillLevel: 20, elo: null, movetime: 2400 }
   );
   assert.deepEqual(
     engineStrength(3190, true),
-    { skillLevel: 20, elo: null, movetime: 1800 }
+    { skillLevel: 20, elo: null, movetime: 2400 }
   );
 });
 
 test('bot moves still honor configured playing strength', () => {
-  assert.equal(botStrength(1320).skillLevel, 3);
-  assert.equal(botStrength(2000).skillLevel, 13);
+  assert.equal(botStrength(1320).skillLevel, 4);
+  assert.equal(botStrength(2000).skillLevel, 14);
   assert.equal(botStrength(3190).skillLevel, 20);
 });
 

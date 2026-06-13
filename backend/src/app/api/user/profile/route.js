@@ -55,36 +55,36 @@ function profileAchievements({ summary, ratings, reviews, newPuzzleCount }) {
   return [
     {
       id: 'first-blood',
-      label: 'First Blood',
-      description: 'Thang van online dau tien.',
+      label: 'Chiến thắng đầu tiên',
+      description: 'Thắng ván online đầu tiên.',
       unlocked: summary.wins >= 1
     },
     {
       id: 'arena-regular',
-      label: 'Arena Regular',
-      description: 'Hoan thanh 20 van online.',
+      label: 'Kỳ thủ Arena',
+      description: 'Hoàn thành 20 ván online.',
       unlocked: summary.gamesPlayed >= 20,
       progress: Math.min(summary.gamesPlayed, 20),
       target: 20
     },
     {
       id: 'review-discipline',
-      label: 'Review Discipline',
-      description: 'Luu review cho 10 van dau.',
+      label: 'Kỷ luật phân tích',
+      description: 'Lưu Game Review cho 10 ván đấu.',
       unlocked: reviews.length >= 10,
       progress: Math.min(reviews.length, 10),
       target: 10
     },
     {
       id: 'mode-climber',
-      label: 'Mode Climber',
-      description: 'Dat 800 rating o mot che do.',
+      label: 'Chinh phục rating',
+      description: 'Đạt 800 rating ở một chế độ.',
       unlocked: ratings.some((rating) => Number(rating.rating || 0) >= 800)
     },
     {
       id: 'training-ready',
-      label: 'Training Ready',
-      description: 'Co bai tap ca nhan tu van that.',
+      label: 'Sẵn sàng luyện tập',
+      description: 'Có bài tập cá nhân được tạo từ ván thật.',
       unlocked: newPuzzleCount > 0,
       progress: Math.min(newPuzzleCount, 5),
       target: 5
@@ -223,10 +223,10 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
       newPersonalPuzzles: newPuzzleCount,
       reviewedGames: reviews.length,
       nextAction: newPuzzleCount > 0
-        ? 'Mo Puzzle ca nhan de sua loi tu van that.'
+        ? 'Mở Puzzle cá nhân để sửa lỗi từ các ván thật.'
         : reviews.length > 0
-          ? 'Review them van thua de tao them bai tap ca nhan.'
-          : 'Review mot van online da ket thuc de tao bai tap ca nhan.'
+          ? 'Review thêm ván thua để tạo bài tập cá nhân.'
+          : 'Review một ván online đã kết thúc để tạo bài tập cá nhân.'
     },
     achievements,
     recentGames: recentGames.map((game) => {

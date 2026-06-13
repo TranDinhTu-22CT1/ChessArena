@@ -1,6 +1,21 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, BadgeInfo, CreditCard, ExternalLink, GraduationCap, ShieldCheck, Wallet, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  BadgeInfo,
+  Check,
+  Copy,
+  CreditCard,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+  Wallet,
+  X
+} from 'lucide-react';
 import BrandMark from '../../components/BrandMark';
 import vietnamFlag from '../../assets/flags/vietnam.svg';
 import unitedKingdomFlag from '../../assets/flags/united-kingdom.svg';
@@ -31,16 +46,42 @@ const content = {
         icon: CreditCard,
         title: 'PayPal Sandbox',
         subtitle: 'Kiểm thử mua gói bằng PayPal.',
-        steps: ['Chọn gói thành viên.', 'Chọn PayPal sandbox.', 'Đăng nhập và xác nhận.', 'Quay lại ChessArena kiểm tra gói.']
+        accountTitle: 'Tài khoản người mua PayPal Sandbox',
+        steps: [
+          { label: 'Chọn gói thành viên.', image: '/Chọn gói prenium.png' },
+          { label: 'Chọn phương thức PayPal.', image: '/Thanh toán bằng paypal.png' },
+          { label: 'Đăng nhập tài khoản thử nghiệm.', image: '/Đăng nhập bằng paypay.png' },
+          { label: 'Đồng ý thanh toán.', image: '/đồng ý thanh toán bằng paypal.png' },
+          { label: 'Kiểm tra trạng thái gói.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
+        ]
       },
       {
         id: 'momo',
         icon: Wallet,
         title: 'MoMo Sandbox',
-        subtitle: 'Kiểm thử mua gói bằng MoMo.',
-        steps: ['Chọn gói cần mua.', 'Chọn MoMo sandbox.', 'Kiểm tra QR hoặc mã giao dịch.', 'Xác nhận và chờ hệ thống cập nhật.']
+        subtitle: 'Kiểm thử mua gói bằng thẻ ATM qua MoMo Sandbox.',
+        accountTitle: 'Thông tin thẻ ATM Sandbox',
+        steps: [
+          { label: 'Chọn gói thành viên.', image: '/Chọn gói prenium.png' },
+          { label: 'Chọn thanh toán MoMo.', image: '/Thanh toán bằng momo.png' },
+          { label: 'Nhập thông tin thẻ ATM.', image: '/Nhập thông tin thẻ ATM.png' },
+          { label: 'Nhập mã OTP thử nghiệm.', image: '/Nhập OTP.png' },
+          { label: 'Kiểm tra trạng thái gói.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
+        ]
       }
-    ]
+    ],
+    testOnly: 'Chỉ dùng trong môi trường Sandbox',
+    email: 'Email người mua',
+    password: 'Mật khẩu',
+    cardNumber: 'Số thẻ',
+    cardHolder: 'Chủ thẻ',
+    issueDate: 'Ngày phát hành',
+    phone: 'Số điện thoại',
+    reveal: 'Hiện mật khẩu',
+    hide: 'Ẩn mật khẩu',
+    copy: 'Sao chép',
+    copied: 'Đã sao chép',
+    stepImage: 'Nhấn để xem ảnh lớn'
   },
   en: {
     home: 'Home',
@@ -67,23 +108,107 @@ const content = {
         icon: CreditCard,
         title: 'PayPal Sandbox',
         subtitle: 'Test membership purchase with PayPal.',
-        steps: ['Choose a membership plan.', 'Select PayPal sandbox.', 'Sign in and confirm.', 'Return to ChessArena and check the plan.']
+        accountTitle: 'PayPal Sandbox buyer account',
+        steps: [
+          { label: 'Choose a membership plan.', image: '/Chọn gói prenium.png' },
+          { label: 'Select PayPal.', image: '/Thanh toán bằng paypal.png' },
+          { label: 'Sign in to the test account.', image: '/Đăng nhập bằng paypay.png' },
+          { label: 'Agree and complete payment.', image: '/đồng ý thanh toán bằng paypal.png' },
+          { label: 'Verify the membership status.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
+        ]
       },
       {
         id: 'momo',
         icon: Wallet,
         title: 'MoMo Sandbox',
-        subtitle: 'Test membership purchase with MoMo.',
-        steps: ['Choose a membership plan.', 'Select MoMo sandbox.', 'Check the QR or transaction code.', 'Confirm and wait for the plan update.']
+        subtitle: 'Test membership purchase by ATM card through MoMo Sandbox.',
+        accountTitle: 'ATM Sandbox card details',
+        steps: [
+          { label: 'Choose a membership plan.', image: '/Chọn gói prenium.png' },
+          { label: 'Select MoMo payment.', image: '/Thanh toán bằng momo.png' },
+          { label: 'Enter the ATM card details.', image: '/Nhập thông tin thẻ ATM.png' },
+          { label: 'Enter the test OTP.', image: '/Nhập OTP.png' },
+          { label: 'Verify the membership status.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
+        ]
       }
-    ]
+    ],
+    testOnly: 'Sandbox environment only',
+    email: 'Buyer email',
+    password: 'Password',
+    cardNumber: 'Card number',
+    cardHolder: 'Cardholder',
+    issueDate: 'Issue date',
+    phone: 'Phone number',
+    reveal: 'Show password',
+    hide: 'Hide password',
+    copy: 'Copy',
+    copied: 'Copied',
+    stepImage: 'Open the full-size image'
   }
+};
+
+const sandboxCredentials = {
+  paypal: [
+    { id: 'paypal-email', type: 'email', value: 'sb-go9aa51399356@personal.example.com' },
+    { id: 'paypal-password', type: 'password', value: 'L$U!*w@0' }
+  ],
+  momo: [
+    { id: 'momo-card', type: 'cardNumber', value: '9704 0000 0000 0018' },
+    { id: 'momo-holder', type: 'cardHolder', value: 'NGUYEN VAN A' },
+    { id: 'momo-date', type: 'issueDate', value: '03/07' },
+    { id: 'momo-phone', type: 'phone', value: '0816931074' }
+  ]
 };
 
 export default function AcademicNoticePage({ onNavigate }) {
   const [language, setLanguage] = React.useState('vi');
   const [preview, setPreview] = React.useState(null);
+  const [showPaypalPassword, setShowPaypalPassword] = React.useState(false);
+  const [copiedField, setCopiedField] = React.useState('');
   const text = content[language];
+  const previewGuide = preview ? text.guides.find((guide) => guide.id === preview.guideId) : null;
+  const previewStep = previewGuide?.steps[preview.index] ?? null;
+
+  const copyCredential = async (field) => {
+    try {
+      await navigator.clipboard.writeText(field.value);
+      setCopiedField(field.id);
+      window.setTimeout(() => setCopiedField(''), 1600);
+    } catch {
+      setCopiedField('');
+    }
+  };
+
+  const movePreview = React.useCallback((direction) => {
+    setPreview((current) => {
+      if (!current) return current;
+      const guide = content[language].guides.find((item) => item.id === current.guideId);
+      if (!guide?.steps.length) return current;
+      return {
+        ...current,
+        index: (current.index + direction + guide.steps.length) % guide.steps.length
+      };
+    });
+  }, [language]);
+
+  React.useEffect(() => {
+    if (!preview) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        movePreview(-1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        movePreview(1);
+      } else if (event.key === 'Escape') {
+        setPreview(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [movePreview, preview]);
 
   return (
     <main className="academic-page">
@@ -157,17 +282,62 @@ export default function AcademicNoticePage({ onNavigate }) {
                 <div className="academic-payment-copy">
                   <span><Icon size={17} /> {guide.title}</span>
                   <h3>{guide.subtitle}</h3>
+                  <div className="academic-sandbox-panel">
+                    <div className="academic-sandbox-heading">
+                      <strong>{guide.accountTitle}</strong>
+                      <span><ShieldCheck size={14} /> {text.testOnly}</span>
+                    </div>
+                    <div className="academic-credential-grid">
+                      {sandboxCredentials[guide.id].map((field) => {
+                        const isPassword = field.type === 'password';
+                        const hidden = isPassword && !showPaypalPassword;
+                        const copied = copiedField === field.id;
+                        return (
+                          <div className="academic-credential" key={field.id}>
+                            <span>{text[field.type]}</span>
+                            <div>
+                              <code>{hidden ? '••••••••' : field.value}</code>
+                              {isPassword && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPaypalPassword((current) => !current)}
+                                  aria-label={hidden ? text.reveal : text.hide}
+                                  title={hidden ? text.reveal : text.hide}
+                                >
+                                  {hidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => copyCredential(field)}
+                                aria-label={`${text.copy}: ${text[field.type]}`}
+                                title={copied ? text.copied : text.copy}
+                              >
+                                {copied ? <Check size={16} /> : <Copy size={16} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <div className="academic-step-grid">
                     {guide.steps.map((step, index) => (
                       <button
                         type="button"
                         className="academic-step-card"
-                        key={step}
-                        onClick={() => setPreview(`${guide.title} - Step ${index + 1}`)}
+                        key={`${guide.id}-${step.image}`}
+                        onClick={() => setPreview({
+                          guideId: guide.id,
+                          index
+                        })}
                       >
-                        <b>{index + 1}</b>
-                        <span>{step}</span>
-                        <i>{language === 'vi' ? 'Ảnh bước' : 'Step image'}</i>
+                        <div className="academic-step-image">
+                          <img src={step.image} alt="" loading="lazy" />
+                          <b>{index + 1}</b>
+                        </div>
+                        <span>{step.label}</span>
+                        <i>{text.stepImage}</i>
                       </button>
                     ))}
                   </div>
@@ -185,14 +355,64 @@ export default function AcademicNoticePage({ onNavigate }) {
         </button>
       </footer>
 
-      {preview && createPortal(
-        <div className="academic-image-lightbox page" role="dialog" aria-modal="true" aria-label={preview}>
+      {preview && previewGuide && previewStep && createPortal(
+        <div
+          className="academic-image-lightbox page"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${previewGuide.title}: ${previewStep.label}`}
+          onClick={() => setPreview(null)}
+        >
           <button type="button" className="academic-image-close" onClick={() => setPreview(null)} aria-label={text.close}>
             <X size={22} />
           </button>
-          <div className="academic-image-preview">
-            <span>{preview}</span>
-          </div>
+          <figure
+            className="academic-image-preview"
+            role="group"
+            aria-roledescription={language === 'vi' ? 'bộ sưu tập ảnh' : 'image carousel'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="academic-image-stage" aria-live="polite">
+              <img src={previewStep.image} alt={previewStep.label} />
+              <button
+                type="button"
+                className="academic-image-hit previous"
+                onClick={() => movePreview(-1)}
+                aria-label={language === 'vi' ? 'Ảnh trước' : 'Previous image'}
+              >
+                <span><ChevronLeft size={27} /></span>
+              </button>
+              <button
+                type="button"
+                className="academic-image-hit next"
+                onClick={() => movePreview(1)}
+                aria-label={language === 'vi' ? 'Ảnh tiếp theo' : 'Next image'}
+              >
+                <span><ChevronRight size={27} /></span>
+              </button>
+              <span className="academic-image-counter">
+                {preview.index + 1} / {previewGuide.steps.length}
+              </span>
+            </div>
+            <figcaption>
+              <div>
+                <strong>{previewGuide.title}</strong>
+                <span>{previewStep.label}</span>
+              </div>
+              <div className="academic-image-picker" role="group" aria-label={language === 'vi' ? 'Chọn ảnh' : 'Choose image'}>
+                {previewGuide.steps.map((step, index) => (
+                  <button
+                    type="button"
+                    key={`${previewGuide.id}-picker-${step.image}`}
+                    className={index === preview.index ? 'active' : ''}
+                    onClick={() => setPreview((current) => ({ ...current, index }))}
+                    aria-label={`${index + 1}: ${step.label}`}
+                    aria-current={index === preview.index ? 'true' : undefined}
+                  />
+                ))}
+              </div>
+            </figcaption>
+          </figure>
         </div>,
         document.body
       )}

@@ -31,7 +31,7 @@ const menuItems = [
   { icon: Swords, label: 'Play', hasFlyout: true },
   { icon: Users, label: 'Bạn bè', route: 'friends' },
   { icon: Bell, label: 'Thông báo', route: 'notifications', badge: true },
-  { icon: BookOpen, label: 'Hướng dẫn', route: 'beginnerGuide' },
+  { icon: BookOpen, label: 'Hướng dẫn người mới', route: 'beginnerGuide' },
   { icon: Trophy, label: 'Giải đấu', route: 'tournaments' },
   { icon: Puzzle, label: 'Puzzles', hasPuzzleFlyout: true },
   { icon: Crown, label: 'Premium', route: 'membership' }
@@ -43,11 +43,11 @@ const playMenuItems = [
   { icon: Users, label: 'Chơi đối kháng', route: 'local' },
   { icon: MessageSquare, label: 'Play Coach', route: 'coach' },
   { divider: true },
-  { icon: Trophy, label: 'Leaderboard', route: 'leaderboard' },
-  { icon: Target, label: 'Achievements', route: 'achievements' },
+  { icon: Trophy, label: 'Bảng xếp hạng', route: 'leaderboard' },
+  { icon: Target, label: 'Thành tựu', route: 'achievements' },
   { icon: Brain, label: 'Coach Lab', route: 'coachLab' },
   { icon: BarChart3, label: 'Profile', route: 'profile' },
-  { icon: History, label: 'Game History', route: 'history' }
+  { icon: History, label: 'Lịch sử trận đấu', route: 'history' }
 ];
 
 const puzzleMenuItems = [

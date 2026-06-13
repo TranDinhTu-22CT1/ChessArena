@@ -2,6 +2,22 @@ import { Chess } from 'chess.js';
 import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
 import { readJsonPayload } from '../../../../lib/validation';
+import {
+  isChessArenaSupportQuestion,
+  isChessBiographyQuestion,
+  isPotentialBiographyLookup,
+  normalizeAiCoachText,
+  SUPPORT_TERMS
+} from '../../../../lib/aiCoachIntent';
+import {
+  classicGamesAnswer,
+  CLASSIC_CHESS_GAMES,
+  describeGameStage,
+  findChessPlayer,
+  isOpeningKnowledgeQuestion,
+  openingKnowledgeAnswer,
+  playerKnowledgeAnswer
+} from '../../../../lib/chessKnowledge';
 
 export const runtime = 'nodejs';
 
@@ -21,13 +37,39 @@ const NATURAL_CHESS_PHRASES = [
   'choi co', 'hoc co', 'tap co', 'luyen co', 'cach choi co',
   'moi choi co', 'moi hoc co', 'choi the nao'
 ];
-const SUPPORT_TERMS = [
-  'ho tro', 'support', 'tro giup', 'help', 'loi', 'bug', 'ket noi', 'lag',
-  'dang nhap', 'dang ky', 'otp', 'email', 'mat khau', 'tai khoan', 'profile',
-  'membership', 'premium', 'thanh toan', 'paypal', 'momo', 'hoa don', 'gia han',
-  'huy goi', 'refund', 'hoan tien', 'ban be', 'friend', 'online', 'matchmaking',
-  'giai dau', 'tournament', 'puzzle', 'rating', 'lich su', 'lich su dau', 'admin',
-  'bao cao', 'report', 'kiem duyet', 'chat'
+const LOCAL_PLAYER_BIOGRAPHIES = [
+  {
+    names: ['hikaru nakamura', 'nakamura'],
+    answer: 'Hikaru Nakamura là đại kiện tướng cờ vua người Mỹ, sinh năm 1987. Ông nổi bật ở cờ nhanh, cờ chớp và thi đấu trực tuyến, từng nhiều lần vô địch quốc gia Mỹ và thuộc nhóm kỳ thủ hàng đầu thế giới. Nakamura có phong cách năng động, thực dụng, rất mạnh trong các thế cờ phức tạp và khi còn ít thời gian. Ông cũng là một trong những nhà sáng tạo nội dung cờ vua có ảnh hưởng lớn.'
+  },
+  {
+    names: ['magnus carlsen', 'carlsen'],
+    answer: 'Magnus Carlsen là đại kiện tướng người Na Uy, sinh năm 1990, vô địch thế giới cờ tiêu chuẩn từ 2013 đến 2023. Ông nổi tiếng nhờ khả năng chơi toàn diện, kỹ thuật tàn cuộc và biến những ưu thế rất nhỏ thành chiến thắng. Carlsen cũng đạt thành tích hàng đầu ở cờ nhanh và cờ chớp.'
+  },
+  {
+    names: ['garry kasparov', 'kasparov'],
+    answer: 'Garry Kasparov là đại kiện tướng người Nga, sinh năm 1963, vô địch thế giới từ 1985 đến 2000. Ông nổi tiếng với lối chơi tấn công, chuẩn bị khai cuộc sâu và khả năng tính toán mạnh. Kasparov thường được xếp trong nhóm kỳ thủ vĩ đại nhất lịch sử cờ vua.'
+  },
+  {
+    names: ['bobby fischer', 'fischer'],
+    answer: 'Bobby Fischer là đại kiện tướng người Mỹ, vô địch thế giới năm 1972 sau khi thắng Boris Spassky. Ông nổi bật bởi khả năng chuẩn bị khai cuộc, độ chính xác cao và ý chí thi đấu mạnh. Trận tranh ngôi năm 1972 là một trong những sự kiện nổi tiếng nhất lịch sử cờ vua.'
+  },
+  {
+    names: ['jose capablanca', 'capablanca'],
+    answer: 'José Raúl Capablanca là kỳ thủ Cuba, vô địch thế giới từ 1921 đến 1927. Ông nổi tiếng với trực giác vị trí, kỹ thuật tàn cuộc và lối chơi sáng rõ, ít sai sót. Capablanca được xem là một trong những tài năng tự nhiên lớn nhất của lịch sử cờ vua.'
+  },
+  {
+    names: ['mikhail tal', 'tal'],
+    answer: 'Mikhail Tal là đại kiện tướng Latvia, vô địch thế giới từ 1960 đến 1961. Ông được gọi là “Phù thủy Riga” nhờ lối chơi tấn công giàu tưởng tượng, thường xuyên thí quân để tạo thế phức tạp và gây áp lực thực chiến.'
+  },
+  {
+    names: ['judit polgar', 'polgar'],
+    answer: 'Judit Polgár là đại kiện tướng Hungary và được xem là nữ kỳ thủ mạnh nhất lịch sử. Bà thi đấu chủ yếu trong hệ thống giải mở, từng nằm trong nhóm 10 kỳ thủ hàng đầu thế giới và thắng nhiều nhà vô địch thế giới. Phong cách của Polgár thiên về chủ động và tấn công.'
+  },
+  {
+    names: ['le quang liem', 'lê quang liêm', 'quang liem'],
+    answer: 'Lê Quang Liêm là đại kiện tướng cờ vua Việt Nam, sinh năm 1991. Anh từng vô địch thế giới cờ chớp năm 2013 và nhiều năm là kỳ thủ số một Việt Nam. Lê Quang Liêm nổi bật với lối chơi chắc chắn, khả năng tính toán tốt và thành tích mạnh ở nhiều thể loại thời gian.'
+  }
 ];
 const ADMIN_CONTACT_ANSWER = [
   'Ch\u1ee7 s\u1edf h\u1eefu d\u1ef1 \u00e1n ChessArena l\u00e0 Tr\u1ea7n \u0110\u00ecnh T\u00fa.',
@@ -73,10 +115,7 @@ function cleanProviderAnswer(value) {
 }
 
 function normalized(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+  return normalizeAiCoachText(value);
 }
 
 function cleanMessages(messages) {
@@ -89,6 +128,7 @@ function cleanMessages(messages) {
 }
 
 function cleanGameContext(context = {}) {
+  const stage = context.fen ? describeGameStage(context.fen) : null;
   return {
     route: cleanText(context.route, 80),
     mode: cleanText(context.mode, 80),
@@ -102,6 +142,7 @@ function cleanGameContext(context = {}) {
     recentMoves: Array.isArray(context.recentMoves)
       ? context.recentMoves.slice(-12).map((move) => cleanText(move, 80)).filter(Boolean)
       : [],
+    stage,
     review: {
       label: cleanText(context.review?.label, 80),
       tone: cleanText(context.review?.tone, 80),
@@ -148,13 +189,68 @@ function deterministicSupportAnswer(question) {
     );
   if (asksPaymentGuide) return PAYMENT_GUIDE_ANSWER;
 
+  if (
+    text.includes('ket ban')
+    || text.includes('them ban')
+    || text.includes('gui loi moi')
+    || text.includes('tim ban')
+  ) {
+    return [
+      'Cách kết bạn trên ChessArena:',
+      '1. Mở mục Bạn bè ở thanh bên.',
+      '2. Chọn tab Tìm người chơi, nhập tên hoặc username.',
+      '3. Bấm Kết bạn/Gửi lời mời tại người chơi muốn thêm.',
+      '4. Người kia mở tab Lời mời để chấp nhận.',
+      'Bạn cũng có thể mở hồ sơ một người chơi từ Leaderboard rồi gửi lời mời kết bạn.'
+    ].join('\n');
+  }
+
+  if (text.includes('giai dau') || text.includes('tournament')) {
+    return [
+      'Giải đấu ChessArena hoạt động như sau:',
+      '1. Mở mục Giải đấu ở thanh bên để xem giải đang mở, sắp diễn ra hoặc đã kết thúc.',
+      '2. Chọn một giải để xem thể thức, thời gian, điều kiện và bảng xếp hạng.',
+      '3. Bấm Tham gia trước khi giải bắt đầu; bạn có thể rời giải khi điều lệ còn cho phép.',
+      '4. Khi chơi online với người cũng tham gia giải, kết quả hợp lệ sẽ được hệ thống cập nhật vào giải.'
+    ].join('\n');
+  }
+
+  const asksWhereToBuy = text.includes('mua hang')
+    || text.includes('mua goi')
+    || text.includes('nang cap')
+    || text.includes('dang ky premium')
+    || text.includes('premium o dau');
+  if (asksWhereToBuy) {
+    return 'ChessArena không có cửa hàng vật phẩm. Nếu bạn muốn mua hoặc nâng cấp gói, mở mục Premium/Membership ở thanh bên, chọn gói và chu kỳ, rồi thanh toán bằng phương thức đang hiển thị. Sau khi hoàn tất, quay lại trang Membership để kiểm tra trạng thái gói.';
+  }
+
+  const gamesAnswer = classicGamesAnswer(question);
+  if (gamesAnswer) return gamesAnswer;
+
+  const openingAnswer = openingKnowledgeAnswer(question);
+  if (openingAnswer) return openingAnswer;
+
+  const playerAnswer = playerKnowledgeAnswer(question);
+  if (playerAnswer) return playerAnswer;
+
   return '';
+}
+
+function localPlayerBiography(question) {
+  const text = normalized(question);
+  return LOCAL_PLAYER_BIOGRAPHIES.find((player) => (
+    player.names.some((name) => text.includes(normalized(name)))
+  ))?.answer || '';
 }
 
 function isChessRelated(question, gameContext) {
   const text = normalized(question);
   if (isSmallTalk(text)) return true;
-  if (SUPPORT_TERMS.some((term) => text.includes(term))) return true;
+  if (isChessArenaSupportQuestion(text)) return true;
+  if (isOpeningKnowledgeQuestion(text)) return true;
+  if (findChessPlayer(text)) return true;
+  if (isChessBiographyQuestion(text)) return true;
+  if (isPotentialBiographyLookup(text)) return true;
   if (gameContext?.assistantMode === 'support') return CHESS_TERMS.some((term) => text.includes(term));
   if (gameContext?.hasBoardContext || gameContext?.fen || gameContext?.pgn || gameContext?.recentMoves?.length) return true;
   return CHESS_TERMS.some((term) => text.includes(term))
@@ -227,6 +323,15 @@ function localCoachAnswer(question, gameContext) {
   const deterministicAnswer = deterministicSupportAnswer(question);
   if (deterministicAnswer) return deterministicAnswer;
 
+  if (isChessBiographyQuestion(question)) {
+    const biography = localPlayerBiography(question);
+    if (biography) return biography;
+    return 'Đây là câu hỏi về một kỳ thủ cờ vua. Hiện nhà cung cấp AI bên ngoài chưa phản hồi nên mình chưa thể đưa tiểu sử chính xác mà không đoán. Bạn hãy hỏi lại sau hoặc ghi đầy đủ tên kỳ thủ; khi dịch vụ AI hoạt động, mình sẽ tóm tắt quốc tịch, danh hiệu, giai đoạn thi đấu, thành tích và phong cách chơi nổi bật.';
+  }
+  if (isPotentialBiographyLookup(question)) {
+    return 'Mình chưa xác định được người này có phải kỳ thủ cờ vua hay không vì nhà cung cấp AI đang không phản hồi. Hãy ghi thêm danh hiệu, quốc gia hoặc giải đấu liên quan; AI Coach chỉ trả lời tiểu sử nhân vật thuộc lĩnh vực cờ vua.';
+  }
+
   if (gameContext.assistantMode === 'support' || SUPPORT_TERMS.some((term) => text.includes(term))) {
     if (text.includes('thanh toan') || text.includes('paypal') || text.includes('momo') || text.includes('membership') || text.includes('premium') || text.includes('refund') || text.includes('hoan tien') || text.includes('huy goi')) {
       return 'Về thanh toán/gói thành viên: hãy kiểm tra trạng thái gói trong trang Membership, lịch sử giao dịch PayPal/MoMo, và email xác nhận. Nếu tiền đã trừ nhưng gói chưa lên, hãy gửi mã giao dịch, email tài khoản và thời điểm thanh toán cho owner/admin để đối soát. Mình không tự xử lý hoàn tiền hoặc thay đổi gói thay bạn.';
@@ -258,6 +363,7 @@ function localCoachAnswer(question, gameContext) {
   }
 
   const chess = parseChess(gameContext.fen);
+  const stage = gameContext.stage || describeGameStage(gameContext.fen);
   const turn = chess.turn() === 'w' ? 'Trắng' : 'Đen';
   const legalMoves = chess.moves();
   const picks = candidateMoves(chess);
@@ -272,7 +378,7 @@ function localCoachAnswer(question, gameContext) {
     if (chess.isCheckmate()) return `${turn} đã bị chiếu hết. Hãy vào phần review để xem nước quyết định và bài học chính.`;
     if (chess.isDraw()) return 'Ván đang ở trạng thái hòa theo luật hiện tại. Nên kiểm tra xem đó là hết nước đi, lặp lại thế cờ, 50 nước hay thiếu lực chiếu hết.';
     const check = chess.inCheck() ? `${turn} đang bị chiếu, ưu tiên thoát chiếu hợp lệ trước. ` : '';
-    return `${latest}${check}${turn} đang đi. ${materialSummary(chess)} Có ${legalMoves.length} nước hợp lệ. Nước ứng viên thực dụng: ${picks.join(', ') || 'không có nước hợp lệ'}. Hướng phân tích: kiểm tra an toàn vua, quân đang bị treo, nước chiếu/ăn quân, rồi mới chọn kế hoạch cải thiện quân yếu nhất.`;
+    return `${latest}${check}${turn} đang đi.\nGiai đoạn: ${stage.label}.\n${stage.focus}\n${materialSummary(chess)} Có ${legalMoves.length} nước hợp lệ.\nNước ứng viên thực dụng: ${picks.join(', ') || 'không có nước hợp lệ'}.`;
   }
 
   if (text.includes('luat') || text.includes('rule') || text.includes('nhap thanh') || text.includes('phong cap') || text.includes('en passant')) {
@@ -308,9 +414,19 @@ function localCoachAnswer(question, gameContext) {
 }
 
 function systemPrompt() {
+  const classicGames = CLASSIC_CHESS_GAMES
+    .map((game) => `- ${game.players}, ${game.event}: ${game.lesson}`)
+    .join('\n');
   return [
     'You are ChessArena Assistant, a concise Vietnamese chess coach and product support assistant.',
     'Answer only chess-related questions or ChessArena product support questions. Refuse unrelated topics briefly.',
+    'Chess history and biographies are in scope. Answer questions about chess players and titled players from any era, including GM, WGM, IM, world champions, notable games, achievements, playing style, and historical context.',
+    'When identifying a player, distinguish verified titles and achievements from informal descriptions. If uncertain about a fact or current ranking, say so instead of inventing it.',
+    'For ChessArena feature questions, give concrete navigation steps using visible areas such as Bạn bè, Giải đấu, Play, Puzzles, Premium/Membership, Profile, Game History, Leaderboard, Coach Lab, and Hỗ trợ.',
+    'Use the supplied game stage (opening, middlegame, or endgame) and its focus when explaining the current position.',
+    'When giving multiple examples or steps, put every numbered item or bullet on its own line. Do not join list items into one paragraph.',
+    'Use plain text headings and lists. Avoid Markdown bold markers such as **.',
+    `Reference classic games:\n${classicGames}`,
     'Never produce insults, slurs, hate, regional discrimination, racial discrimination, or demeaning stereotypes.',
     'Answer in Vietnamese with full Vietnamese diacritics. Do not write unaccented Vietnamese.',
     'Keep replies under 140 words unless the user asks for detail.',

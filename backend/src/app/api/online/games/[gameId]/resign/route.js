@@ -10,6 +10,7 @@ import {
   touchPresence
 } from '../../../../../../lib/online';
 import { publishOnlineGame } from '../../../../../../lib/onlineEvents';
+import { createAntiCheatReportsForGame } from '../../../../../../lib/antiCheat';
 
 export const runtime = 'nodejs';
 
@@ -45,6 +46,7 @@ export async function POST(request, { params }) {
   }
   const expired = await expireOnlineGameOnClock(supabase, abandoned.game, moves);
   if (expired.timedOut) {
+    await createAntiCheatReportsForGame(supabase, expired.game, moves, { movetime: 110, maxPositions: 20 });
     publishOnlineGame(expired.game.id, { game: expired.game, moves });
     return Response.json({ ok: true, game: publicGame(await decorateGameRatings(supabase, expired.game), moves, user.id) });
   }
@@ -67,8 +69,11 @@ export async function POST(request, { params }) {
   if (updateError) return Response.json({ ok: false, error: updateError.message }, { status: 500 });
 
   publishOnlineGame(updatedGame.id, { game: updatedGame, moves });
-  await applyOnlineRatingResult(supabase, updatedGame, result);
-  await applyTournamentResult(supabase, updatedGame, result);
+  await Promise.all([
+    applyOnlineRatingResult(supabase, updatedGame, result),
+    applyTournamentResult(supabase, updatedGame, result),
+    createAntiCheatReportsForGame(supabase, updatedGame, moves, { movetime: 110, maxPositions: 20 })
+  ]);
   await touchPresence(supabase, user, { status: 'online' });
   const responseGame = publicGame(await decorateGameRatings(supabase, updatedGame), moves, user.id);
   return Response.json({ ok: true, game: responseGame });

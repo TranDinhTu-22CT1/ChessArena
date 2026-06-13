@@ -8,6 +8,7 @@ import {
   touchPresence
 } from '../../../../../../lib/online';
 import { publishOnlineGame } from '../../../../../../lib/onlineEvents';
+import { createAntiCheatReportsForGame } from '../../../../../../lib/antiCheat';
 
 export const runtime = 'nodejs';
 
@@ -75,8 +76,11 @@ export async function POST(request, { params }) {
     .eq('game_id', gameId)
     .order('ply', { ascending: true });
   if (action === 'accept') {
-    await applyOnlineRatingResult(context.supabase, updated, '1/2-1/2');
-    await applyTournamentResult(context.supabase, updated, '1/2-1/2');
+    await Promise.all([
+      applyOnlineRatingResult(context.supabase, updated, '1/2-1/2'),
+      applyTournamentResult(context.supabase, updated, '1/2-1/2'),
+      createAntiCheatReportsForGame(context.supabase, updated, moves, { movetime: 110, maxPositions: 20 })
+    ]);
     await touchPresence(context.supabase, context.user, { status: 'online' });
   }
   publishOnlineGame(gameId, { game: updated, moves, drawAction: action });

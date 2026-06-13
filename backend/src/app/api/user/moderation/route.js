@@ -12,7 +12,9 @@ export async function GET(request) {
   if (context.error) return context.error;
 
   const [ban, mute] = await Promise.all([
-    context.activeBan || activeBanForUser(context.supabase, context.user.id),
+    Object.hasOwn(context, 'activeBan')
+      ? context.activeBan
+      : activeBanForUser(context.supabase, context.user.id),
     activeMuteForUser(context.supabase, context.user.id)
   ]);
 

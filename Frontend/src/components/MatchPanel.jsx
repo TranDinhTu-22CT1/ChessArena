@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Bot, ClipboardList, Flag, Gamepad2, Lightbulb, MessageSquare, Play, RotateCcw, SkipBack, Undo2, Volume2, VolumeX } from 'lucide-react';
 import { TIME_CONTROLS } from '../game/constants';
 import { statusText } from '../game/chessLogic';
@@ -265,10 +265,10 @@ function BotSetup(props) {
   } = props;
 
   return (
-    <section className="bot-setup-panel" aria-label={isCoachGame ? 'Coach tiếng Việt' : 'Choose bot'}>
+    <section className={`bot-setup-panel ${isCoachGame ? 'coach-panel' : ''}`} aria-label={isCoachGame ? 'Huấn luyện viên chiến thuật' : 'Choose bot'}>
       <div className="bot-lobby-title">
         {isCoachGame ? <MessageSquare size={19} /> : <Bot size={19} />}
-        <strong>{isCoachGame ? 'Coach tiếng Việt' : 'Play Bots'}</strong>
+        <strong>{isCoachGame ? 'Huấn luyện viên chiến thuật' : 'Play Bots'}</strong>
         {isCoachGame && (
           <button
             className="coach-audio-toggle"
@@ -290,6 +290,10 @@ function BotSetup(props) {
               <p>{coachSpeechText}</p>
             </div>
           </div>
+          <button className="bot-play-button coach-start-button" onClick={onStartBotMatch}>
+            <Play size={20} />
+            Bắt đầu luyện
+          </button>
           <div className="coach-level-list">
             <button className="coach-level-current" type="button">
               <span>{coachDifficultyFromElo(Number(aiElo))} ({aiLevel.elo})</span>
@@ -375,10 +379,10 @@ function BotLive({ isCoachGame, coachSpeechText, coachAudioEnabled, coachInsight
   };
 
   return (
-    <section className="bot-live-panel" aria-label={isCoachGame ? 'Coach đang hướng dẫn' : 'Live bot game'}>
+    <section className={`bot-live-panel ${isCoachGame ? 'coach-panel' : ''}`} aria-label={isCoachGame ? 'Huấn luyện viên đang hướng dẫn' : 'Live bot game'}>
       <div className="bot-lobby-title">
         {isCoachGame ? <MessageSquare size={19} /> : <Bot size={19} />}
-        <strong>{isCoachGame ? 'Coach tiếng Việt' : 'Play Bots'}</strong>
+        <strong>{isCoachGame ? 'Huấn luyện viên chiến thuật' : 'Play Bots'}</strong>
         {isCoachGame && (
           <button
             className="coach-audio-toggle"
@@ -496,10 +500,10 @@ function ModeLobby({ gameMode, activeBotPersona, botPersonas = BOT_PERSONAS, bot
 
   if (gameMode === 'coach') {
     return (
-      <section className="bot-lobby coach-lobby" aria-label="Coach tiếng Việt">
+      <section className="bot-lobby coach-lobby" aria-label="Huấn luyện viên chiến thuật">
         <div className="bot-lobby-title">
           <MessageSquare size={19} />
-          <strong>Coach tiếng Việt</strong>
+          <strong>Huấn luyện viên chiến thuật</strong>
         </div>
         <div className={`live-coach-card ${coachInsight.tone}`}>
           <div className="live-coach-head">

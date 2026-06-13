@@ -10,6 +10,7 @@ import {
   touchPresence
 } from '../../../../../lib/online';
 import { publishOnlineGame } from '../../../../../lib/onlineEvents';
+import { createAntiCheatReportsForGame } from '../../../../../lib/antiCheat';
 
 export const runtime = 'nodejs';
 
@@ -51,7 +52,10 @@ export async function GET(request, { params }) {
   const abandoned = await abortOnlineGameIfOpeningIdle(supabase, game, moves);
   if (abandoned.aborted) publishOnlineGame(abandoned.game.id, { game: abandoned.game, moves });
   const expired = await expireOnlineGameOnClock(supabase, abandoned.game, moves);
-  if (expired.timedOut) publishOnlineGame(expired.game.id, { game: expired.game, moves });
+  if (expired.timedOut) {
+    await createAntiCheatReportsForGame(supabase, expired.game, moves, { movetime: 110, maxPositions: 20 });
+    publishOnlineGame(expired.game.id, { game: expired.game, moves });
+  }
 
   await touchPresence(supabase, user, {
     status: expired.game.status === 'active' ? 'playing' : 'online',

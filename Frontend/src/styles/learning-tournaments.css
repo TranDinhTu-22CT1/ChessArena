@@ -1,0 +1,1500 @@
+/* Single source of truth for BeginnerGuidePage and TournamentsPage. */
+.beginner-guide-page,
+.tournaments-page,
+.tournaments-auth-required {
+  --learn-ink: #173d2b;
+  --learn-muted: #5d7465;
+  --learn-green: #168b56;
+  --learn-green-dark: #0d7043;
+  --learn-lime: #a6cf4e;
+  --learn-card: rgba(246, 248, 245, 0.98);
+  --learn-card-strong: #fbfcfa;
+  --learn-soft: #edf2ec;
+  --learn-line: rgba(38, 92, 57, 0.12);
+  --learn-white-line: rgba(255, 255, 255, 0.76);
+  --learn-shadow: 0 18px 44px rgba(36, 79, 48, 0.1);
+  color: var(--learn-ink);
+}
+
+.beginner-guide-page,
+.tournaments-page {
+  display: grid;
+  width: min(100%, 1180px);
+  gap: 16px;
+  margin: 0 auto;
+  padding: 18px 0 48px;
+}
+
+.beginner-guide-page {
+  width: min(100%, 1320px);
+}
+
+.beginner-guide-hero,
+.tournaments-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  min-height: 218px;
+  padding: 34px 36px;
+  overflow: hidden;
+  align-items: center;
+  background:
+    radial-gradient(circle at 88% -20%, rgba(166, 207, 78, 0.32), transparent 38%),
+    linear-gradient(128deg, rgba(252, 253, 251, 0.99), rgba(236, 242, 235, 0.98));
+  border: 1px solid var(--learn-white-line);
+  border-radius: 27px;
+  box-shadow: 0 23px 54px rgba(39, 84, 51, 0.12);
+  animation: learningCardIn 420ms ease both;
+}
+
+.beginner-guide-hero::after,
+.tournaments-hero::after {
+  position: absolute;
+  z-index: -1;
+  right: -45px;
+  bottom: -86px;
+  width: 300px;
+  height: 300px;
+  content: "";
+  opacity: 0.25;
+  background:
+    linear-gradient(45deg, rgba(44, 111, 65, 0.09) 25%, transparent 25% 75%, rgba(44, 111, 65, 0.09) 75%),
+    linear-gradient(45deg, rgba(44, 111, 65, 0.09) 25%, transparent 25% 75%, rgba(44, 111, 65, 0.09) 75%);
+  background-position: 0 0, 22px 22px;
+  background-size: 44px 44px;
+  transform: rotate(10deg);
+}
+
+.beginner-guide-hero > div,
+.tournaments-hero > div {
+  min-width: 0;
+}
+
+.beginner-guide-hero > div > span,
+.tournaments-hero > div > span,
+.guide-video-copy > span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--learn-green) !important;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.beginner-guide-hero h1,
+.tournaments-hero h1 {
+  max-width: 720px;
+  margin: 8px 0 10px;
+  color: var(--learn-ink) !important;
+  font-size: clamp(2.1rem, 4.5vw, 3.45rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.beginner-guide-hero p,
+.tournaments-hero p {
+  max-width: 700px;
+  margin: 0;
+  color: var(--learn-muted) !important;
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+.beginner-guide-hero-aside {
+  display: grid;
+  width: min(330px, 30vw);
+  gap: 10px;
+}
+
+.beginner-guide-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.beginner-guide-highlights span {
+  display: grid;
+  min-width: 0;
+  min-height: 77px;
+  padding: 10px 7px;
+  align-content: center;
+  color: var(--learn-muted);
+  text-align: center;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(39, 83, 50, 0.07);
+  font-size: 0.58rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.beginner-guide-highlights strong {
+  color: var(--learn-ink);
+  font-size: 1.15rem;
+}
+
+.beginner-guide-hero button,
+.tournaments-hero-action,
+.guide-video-copy button,
+.tournaments-auth-required button {
+  display: inline-flex;
+  min-height: 43px;
+  padding: 0 17px;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  color: #fff !important;
+  background: var(--learn-green) !important;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 9px 20px rgba(22, 139, 86, 0.18);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.beginner-guide-hero button:hover,
+.tournaments-hero-action:hover,
+.guide-video-copy button:hover,
+.tournaments-auth-required button:hover {
+  background: var(--learn-green-dark) !important;
+  box-shadow: 0 13px 25px rgba(22, 139, 86, 0.24);
+  transform: translateY(-2px);
+}
+
+.guide-video-section,
+.guide-walkthrough-section,
+.guide-live-panel,
+.guide-standard-board-wrap,
+.guide-rules-section,
+.guide-learning-path,
+.modern-t-card,
+.modern-detail-card,
+.tournament-toolbar,
+.t-inline-loading {
+  color: var(--learn-ink);
+  background: var(--learn-card);
+  border: 1px solid var(--learn-white-line);
+  box-shadow: var(--learn-shadow);
+}
+
+.guide-video-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.72fr);
+  gap: 25px;
+  padding: 26px;
+  align-items: stretch;
+  border-radius: 22px;
+  animation: learningCardIn 440ms ease both;
+}
+
+.guide-video-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.guide-video-copy h2 {
+  margin: 9px 0 8px;
+  color: var(--learn-ink);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.guide-video-copy p {
+  max-width: 640px;
+  margin: 0 0 18px;
+  color: var(--learn-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.guide-video-frame {
+  position: relative;
+  display: grid;
+  min-height: 205px;
+  padding: 24px;
+  overflow: hidden;
+  align-content: center;
+  justify-items: center;
+  color: #fff;
+  text-align: center;
+  background:
+    linear-gradient(135deg, rgba(13, 112, 67, 0.92), rgba(33, 145, 89, 0.84)),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.08) 75%);
+  background-size: auto, 38px 38px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 16px 32px rgba(25, 97, 57, 0.18);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.guide-video-frame:hover {
+  box-shadow: 0 20px 38px rgba(25, 97, 57, 0.24);
+  transform: translateY(-3px);
+}
+
+.guide-video-frame svg {
+  margin-bottom: 11px;
+  filter: drop-shadow(0 7px 14px rgba(0, 0, 0, 0.18));
+}
+
+.guide-video-frame strong {
+  font-size: 0.96rem;
+}
+
+.guide-video-frame span {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.8rem;
+}
+
+.guide-walkthrough-section {
+  padding: 24px;
+  border-radius: 22px;
+  animation: learningCardIn 460ms ease both;
+}
+
+.guide-section-title {
+  display: flex;
+  gap: 9px;
+  margin-bottom: 17px;
+  align-items: center;
+  color: var(--learn-green);
+}
+
+.guide-section-title h2 {
+  margin: 0;
+  color: var(--learn-ink);
+  font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+  letter-spacing: -0.025em;
+}
+
+.guide-walkthrough-layout,
+.guide-live-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.08fr) minmax(430px, 0.92fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.guide-standard-board-wrap {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  place-items: center;
+  border-radius: 19px;
+}
+
+.beginner-guide-page .guide-standard-board {
+  width: min(100%, 640px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 7px solid #315640;
+  border-radius: 10px;
+  box-shadow: 0 15px 28px rgba(31, 71, 46, 0.18);
+}
+
+.guide-walkthrough-panel,
+.guide-live-panel {
+  min-width: 0;
+  padding: 21px;
+  border-radius: 19px;
+}
+
+.guide-walkthrough-panel {
+  color: var(--learn-ink);
+  background: linear-gradient(145deg, #f1f5f0, #eaf0e8);
+  border: 1px solid var(--learn-white-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.guide-course-topline {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.guide-course-topline span,
+.guide-course-topline small {
+  color: var(--learn-green);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guide-course-topline small {
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+}
+
+.guide-walkthrough-panel > h2 {
+  margin: 9px 0 14px;
+  color: var(--learn-ink);
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.guide-course-objective,
+.guide-course-feedback,
+.guide-course-concept,
+.guide-practice-note,
+.guide-status {
+  padding: 12px 14px;
+  color: var(--learn-ink);
+  background: rgba(253, 254, 252, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 13px;
+}
+
+.guide-course-objective p {
+  margin: 4px 0 0;
+  color: var(--learn-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.guide-course-feedback,
+.guide-course-concept,
+.guide-practice-note,
+.guide-status {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.guide-course-feedback strong,
+.guide-course-concept b,
+.guide-course-objective b,
+.guide-practice-note b,
+.guide-status strong {
+  color: var(--learn-ink);
+  font-size: 0.84rem;
+}
+
+.guide-course-feedback span,
+.guide-course-concept span,
+.guide-practice-note span,
+.guide-status span,
+.guide-status small {
+  color: var(--learn-muted) !important;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.guide-course-feedback.solved {
+  background: #e3efdc;
+  border-color: rgba(54, 132, 67, 0.16);
+}
+
+.guide-walkthrough-controls,
+.guide-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.guide-walkthrough-controls button,
+.guide-action-row button,
+.guide-lesson-tabs button,
+.guide-step-list button {
+  min-height: 40px;
+  color: #476252 !important;
+  background: rgba(249, 251, 248, 0.82) !important;
+  border: 1px solid rgba(47, 101, 61, 0.12);
+  border-radius: 11px;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition: color 170ms ease, background 170ms ease, border-color 170ms ease, transform 170ms ease;
+}
+
+.guide-walkthrough-controls button,
+.guide-action-row button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-walkthrough-controls button:hover:not(:disabled),
+.guide-action-row button:hover,
+.guide-lesson-tabs button:hover,
+.guide-step-list button:hover {
+  color: var(--learn-green-dark) !important;
+  background: #fff !important;
+  border-color: rgba(22, 139, 86, 0.28);
+  transform: translateY(-1px);
+}
+
+.guide-walkthrough-controls .guide-next-lesson,
+.guide-action-row button:first-child {
+  color: #fff !important;
+  background: var(--learn-green) !important;
+  border-color: transparent;
+}
+
+.guide-walkthrough-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.guide-step-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 11px;
+}
+
+.guide-step-list button {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  padding: 7px 5px;
+  align-content: center;
+}
+
+.guide-step-list button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guide-step-list button small {
+  color: var(--learn-muted);
+  font-size: 0.64rem;
+}
+
+.guide-step-list button.active,
+.guide-lesson-tabs button.active {
+  color: #fff !important;
+  background: var(--learn-green) !important;
+  border-color: transparent;
+}
+
+.guide-step-list button.active small {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.guide-live-layout {
+  grid-template-columns: minmax(390px, 0.82fr) minmax(520px, 1.18fr);
+}
+
+.guide-live-panel {
+  animation: learningCardIn 480ms ease both;
+}
+
+.guide-lesson-tabs {
+  display: flex;
+  gap: 7px;
+  padding-bottom: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.guide-lesson-tabs::-webkit-scrollbar,
+.guide-step-list::-webkit-scrollbar {
+  display: none;
+}
+
+.guide-lesson-tabs button {
+  flex: 0 0 auto;
+  padding: 0 12px;
+}
+
+.guide-live-panel > p {
+  min-height: 64px;
+  margin: 13px 0 0;
+  color: var(--learn-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.guide-check-list {
+  display: grid;
+  gap: 9px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-check-list li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--learn-muted);
+  font-size: 0.84rem;
+  line-height: 1.58;
+}
+
+.guide-check-list svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--learn-green);
+}
+
+.guide-result-banner {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(82%, 340px);
+  padding: 15px 18px;
+  color: #fff;
+  text-align: center;
+  background: rgba(30, 85, 55, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: 15px;
+  box-shadow: 0 17px 36px rgba(26, 72, 46, 0.25);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(7px);
+}
+
+.guide-result-banner span {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.67rem;
+}
+
+.guide-result-banner.mate {
+  background: rgba(15, 123, 72, 0.94);
+}
+
+.guide-result-banner.stalemate {
+  background: rgba(131, 103, 42, 0.94);
+}
+
+.guide-rules-section,
+.guide-learning-path {
+  padding: 23px;
+  border-radius: 21px;
+  animation: learningCardIn 500ms ease both;
+}
+
+.guide-rules-grid,
+.guide-special-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guide-rule-card {
+  min-width: 0;
+  padding: 17px;
+  color: var(--learn-ink);
+  background: linear-gradient(145deg, #f4f7f3, #edf2ec);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 15px;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.guide-rule-card:hover {
+  border-color: rgba(66, 131, 72, 0.2);
+  box-shadow: 0 13px 25px rgba(36, 79, 48, 0.09);
+  transform: translateY(-3px);
+}
+
+.guide-rule-card h3 {
+  margin: 0 0 7px;
+  color: var(--learn-ink);
+  font-size: 0.96rem;
+}
+
+.guide-rule-card p {
+  margin: 0;
+  color: var(--learn-muted);
+  font-size: 0.84rem;
+  line-height: 1.65;
+}
+
+.guide-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 16px;
+}
+
+.guide-learning-path {
+  background:
+    radial-gradient(circle at 100% 0, rgba(166, 207, 78, 0.2), transparent 40%),
+    var(--learn-card);
+}
+
+.guide-learning-path span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--learn-green);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.guide-learning-path h2 {
+  margin: 7px 0 13px;
+  color: var(--learn-ink);
+  font-size: 1.35rem;
+  letter-spacing: -0.035em;
+}
+
+.guide-learning-path ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--learn-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.guide-learning-path li::marker {
+  color: var(--learn-green);
+  font-weight: 900;
+}
+
+.guide-video-modal-layer {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  place-items: center;
+}
+
+.guide-video-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(18, 42, 27, 0.7);
+  border: 0;
+  backdrop-filter: blur(7px);
+}
+
+.guide-video-modal {
+  --learn-ink: #173d2b;
+  --learn-muted: #5d7465;
+  --learn-green: #168b56;
+  position: relative;
+  z-index: 1;
+  width: min(920px, 100%);
+  padding: 11px;
+  color: #173d2b !important;
+  background: #f4f7f3;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 21px;
+  box-shadow: 0 30px 75px rgba(14, 48, 28, 0.35);
+  animation: learningModalIn 190ms ease-out;
+}
+
+.guide-video-modal-head {
+  display: flex;
+  gap: 15px;
+  padding: 5px 5px 12px 9px;
+  align-items: center;
+  justify-content: space-between;
+  color: #173d2b !important;
+}
+
+.guide-video-modal-head strong {
+  color: #173d2b !important;
+  font-size: 0.86rem;
+}
+
+.guide-video-modal-head button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  color: #315a43 !important;
+  background: #fff !important;
+  border: 1px solid var(--learn-line);
+  border-radius: 11px;
+  cursor: pointer;
+  place-items: center;
+}
+
+.guide-video-modal-frame {
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: #13251a;
+  border-radius: 13px;
+}
+
+.guide-video-modal-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Tournaments */
+.tournaments-hero {
+  min-height: 205px;
+}
+
+.tournaments-hero-action {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding-inline: 21px;
+}
+
+.tournament-toolbar {
+  display: flex;
+  gap: 9px;
+  padding: 11px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-radius: 17px;
+  animation: learningCardIn 440ms ease both;
+}
+
+.tournament-toolbar select {
+  min-width: 220px;
+  min-height: 43px;
+  padding: 0 38px 0 14px;
+  color: #476252 !important;
+  background: #f0f4ef !important;
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+  border-radius: 12px;
+  outline: 0;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tournament-toolbar select:focus {
+  border-color: rgba(22, 139, 86, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(22, 139, 86, 0.08);
+}
+
+.modern-refresh-btn,
+.t-btn,
+.modern-detail-card .back-btn {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 0.71rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.modern-refresh-btn {
+  min-height: 43px;
+  padding: 0 15px;
+  color: #41604d !important;
+  background: #edf2ec !important;
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+  border-radius: 999px;
+  transition: color 170ms ease, background 170ms ease, transform 170ms ease;
+}
+
+.modern-refresh-btn:hover:not(:disabled) {
+  color: #fff !important;
+  background: var(--learn-green) !important;
+  transform: translateY(-1px);
+}
+
+.modern-refresh-btn:disabled,
+.t-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.tournament-message {
+  margin: 0;
+  padding: 13px 16px;
+  color: #2d684a !important;
+  background: rgba(232, 239, 231, 0.96);
+  border: 1px solid rgba(38, 103, 62, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 9px 20px rgba(39, 83, 50, 0.06);
+  font-size: 0.77rem;
+  font-weight: 750;
+}
+
+.modern-tournament-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 13px;
+}
+
+.modern-t-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 294px;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 19px;
+  animation: learningCardIn 420ms ease both;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.modern-t-card:hover {
+  border-color: rgba(71, 140, 76, 0.2);
+  box-shadow: 0 19px 37px rgba(36, 79, 48, 0.13);
+  transform: translateY(-3px);
+}
+
+.tournament-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.tournament-card-copy,
+.tournament-detail-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.t-badge {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 25px;
+  padding: 0 9px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.59rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.t-badge.running {
+  color: #176239;
+  background: #dcefe2;
+  border-color: #b8dec6;
+}
+
+.t-badge.open {
+  color: #285f85;
+  background: #e0edf7;
+  border-color: #bdd5e6;
+}
+
+.t-badge.finished {
+  color: #58665d;
+  background: #e4e9e4;
+  border-color: #d0d9d1;
+}
+
+.t-badge.cancelled {
+  color: #8a3f38;
+  background: #f3dfdc;
+  border-color: #e7c8c5;
+}
+
+.t-badge.scheduled {
+  color: #82631c;
+  background: #f4ead0;
+  border-color: #ead9aa;
+}
+
+.t-title {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--learn-ink) !important;
+  font-size: 1.03rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.t-time-control {
+  max-width: 42%;
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  overflow: hidden;
+  color: var(--learn-green-dark);
+  background: #eef3ed;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-meta {
+  display: grid;
+  gap: 7px;
+  color: var(--learn-muted) !important;
+  font-size: 0.69rem;
+  font-weight: 720;
+}
+
+.t-meta span {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.t-meta svg {
+  color: var(--learn-green);
+}
+
+.t-podium {
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  color: var(--learn-ink);
+  background: #f0f4ef;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 13px;
+}
+
+.t-podium span {
+  display: flex;
+  min-width: 0;
+  gap: 7px;
+  align-items: center;
+  color: #476252 !important;
+  font-size: 0.68rem;
+  font-weight: 780;
+}
+
+.t-podium span:nth-child(1) svg {
+  color: #b88a17;
+}
+
+.t-podium span:nth-child(2) svg {
+  color: #84928b;
+}
+
+.t-podium span:nth-child(3) svg {
+  color: #a46331;
+}
+
+.t-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: auto;
+}
+
+.t-btn {
+  min-height: 40px;
+  padding: 0 13px;
+  border-radius: 999px;
+  transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease;
+}
+
+.t-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.t-btn.primary {
+  color: #fff !important;
+  background: var(--learn-green) !important;
+  border: 0 !important;
+  box-shadow: 0 8px 18px rgba(22, 139, 86, 0.17);
+}
+
+.t-btn.primary:hover:not(:disabled) {
+  background: var(--learn-green-dark) !important;
+}
+
+.t-btn.secondary {
+  color: #41604d !important;
+  background: #edf2ec !important;
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+}
+
+.t-btn.secondary:hover:not(:disabled) {
+  color: #fff !important;
+  background: #607967 !important;
+}
+
+.t-btn.danger {
+  color: #91483e !important;
+  background: #f2e3df !important;
+  border: 1px solid rgba(177, 87, 72, 0.12) !important;
+}
+
+.t-btn.danger:hover:not(:disabled) {
+  color: #fff !important;
+  background: #a85447 !important;
+}
+
+.modern-detail-card {
+  padding: clamp(21px, 3vw, 31px);
+  border-radius: 22px;
+  animation: learningCardIn 420ms ease both;
+}
+
+.modern-detail-card .back-btn {
+  padding: 0;
+  color: var(--learn-muted) !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.modern-detail-card .back-btn:hover {
+  color: var(--learn-green) !important;
+}
+
+.detail-header {
+  display: flex;
+  gap: 22px;
+  margin: 22px 0 18px;
+  padding-bottom: 20px;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--learn-line);
+}
+
+.detail-header h2 {
+  margin: 9px 0 6px;
+  overflow-wrap: anywhere;
+  color: var(--learn-ink) !important;
+  font-size: clamp(1.6rem, 4vw, 2.35rem);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.detail-header p {
+  margin: 0;
+  color: var(--learn-muted) !important;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.detail-stats-box {
+  width: 145px;
+  flex: 0 0 145px;
+  padding: 16px;
+  text-align: center;
+  background: #eff4ee;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 15px;
+}
+
+.detail-stats-box strong {
+  display: block;
+  color: var(--learn-green);
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.detail-stats-box span {
+  color: var(--learn-muted) !important;
+  font-size: 0.56rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.detail-my-standing {
+  display: flex;
+  gap: 13px;
+  margin-bottom: 15px;
+  padding: 13px 15px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--learn-ink);
+  background: #edf5e8;
+  border: 1px solid rgba(63, 132, 68, 0.14);
+  border-radius: 13px;
+}
+
+.detail-my-standing b {
+  font-size: 0.77rem;
+}
+
+.detail-my-standing span {
+  color: var(--learn-green-dark) !important;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.tournament-detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.tournament-detail-actions .t-btn {
+  min-width: 145px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.detail-grid > section {
+  min-width: 0;
+  padding: 17px;
+  color: var(--learn-ink);
+  background: #f0f4ef;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 16px;
+}
+
+.detail-grid h3 {
+  margin: 0 0 12px;
+  color: var(--learn-ink) !important;
+  font-size: 0.86rem;
+}
+
+.t-standings,
+.t-games-list {
+  display: grid;
+  gap: 7px;
+}
+
+.t-standings-item,
+.t-games-list button {
+  color: var(--learn-ink);
+  background: rgba(253, 254, 252, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-radius: 11px;
+}
+
+.t-standings-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 11px;
+  align-items: center;
+}
+
+.t-standings-item > span {
+  color: var(--learn-muted) !important;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.t-standings-item b {
+  overflow: hidden;
+  color: var(--learn-ink);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-standings-item small {
+  color: var(--learn-muted) !important;
+  font-size: 0.58rem;
+}
+
+.t-standings-item strong {
+  color: var(--learn-green);
+  font-size: 0.78rem;
+}
+
+.t-games-list button {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 12px;
+  padding: 11px;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 170ms ease, transform 170ms ease;
+}
+
+.t-games-list button:hover {
+  border-color: rgba(22, 139, 86, 0.3) !important;
+  transform: translateX(2px);
+}
+
+.t-games-list b {
+  overflow: hidden;
+  color: var(--learn-ink);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-games-list span,
+.tournament-empty-copy {
+  color: var(--learn-muted) !important;
+  font-size: 0.61rem;
+}
+
+.tournament-empty-copy {
+  margin: 0;
+  padding: 17px;
+  text-align: center;
+}
+
+.t-inline-loading {
+  display: grid;
+  min-height: 180px;
+  gap: 10px;
+  padding: 28px;
+  place-content: center;
+  justify-items: center;
+  color: var(--learn-muted);
+  text-align: center;
+  border-radius: 19px;
+}
+
+.t-inline-loading span {
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.t-loading-spinner {
+  color: var(--learn-green);
+  animation: tournamentSpin 850ms linear infinite;
+}
+
+.tournaments-auth-required {
+  display: grid;
+  width: min(100%, 560px);
+  min-height: 350px;
+  gap: 12px;
+  margin: 56px auto;
+  padding: 32px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  background: var(--learn-card);
+  border: 1px solid var(--learn-white-line);
+  border-radius: 26px;
+  box-shadow: var(--learn-shadow);
+}
+
+.tournaments-auth-required > svg {
+  color: var(--learn-green);
+}
+
+.tournaments-auth-required h1,
+.tournaments-auth-required p {
+  margin: 0;
+}
+
+.tournaments-auth-required h1 {
+  color: var(--learn-ink);
+}
+
+.tournaments-auth-required p {
+  max-width: 500px;
+  color: var(--learn-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+@keyframes learningCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes learningModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tournamentSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .beginner-guide-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .beginner-guide-hero-aside {
+    width: min(100%, 520px);
+  }
+
+  .guide-walkthrough-layout,
+  .guide-live-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-walkthrough-layout .guide-standard-board-wrap {
+    order: 2;
+  }
+
+  .guide-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .beginner-guide-page,
+  .tournaments-page {
+    gap: 13px;
+    padding: 10px 0 34px;
+  }
+
+  .beginner-guide-hero,
+  .tournaments-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 27px 21px;
+    border-radius: 23px;
+  }
+
+  .beginner-guide-hero h1,
+  .tournaments-hero h1 {
+    font-size: clamp(2rem, 10vw, 2.75rem);
+  }
+
+  .beginner-guide-hero-aside,
+  .tournaments-hero-action {
+    width: 100%;
+  }
+
+  .beginner-guide-hero button,
+  .tournaments-hero-action {
+    width: 100%;
+  }
+
+  .guide-video-section {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-rules-grid,
+  .guide-special-grid,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-step-list {
+    display: flex;
+    padding-bottom: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .guide-step-list button {
+    flex: 0 0 100px;
+  }
+
+  .tournament-toolbar > * {
+    flex: 1 1 210px;
+  }
+
+  .detail-header,
+  .detail-my-standing {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .detail-stats-box {
+    width: 100%;
+  }
+}
+
+@media (max-width: 500px) {
+  .beginner-guide-highlights {
+    grid-template-columns: 1fr;
+  }
+
+  .beginner-guide-highlights span {
+    min-height: 56px;
+  }
+
+  .guide-video-section,
+  .guide-walkthrough-section,
+  .guide-live-panel,
+  .guide-rules-section,
+  .guide-learning-path,
+  .modern-detail-card {
+    padding: 16px;
+    border-radius: 17px;
+  }
+
+  .guide-walkthrough-controls,
+  .guide-action-row,
+  .t-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-standard-board-wrap {
+    padding: 8px;
+    border-radius: 16px;
+  }
+
+  .beginner-guide-page .guide-standard-board {
+    border-width: 5px;
+  }
+
+  .modern-t-card {
+    min-height: 0;
+    padding: 17px;
+  }
+
+  .tournament-card-head {
+    flex-direction: column;
+  }
+
+  .t-time-control {
+    max-width: 100%;
+  }
+
+  .tournament-detail-actions .t-btn {
+    width: 100%;
+  }
+
+  .t-standings-item {
+    grid-template-columns: 29px minmax(0, 1fr) auto;
+  }
+
+  .t-standings-item small {
+    display: none;
+  }
+
+  .t-games-list button {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beginner-guide-page *,
+  .tournaments-page * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,6 +1,7 @@
 import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../lib/online';
 import { assertPayPalPlanVisible, createPayPalSubscription } from '../../../../lib/paypal';
+import { frontendReturnOrigin } from '../../../../lib/cors';
 
 export const runtime = 'nodejs';
 
@@ -20,10 +21,6 @@ const PLAN_IDS = {
     yearly: process.env.PAYPAL_MASTER_YEARLY_PLAN_ID
   }
 };
-
-function frontendUrl() {
-  return String(process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/+$/, '');
-}
 
 function approveLink(subscription) {
   return (subscription.links || []).find((link) => link.rel === 'approve')?.href || '';
@@ -45,7 +42,7 @@ export async function POST(request) {
     return Response.json({ ok: false, error: 'PayPal plan does not match the selected package.' }, { status: 400 });
   }
 
-  const baseUrl = frontendUrl();
+  const baseUrl = frontendReturnOrigin(request.headers.get('origin'));
   try {
     const plan = await assertPayPalPlanVisible(planId);
     if (plan.status && plan.status !== 'ACTIVE') {

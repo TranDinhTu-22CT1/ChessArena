@@ -1,5 +1,4 @@
 const DEPLOYED_API_FALLBACK = 'https://chess-arena-seven.vercel.app';
-
 function isLocalHostname(hostname) {
   return ['localhost', '127.0.0.1', '::1'].includes(hostname);
 }
@@ -27,4 +26,8 @@ function resolveApiBaseUrl() {
 export function apiUrl(path) {
   const baseUrl = resolveApiBaseUrl();
   return `${baseUrl.replace(/\/$/, '')}${path}`;
+}
+
+export function handleApiSession(response) {
+  return response;
 }

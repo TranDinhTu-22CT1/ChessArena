@@ -1,9 +1,10 @@
 import { Chess } from 'chess.js';
 import { isOpeningBookMove } from './openingBook';
 import { withStockfishEngine } from './stockfishEngine';
+import { describeGameStage } from './chessKnowledge';
 
 function moveLan(move) {
-  return `${move.from_square}${move.to_square}${move.promotion || ''}`;
+  return move.lan || `${move.from_square}${move.to_square}${move.promotion || ''}`;
 }
 
 function sameMove(a, b) {
@@ -105,7 +106,8 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
   const userColor = game.white_user_id === userId ? 'w' : game.black_user_id === userId ? 'b' : null;
   if (!userColor) throw new Error('User is not a player in this game.');
 
-  const movetime = Math.max(70, Math.min(220, Number(options.movetime) || 90));
+  const movetime = Math.max(90, Math.min(350, Number(options.movetime) || 140));
+  const maxPositions = Math.max(12, Math.min(40, Number(options.maxPositions) || 32));
   const chess = new Chess();
   const priorMoves = [];
   const positions = [];
@@ -126,6 +128,7 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
           ? Math.max(0, moveAt - previousMoveAt)
           : null,
         book: isOpeningBookMove(priorMoves, lan),
+        stage: describeGameStage(chess.fen()).id,
         ...complexity
       });
     }
@@ -137,7 +140,12 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
 
   const candidates = positions
     .filter((position) => !position.book && !position.forced && position.ply > 8)
-    .slice(0, 32);
+    .sort((a, b) => {
+      const stagePriority = { middlegame: 0, endgame: 1, opening: 2 };
+      return stagePriority[a.stage] - stagePriority[b.stage] || a.ply - b.ply;
+    })
+    .slice(0, maxPositions)
+    .sort((a, b) => a.ply - b.ply);
   if (candidates.length === 0) {
     return {
       riskScore: 0,
@@ -172,7 +180,8 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
         complex: position.complex,
         legalMoveCount: position.legalMoveCount,
         captureOptions: position.captureOptions,
-        elapsedMs: position.elapsedMs
+        elapsedMs: position.elapsedMs,
+        stage: position.stage
       });
     }
     return rows;
@@ -196,6 +205,15 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
   const timingUniformityScore = timingUniformity(checked);
   const suspiciousMoveCount = fastMatches.length;
   const longestStreak = longestMatchStreak(checked);
+  const phaseStats = Object.fromEntries(['opening', 'middlegame', 'endgame'].map((stage) => {
+    const rows = checked.filter((item) => item.stage === stage);
+    return [stage, {
+      checked: rows.length,
+      matches: rows.filter((item) => item.matched).length,
+      matchRate: rows.length ? rows.filter((item) => item.matched).length / rows.length : 0,
+      averageCpLoss: Math.round(average(rows.map((item) => item.cpLoss).filter(Number.isFinite)))
+    }];
+  }));
   const riskScore = riskFromSignals({
     engineMatchRate,
     suspiciousMoveCount,
@@ -227,6 +245,7 @@ export async function analyzeOnlineGameForUser(game, moves, userId, options = {}
       criticalMatchRate,
       complexMatchRate,
       timingUniformityScore,
+      phaseStats,
       fastBestMoveThresholdMs: 2500,
       excluded: {
         totalPlayerMoves: positions.length,
@@ -249,32 +268,40 @@ export async function createAntiCheatReportsForGame(supabase, game, moves, optio
 
   const reports = [];
   for (const userId of [game.white_user_id, game.black_user_id]) {
-    const { data: existing } = await supabase
-      .from('anti_cheat_reports')
-      .select('id')
-      .eq('game_id', game.id)
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (existing) continue;
+    try {
+      const { data: existing } = await supabase
+        .from('anti_cheat_reports')
+        .select('id')
+        .eq('game_id', game.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (existing) continue;
 
-    const analysis = await analyzeOnlineGameForUser(game, moves, userId, options);
-    if (analysis.riskScore < 55) continue;
+      const analysis = await analyzeOnlineGameForUser(game, moves, userId, options);
+      if (analysis.riskScore < 55) continue;
 
-    const { data: report, error } = await supabase
-      .from('anti_cheat_reports')
-      .insert({
-        user_id: userId,
-        game_id: game.id,
-        risk_score: analysis.riskScore,
-        engine_match_rate: analysis.engineMatchRate,
-        low_time_consistency: analysis.lowTimeConsistency,
-        suspicious_move_count: analysis.suspiciousMoveCount,
-        total_moves: analysis.totalMoves,
-        details: analysis.details
-      })
-      .select('*')
-      .single();
-    if (!error && report) reports.push(report);
+      const { data: report, error } = await supabase
+        .from('anti_cheat_reports')
+        .insert({
+          user_id: userId,
+          game_id: game.id,
+          risk_score: analysis.riskScore,
+          engine_match_rate: analysis.engineMatchRate,
+          low_time_consistency: analysis.lowTimeConsistency,
+          suspicious_move_count: analysis.suspiciousMoveCount,
+          total_moves: analysis.totalMoves,
+          details: analysis.details
+        })
+        .select('*')
+        .single();
+      if (!error && report) reports.push(report);
+    } catch (error) {
+      console.error('Immediate anti-cheat scan failed.', {
+        gameId: game.id,
+        userId,
+        message: error.message
+      });
+    }
   }
   return reports;
 }

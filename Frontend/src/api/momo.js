@@ -24,7 +24,27 @@ export async function confirmMomoMembershipPayment(params) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || 'MoMo confirmation failed.');
+    const error = new Error(data.error || 'MoMo confirmation failed.');
+    error.pending = Boolean(data.pending);
+    error.resultCode = data.resultCode;
+    throw error;
+  }
+  return data;
+}
+
+export async function queryMomoMembershipPayment(orderId) {
+  const response = await fetch(apiUrl('/api/momo/status'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.error || 'MoMo status query failed.');
+    error.pending = Boolean(data.pending);
+    error.resultCode = data.resultCode;
+    throw error;
   }
   return data;
 }

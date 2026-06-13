@@ -2,41 +2,19 @@ import { ReadableStream } from 'node:stream/web';
 import { TextEncoder } from 'node:util';
 import { decorateGameRatings, publicGame, requireOnlineUser, touchPresence } from '../../../../../../lib/online';
 import { subscribeOnlineGame } from '../../../../../../lib/onlineEvents';
+import { corsHeaders } from '../../../../../../lib/cors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function allowedOrigin(request) {
-  const requestOrigin = request?.headers.get('origin');
-  const configuredOrigins = [process.env.FRONTEND_URL, process.env.FRONTEND_URLS]
-    .filter(Boolean)
-    .flatMap((value) => value.split(','))
-    .map((value) => value.trim().replace(/\/$/, ''))
-    .filter(Boolean);
-  const localOrigins = [
-    'https://chess-arena-iho3.vercel.app',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:4173',
-    'http://127.0.0.1:4173'
-  ];
-
-  if (requestOrigin && [...configuredOrigins, ...localOrigins].includes(requestOrigin)) return requestOrigin;
-  return null;
-}
-
 function streamHeaders(request) {
-  const headers = {
+  return {
+    ...corsHeaders(request),
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-    'Access-Control-Allow-Credentials': 'true',
-    Vary: 'Origin'
+    'X-Accel-Buffering': 'no'
   };
-  const origin = allowedOrigin(request);
-  if (origin) headers['Access-Control-Allow-Origin'] = origin;
-  return headers;
 }
 
 async function loadPublicGame(supabase, gameId, userId) {

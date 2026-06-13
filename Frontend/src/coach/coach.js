@@ -1,4 +1,4 @@
-export const COACH_MODES = [
+﻿export const COACH_MODES = [
   { id: 'basic', label: 'Cơ bản', focus: 'Nền tảng', depth: 'Ván đầy đủ: quân treo, nhập thành, trung tâm và nước an toàn.' },
   { id: 'opening', label: 'Khai cuộc', focus: 'Mở ván', depth: 'Bắt đầu từ đầu ván, ưu tiên phát triển quân, trung tâm và vua an toàn.' },
   { id: 'middlegame', label: 'Trung cuộc', focus: 'Chiến thuật', depth: 'Bắt đầu từ một thế trung cuộc ngẫu nhiên để luyện kế hoạch và đòn phối hợp.' },
@@ -126,12 +126,12 @@ export function coachLessonFromMode(coachMode) {
 }
 
 export const COACH_LEVELS = [
-  { elo: 1320, label: 'Stockfish Club' },
-  { elo: 1600, label: 'Stockfish Strong' },
-  { elo: 2000, label: 'Stockfish Expert' },
-  { elo: 2400, label: 'Stockfish Master' },
-  { elo: 2800, label: 'Stockfish Elite' },
-  { elo: 3190, label: 'Stockfish Maximum' }
+  { elo: 1320, label: 'Người dẫn nhập' },
+  { elo: 1600, label: 'Người gác chiến thuật' },
+  { elo: 2000, label: 'Chuyên gia khai cuộc' },
+  { elo: 2400, label: 'Bậc thầy trung cuộc' },
+  { elo: 2800, label: 'Đại sư phân tích' },
+  { elo: 3190, label: 'Stockfish tối thượng' }
 ];
 
 function coachAvatarImage() {
@@ -160,12 +160,12 @@ function coachAvatarImage() {
 export const COACH_AVATAR = coachAvatarImage();
 
 export function coachDifficultyFromElo(elo) {
-  if (elo <= 1320) return 'Club';
-  if (elo <= 1600) return 'Strong';
-  if (elo <= 2000) return 'Expert';
-  if (elo <= 2400) return 'Master';
-  if (elo <= 2800) return 'Elite';
-  return 'Maximum';
+  if (elo <= 1320) return 'Dẫn nhập';
+  if (elo <= 1600) return 'Chiến thuật';
+  if (elo <= 2000) return 'Khai cuộc';
+  if (elo <= 2400) return 'Trung cuộc';
+  if (elo <= 2800) return 'Phân tích sâu';
+  return 'Tối thượng';
 }
 
 const COACH_LINE_BANK = {

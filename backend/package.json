@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint src next.config.mjs --max-warnings=0",
     "test": "node --test tests/*.test.js",
+    "knowledge:build": "node scripts/build-chess-openings.mjs",
     "stress:matchmaking": "node --env-file=.env scripts/matchmaking-stress.mjs",
     "worker:matchmaking": "node --env-file=.env scripts/matchmaking-worker.mjs",
     "worker:matchmaking-outbox": "node --env-file=.env scripts/matchmaking-outbox-worker.mjs"

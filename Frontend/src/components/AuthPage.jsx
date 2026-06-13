@@ -1,6 +1,30 @@
 import React from 'react';
-import { Chrome, Github, LoaderCircle, Lock, Mail, ShieldCheck, Sparkles, Swords, UserRound } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  Brain,
+  Check,
+  CheckCircle2,
+  Chrome,
+  CircleAlert,
+  Copy,
+  Eye,
+  EyeOff,
+  Github,
+  KeyRound,
+  LoaderCircle,
+  Lock,
+  Mail,
+  Pointer,
+  ShieldCheck,
+  Sparkles,
+  Swords,
+  Trophy,
+  UserRound,
+  X
+} from 'lucide-react';
 import BrandMark from './BrandMark';
+import authKing from '../assets/chesscom/pieces/neo/wk.png';
+import authKnight from '../assets/chesscom/pieces/neo/bn.png';
 
 const text = {
   createAccount: 'T\u1ea1o t\u00e0i kho\u1ea3n',
@@ -54,6 +78,49 @@ export default function AuthPage({
   const isRegister = authMode === 'register';
   const isForgot = authMode === 'forgot';
   const isOtpStep = Boolean(otpState);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [testNoticeOpen, setTestNoticeOpen] = React.useState(false);
+  const [showTestPassword, setShowTestPassword] = React.useState(false);
+  const [copiedTestField, setCopiedTestField] = React.useState('');
+  const [testGuideOpen, setTestGuideOpen] = React.useState(false);
+  const testAccount = React.useMemo(() => ({
+    email: 'test@gmail.com',
+    password: '123456'
+  }), []);
+
+  React.useEffect(() => {
+    if (!testNoticeOpen && !testGuideOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      if (testGuideOpen) {
+        setTestGuideOpen(false);
+      } else {
+        setTestNoticeOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [testGuideOpen, testNoticeOpen]);
+
+  const copyTestValue = async (field) => {
+    try {
+      await navigator.clipboard.writeText(testAccount[field]);
+      setCopiedTestField(field);
+      window.setTimeout(() => setCopiedTestField(''), 1500);
+    } catch {
+      setCopiedTestField('');
+    }
+  };
+
+  const useTestAccount = () => {
+    onAuthFormChange({
+      email: testAccount.email,
+      password: testAccount.password
+    });
+    if (authMode !== 'login') onSetAuthMode('login');
+    setTestNoticeOpen(false);
+  };
   const minutes = String(Math.floor(otpSecondsLeft / 60)).padStart(2, '0');
   const seconds = String(otpSecondsLeft % 60).padStart(2, '0');
   const title = isOtpStep
@@ -79,9 +146,53 @@ export default function AuthPage({
       : isForgot
         ? 'Đang kiểm tra tài khoản...'
         : 'Đang đăng nhập...';
+  const modeClass = isOtpStep ? 'otp' : isRegister ? 'register' : isForgot ? 'forgot' : 'login';
+  const modeContent = isOtpStep
+    ? {
+        eyebrow: 'Xác minh bảo mật',
+        heroTitle: 'Chỉ còn một bước để tiếp tục.',
+        heroCopy: 'Nhập mã OTP đã gửi tới email để bảo vệ tài khoản và hoàn tất yêu cầu của bạn.',
+        trust: [
+          [ShieldCheck, 'Mã xác minh chỉ dùng một lần'],
+          [Mail, 'OTP được gửi tới email đăng ký'],
+          [Lock, 'Thông tin tài khoản luôn được bảo vệ']
+        ]
+      }
+    : isRegister
+      ? {
+          eyebrow: 'Bắt đầu hành trình',
+          heroTitle: 'Tạo hồ sơ kỳ thủ của riêng bạn.',
+          heroCopy: 'Một tài khoản giúp bạn lưu Elo, lịch sử thi đấu, thành tựu và tiến độ luyện tập trên mọi thiết bị.',
+          trust: [
+            [Trophy, 'Theo dõi Elo và thành tích'],
+            [Brain, 'Lưu bài tập cùng AI Coach'],
+            [ShieldCheck, 'Xác minh tài khoản bằng OTP']
+          ]
+        }
+      : isForgot
+        ? {
+            eyebrow: 'Khôi phục an toàn',
+            heroTitle: 'Trở lại bàn cờ mà không mất dữ liệu.',
+            heroCopy: 'Xác nhận email, nhận mã OTP và đặt mật khẩu mới. Tiến độ thi đấu của bạn vẫn được giữ nguyên.',
+            trust: [
+              [Mail, 'Nhận OTP qua email đăng ký'],
+              [KeyRound, 'Tạo mật khẩu mới an toàn'],
+              [ShieldCheck, 'Không làm thay đổi dữ liệu hồ sơ']
+            ]
+          }
+        : {
+            eyebrow: text.secureAccount,
+            heroTitle: text.heroTitle,
+            heroCopy: text.heroCopy,
+            trust: [
+              [Trophy, 'Thi đấu và theo dõi Elo'],
+              [Brain, 'Phân tích cùng AI Coach'],
+              [ShieldCheck, 'Phiên đăng nhập bảo mật']
+            ]
+          };
 
   return (
-    <section className="auth-page">
+    <section className={`auth-page auth-mode-${modeClass}`}>
       <div className="auth-background" aria-hidden="true">
         <div className="auth-glow auth-glow-one" />
         <div className="auth-glow auth-glow-two" />
@@ -97,9 +208,14 @@ export default function AuthPage({
         </div>
 
         <div className="auth-copy-main">
-          <span className="auth-eyebrow">{text.secureAccount}</span>
-          <h2>{text.heroTitle}</h2>
-          <p>{text.heroCopy}</p>
+          <span className="auth-eyebrow">{modeContent.eyebrow}</span>
+          <h2>{modeContent.heroTitle}</h2>
+          <p>{modeContent.heroCopy}</p>
+          <div className="auth-trust-list">
+            {modeContent.trust.map(([Icon, label]) => (
+              <span key={label}><Icon size={18} /><b>{label}</b></span>
+            ))}
+          </div>
         </div>
 
         <div className="auth-arena" aria-hidden="true">
@@ -108,8 +224,8 @@ export default function AuthPage({
           <div className="auth-arena-board">
             {Array.from({ length: 64 }, (_, index) => <span key={index} />)}
           </div>
-          <span className="auth-arena-piece auth-arena-king">&#9812;</span>
-          <span className="auth-arena-piece auth-arena-knight">&#9822;</span>
+          <img className="auth-arena-piece auth-arena-king" src={authKing} alt="" />
+          <img className="auth-arena-piece auth-arena-knight" src={authKnight} alt="" />
           <Sparkles className="auth-arena-spark auth-arena-spark-one" size={22} />
           <Sparkles className="auth-arena-spark auth-arena-spark-two" size={16} />
           <div className="auth-arena-callout">
@@ -119,7 +235,87 @@ export default function AuthPage({
         </div>
       </div>
 
-      <form className="auth-card" onSubmit={onSubmitAuth} noValidate aria-busy={authBusy}>
+      <form className={`auth-card auth-card-${modeClass}`} onSubmit={onSubmitAuth} noValidate aria-busy={authBusy}>
+        <div className="auth-test-notice">
+          {!testNoticeOpen && (
+            <span className="auth-test-pointer" aria-hidden="true">
+              <Pointer size={24} />
+            </span>
+          )}
+          <button
+            type="button"
+            className={`auth-test-trigger ${testNoticeOpen ? 'active' : ''}`}
+            onClick={() => setTestNoticeOpen((open) => !open)}
+            aria-label="Mở thông tin tài khoản dùng thử"
+            aria-expanded={testNoticeOpen}
+          >
+            <CircleAlert size={20} />
+          </button>
+
+          {testNoticeOpen && (
+            <aside className="auth-test-popover" aria-label="Tài khoản dùng thử">
+              <div className="auth-test-popover-head">
+                <div>
+                  <span>Trải nghiệm nhanh</span>
+                  <h2>Tài khoản người dùng thử</h2>
+                </div>
+                <button type="button" onClick={() => setTestNoticeOpen(false)} aria-label="Đóng thông báo">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p>Không muốn đăng ký? Dùng tài khoản công khai này để khám phá các chức năng của ChessArena. Sau khi đăng nhập bạn nên truy cập trang thông báo học thuật để biết thêm 1 số thông tin</p>
+
+              <div className="auth-test-credentials">
+                <div>
+                  <span>Email</span>
+                  <code>{testAccount.email}</code>
+                  <button type="button" onClick={() => copyTestValue('email')} aria-label="Sao chép email">
+                    {copiedTestField === 'email' ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                </div>
+                <div>
+                  <span>Mật khẩu</span>
+                  <code>{showTestPassword ? testAccount.password : '••••••'}</code>
+                  <button
+                    type="button"
+                    onClick={() => setShowTestPassword((visible) => !visible)}
+                    aria-label={showTestPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showTestPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                  <button type="button" onClick={() => copyTestValue('password')} aria-label="Sao chép mật khẩu">
+                    {copiedTestField === 'password' ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <button type="button" className="auth-test-use" onClick={useTestAccount}>
+                Điền vào form đăng nhập
+              </button>
+
+              <button type="button" className="auth-test-guide" onClick={() => setTestGuideOpen(true)}>
+                <img src="/Hình ảnh mở lại popup.png" alt="Vị trí nút mở thông báo học thuật trên thanh đầu trang" />
+                <span>
+                  <strong>Thông báo học thuật</strong>
+                  <small>Sau khi đăng nhập, nhấn icon Thông tin trên thanh đầu trang để mở lại.</small>
+                </span>
+              </button>
+            </aside>
+          )}
+        </div>
+
+        {(isRegister || isForgot || isOtpStep) && (
+          <div className="auth-stepper" aria-label={isOtpStep ? 'Bước 2 trên 2' : 'Bước 1 trên 2'}>
+            <span className={isOtpStep ? 'complete' : 'active'}>
+              {isOtpStep ? <CheckCircle2 size={15} /> : <b>1</b>}
+              {isForgot || otpState?.purpose === 'reset' ? 'Email' : 'Tài khoản'}
+            </span>
+            <i aria-hidden="true" />
+            <span className={isOtpStep ? 'active' : ''}><b>2</b> Xác minh</span>
+          </div>
+        )}
+
         <div className="auth-card-header">
           <span>{isOtpStep ? text.secureAccount : isRegister ? text.newPlayer : isForgot ? text.accountHelp : text.welcomeBack}</span>
           <h1>{title}</h1>
@@ -147,11 +343,15 @@ export default function AuthPage({
               <div className="auth-input">
                 <ShieldCheck size={17} />
                 <input
+                  id="auth-otp"
+                  name="otp"
                   value={authForm.otp}
                   onChange={(event) => onAuthFormChange({ otp: event.target.value.replace(/\D/g, '').slice(0, 6) })}
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   placeholder="000000"
                   maxLength={6}
+                  aria-label={text.otpCode}
                   disabled={authBusy}
                 />
               </div>
@@ -162,12 +362,24 @@ export default function AuthPage({
                 <div className="auth-input">
                   <Lock size={17} />
                   <input
-                    type="password"
+                    id="auth-new-password"
+                    name="new-password"
+                    type={showNewPassword ? 'text' : 'password'}
                     value={authForm.newPassword}
                     onChange={(event) => onAuthFormChange({ newPassword: event.target.value })}
                     placeholder={text.enterPassword}
+                    autoComplete="new-password"
                     disabled={authBusy}
                   />
+                  <button
+                    className="auth-password-toggle"
+                    type="button"
+                    onClick={() => setShowNewPassword((visible) => !visible)}
+                    aria-label={showNewPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    disabled={authBusy}
+                  >
+                    {showNewPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
                 </div>
               </label>
             )}
@@ -187,9 +399,12 @@ export default function AuthPage({
                 <div className="auth-input">
                   <UserRound size={17} />
                   <input
+                    id="auth-display-name"
+                    name="display-name"
                     value={authForm.displayName}
                     onChange={(event) => onAuthFormChange({ displayName: event.target.value })}
                     placeholder={text.exampleName}
+                    autoComplete="name"
                     disabled={authBusy}
                   />
                 </div>
@@ -201,10 +416,13 @@ export default function AuthPage({
               <div className="auth-input">
                 <Mail size={17} />
                 <input
+                  id="auth-email"
+                  name="email"
                   type="email"
                   value={authForm.email}
                   onChange={(event) => onAuthFormChange({ email: event.target.value })}
                   placeholder="ban@example.com"
+                  autoComplete="email"
                   disabled={authBusy}
                 />
               </div>
@@ -216,14 +434,34 @@ export default function AuthPage({
                 <div className="auth-input">
                   <Lock size={17} />
                   <input
-                    type="password"
+                    id={isRegister ? 'auth-new-password' : 'auth-current-password'}
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={authForm.password}
                     onChange={(event) => onAuthFormChange({ password: event.target.value })}
                     placeholder={text.enterPassword}
+                    autoComplete={isRegister ? 'new-password' : 'current-password'}
                     disabled={authBusy}
                   />
+                  <button
+                    className="auth-password-toggle"
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    disabled={authBusy}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
                 </div>
+                {isRegister && <small className="auth-field-hint">Dùng ít nhất 6 ký tự và tránh mật khẩu dễ đoán.</small>}
               </label>
+            )}
+
+            {isForgot && (
+              <div className="auth-recovery-note">
+                <KeyRound size={18} />
+                <p><strong>Quy trình 2 bước</strong><span>Chúng tôi sẽ gửi OTP trước khi cho phép đặt mật khẩu mới.</span></p>
+              </div>
             )}
 
             {!isForgot && (
@@ -270,15 +508,36 @@ export default function AuthPage({
           </small>
         )}
 
-        <div className="auth-links">
+        <div className={`auth-links ${authMode === 'login' && !isOtpStep ? '' : 'single'}`}>
           <button type="button" onClick={() => onSetAuthMode(authMode === 'login' ? 'register' : 'login')} disabled={authBusy}>
             {authMode === 'login' ? text.createNew : text.backToLogin}
           </button>
-          {!isForgot && !isOtpStep && (
+          {authMode === 'login' && !isOtpStep && (
             <button type="button" onClick={() => onSetAuthMode('forgot')} disabled={authBusy}>{text.forgotPassword}</button>
           )}
         </div>
       </form>
+      {testGuideOpen && createPortal(
+        <div
+          className="academic-image-lightbox auth-guide-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vị trí mở thông báo học thuật"
+          onClick={() => setTestGuideOpen(false)}
+        >
+          <button type="button" className="academic-image-close" onClick={() => setTestGuideOpen(false)} aria-label="Đóng ảnh">
+            <X size={22} />
+          </button>
+          <figure className="academic-image-preview" onClick={(event) => event.stopPropagation()}>
+            <img src="/Hình ảnh mở lại popup.png" alt="Vị trí nút mở thông báo học thuật trên thanh đầu trang" />
+            <figcaption>
+              <strong>Nút Thông tin</strong>
+              <span>Nằm trên thanh đầu trang, cạnh trạng thái kết nối.</span>
+            </figcaption>
+          </figure>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }

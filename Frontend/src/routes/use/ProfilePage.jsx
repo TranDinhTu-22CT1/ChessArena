@@ -1,10 +1,32 @@
 import React from 'react';
-import { Award, Brain, CalendarDays, CheckCircle2, Copy, Dumbbell, History, ImagePlus, Loader2, Mail, Medal, Save, ShieldCheck, Swords, Trophy, UserMinus, UserPlus, UserRound } from 'lucide-react';
-import { createFriendGame } from '../../api/online';
+import {
+  Activity,
+  Award,
+  Brain,
+  CalendarDays,
+  Dumbbell,
+  ExternalLink,
+  History,
+  ImagePlus,
+  Loader2,
+  Lock,
+  Mail,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Swords,
+  Target,
+  Trophy,
+  UserMinus,
+  UserPlus,
+  UserRound,
+  Users
+} from 'lucide-react';
+import { createAppeal, fetchMyAppeals } from '../../api/fairPlay';
 import { fetchFriends, removeFriendship, sendFriendRequest } from '../../api/friends';
+import { createFriendGame } from '../../api/online';
 import { fetchProfile, fetchPublicProfile, saveProfile } from '../../api/profile';
 import { changeFollow, fetchActivityFeed, fetchFollowSummary } from '../../api/social';
-import { createAppeal, fetchMyAppeals } from '../../api/fairPlay';
 import MembershipBadge from '../../components/MembershipBadge';
 
 const MODE_LABELS = {
@@ -14,9 +36,25 @@ const MODE_LABELS = {
   classical: 'Classical'
 };
 
-function formattedDate(value) {
+const ACHIEVEMENT_TEXT = {
+  'first-blood': ['Chiến thắng đầu tiên', 'Thắng ván online đầu tiên.'],
+  'arena-regular': ['Kỳ thủ Arena', 'Hoàn thành 20 ván online.'],
+  'review-discipline': ['Kỷ luật phân tích', 'Lưu Game Review cho 10 ván đấu.'],
+  'mode-climber': ['Chinh phục rating', 'Đạt 800 rating ở một chế độ.'],
+  'training-ready': ['Sẵn sàng luyện tập', 'Có bài tập cá nhân được tạo từ ván thật.']
+};
+
+const MAX_AVATAR_UPLOAD_SIZE = 5 * 1024 * 1024;
+const AVATAR_EDGE = 128;
+
+function formattedDate(value, includeTime = false) {
   if (!value) return '-';
-  return new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    ...(includeTime ? { hour: '2-digit', minute: '2-digit' } : {})
+  }).format(new Date(value));
 }
 
 function winRate(summary) {
@@ -24,20 +62,16 @@ function winRate(summary) {
   return `${Math.round((summary.wins / summary.gamesPlayed) * 100)}%`;
 }
 
-function formatMatchDate(value) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
-}
-
 function matchLabel(game) {
   if (game.outcome === 'draw') return 'Hòa';
   return game.outcome === 'win' ? 'Thắng' : 'Thua';
+}
+
+function activityLabel(type) {
+  if (type === 'won_game') return 'Thắng ván';
+  if (type === 'drew_game') return 'Hòa ván';
+  if (type === 'followed_player') return 'Theo dõi kỳ thủ';
+  return 'Hoạt động';
 }
 
 function clampScore(value) {
@@ -68,19 +102,34 @@ function skillProfile(profile, summary) {
     ? clampScore(Math.min(100, lab.reviewedGames * 12) + Math.min(20, lab.reviewedMoves / 8))
     : activityScore;
   const weakSpot = games.filter((game) => game.outcome === 'loss').length >= games.filter((game) => game.outcome === 'win').length
-    ? 'Cần luyện lại các ván thua gần đây và tìm mẫu blunder lặp lại.'
-    : 'Nên nâng mức khó puzzle và review các ván thắng để giữ độ ổn định.';
+    ? 'Review lại các ván thua gần đây và tìm mẫu lỗi lặp lại.'
+    : 'Tăng độ khó puzzle và review các ván thắng để giữ phong độ.';
 
   return [
-    { label: 'Phong độ hiện tại', value: formScore, note: 'Tính từ các trận gần nhất.' },
-    { label: 'Tầm nhìn chiến thuật', value: tacticalVision, note: lab.reviewedGames ? `Accuracy TB ${lab.averageAccuracy ?? '--'}%, ${lab.totalBlunders || 0} blunder.` : 'Sẽ chính xác hơn sau khi bạn lưu Game Review.' },
-    { label: 'Kỷ luật review', value: reviewDiscipline, note: lab.reviewedGames ? `${lab.reviewedGames} ván đã có review, ${lab.reviewedMoves} nước đã phân tích.` : 'Hãy review các ván online để mở khóa.' },
-    { label: 'Sẵn sàng phân tích', value: reviewReadiness, note: lab.totalRefundedRating ? `${weakSpot} Fair-play đã hoàn ${lab.totalRefundedRating} rating.` : weakSpot }
+    { label: 'Phong độ hiện tại', value: formScore, note: 'Tính từ kết quả các ván gần nhất.' },
+    {
+      label: 'Tầm nhìn chiến thuật',
+      value: tacticalVision,
+      note: lab.reviewedGames
+        ? `Độ chính xác trung bình ${lab.averageAccuracy ?? '--'}%, ${lab.totalBlunders || 0} lỗi nghiêm trọng.`
+        : 'Điểm số sẽ chính xác hơn sau khi có Game Review.'
+    },
+    {
+      label: 'Kỷ luật review',
+      value: reviewDiscipline,
+      note: lab.reviewedGames
+        ? `${lab.reviewedGames} ván và ${lab.reviewedMoves} nước đã được phân tích.`
+        : 'Review các ván online để mở khóa dữ liệu này.'
+    },
+    {
+      label: 'Sẵn sàng phân tích',
+      value: reviewReadiness,
+      note: lab.totalRefundedRating
+        ? `${weakSpot} Fair-play đã hoàn ${lab.totalRefundedRating} rating.`
+        : weakSpot
+    }
   ];
 }
-
-const MAX_AVATAR_UPLOAD_SIZE = 5 * 1024 * 1024;
-const AVATAR_EDGE = 128;
 
 function resizedAvatarData(file) {
   return new Promise((resolve, reject) => {
@@ -111,6 +160,18 @@ function resizedAvatarData(file) {
   });
 }
 
+function ProfileSectionHead({ eyebrow, title, icon: Icon, action }) {
+  return (
+    <div className="profile-section-head">
+      <div>
+        <span>{eyebrow}</span>
+        <h2>{Icon && <Icon size={20} />}{title}</h2>
+      </div>
+      {action}
+    </div>
+  );
+}
+
 export default function ProfilePage({ authUser, profileUserId = '', onLogin, onNavigate, onProfileUpdated }) {
   const [profile, setProfile] = React.useState(null);
   const [form, setForm] = React.useState({ displayName: '', photoURL: '' });
@@ -123,21 +184,49 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
   const [activities, setActivities] = React.useState([]);
   const [fairPlay, setFairPlay] = React.useState({ reports: [], appeals: [] });
   const [appealForm, setAppealForm] = React.useState({ reportId: '', message: '' });
-  const isPublicProfile = Boolean(profileUserId);
+  const [isOwnProfile, setIsOwnProfile] = React.useState(!profileUserId);
+  const isPublicProfile = Boolean(profileUserId) && !isOwnProfile;
 
   React.useEffect(() => {
     if (!authUser && !profileUserId) {
       setLoading(false);
       return undefined;
     }
+
     let cancelled = false;
     setLoading(true);
     setMessage('');
-    (profileUserId ? fetchPublicProfile(profileUserId) : fetchProfile())
-      .then((nextProfile) => {
+    setProfile(null);
+    setIsOwnProfile(!profileUserId);
+    const loadProfile = async () => {
+      if (!profileUserId) {
+        return { nextProfile: await fetchProfile(), own: true };
+      }
+
+      if (!authUser) {
+        return { nextProfile: await fetchPublicProfile(profileUserId), own: false };
+      }
+
+      const ownProfile = await fetchProfile();
+      if (String(ownProfile?.id || '') === String(profileUserId)) {
+        return { nextProfile: ownProfile, own: true };
+      }
+
+      return { nextProfile: await fetchPublicProfile(profileUserId), own: false };
+    };
+
+    loadProfile()
+      .then(({ nextProfile, own }) => {
         if (cancelled) return;
+        setIsOwnProfile(own);
         setProfile(nextProfile);
         setForm({ displayName: nextProfile.displayName || '', photoURL: nextProfile.photoURL || '' });
+        if (own && nextProfile.id) {
+          const canonicalPath = `/profile/${encodeURIComponent(nextProfile.id)}`;
+          if (window.location.pathname !== canonicalPath) {
+            window.history.replaceState(null, '', `${canonicalPath}${window.location.search}${window.location.hash}`);
+          }
+        }
       })
       .catch((error) => {
         if (!cancelled) setMessage(error.message);
@@ -145,6 +234,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
@@ -155,6 +245,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       setFriendship(null);
       return undefined;
     }
+
     let cancelled = false;
     fetchFriends()
       .then((data) => {
@@ -165,6 +256,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       .catch(() => {
         if (!cancelled) setFriendship({ status: 'none', user: { id: profile.id } });
       });
+
     return () => {
       cancelled = true;
     };
@@ -172,6 +264,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
 
   React.useEffect(() => {
     if (!profile?.id || !authUser) return undefined;
+
     let cancelled = false;
     Promise.all([
       fetchFollowSummary(profile.id),
@@ -181,6 +274,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       setFollowSummary(summaryData);
       setActivities(activityData.activities || []);
     }).catch(() => {});
+
     return () => {
       cancelled = true;
     };
@@ -188,6 +282,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
 
   React.useEffect(() => {
     if (!authUser || isPublicProfile) return undefined;
+
     let cancelled = false;
     fetchMyAppeals().then((data) => {
       if (!cancelled) {
@@ -195,22 +290,11 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
         setAppealForm((current) => ({ ...current, reportId: current.reportId || data.reports?.[0]?.id || '' }));
       }
     }).catch(() => {});
+
     return () => {
       cancelled = true;
     };
   }, [authUser, isPublicProfile]);
-
-  const copyProfileLink = async () => {
-    if (!profile?.id && !profile?.username) return;
-    const shareId = profile.id || profile.username;
-    const url = `${window.location.origin}/profile/${encodeURIComponent(shareId)}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setMessage('Đã copy link hồ sơ.');
-    } catch {
-      setMessage(url);
-    }
-  };
 
   const submitProfile = async (event) => {
     event.preventDefault();
@@ -269,7 +353,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       const expiresAt = data.expiresAt
         ? new Date(data.expiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
         : '10 phút';
-      setMessage(`Đã tạo link thách đấu ${data.inviteCode}. Link hết hạn lúc ${expiresAt} và đã được copy.`);
+      setMessage(`Đã tạo lời thách đấu ${data.inviteCode}. Liên kết hết hạn lúc ${expiresAt} và đã được sao chép.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -296,6 +380,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
 
   const selectAvatar = async (event) => {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
       setMessage('Vui lòng chọn ảnh PNG, JPG hoặc WebP.');
@@ -308,9 +393,25 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     try {
       const photoURL = await resizedAvatarData(file);
       setForm((current) => ({ ...current, photoURL }));
-      setMessage('Ảnh đã được chọn. Nhấn "Lưu hồ sơ" để hoàn tất.');
+      setMessage('Ảnh đã được chọn. Nhấn “Lưu hồ sơ” để hoàn tất.');
     } catch (error) {
       setMessage(error.message);
+    }
+  };
+
+  const submitAppeal = async (event) => {
+    event.preventDefault();
+    setSocialBusy(true);
+    setMessage('');
+    try {
+      const result = await createAppeal(appealForm);
+      setFairPlay((current) => ({ ...current, appeals: [result.appeal, ...(current.appeals || [])] }));
+      setAppealForm((current) => ({ ...current, message: '' }));
+      setMessage('Đã gửi khiếu nại thành công.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSocialBusy(false);
     }
   };
 
@@ -327,13 +428,9 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 0', color: '#888' }}>
-        <style>{`
-          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          .animate-spin { animation: spin 1s linear infinite; }
-        `}</style>
-        <Loader2 size={40} className="animate-spin" />
-        <p style={{ marginTop: '16px' }}>Đang tải hồ sơ...</p>
+      <div className="profile-loading">
+        <Loader2 size={38} />
+        <span>Đang tải hồ sơ...</span>
       </div>
     );
   }
@@ -343,690 +440,320 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
       <section className="profile-auth-required">
         <UserRound size={48} />
         <h1>Không tìm thấy hồ sơ</h1>
-        <p>{message || 'Link hồ sơ này không tồn tại hoặc người chơi chưa có dữ liệu.'}</p>
+        <p>{message || 'Liên kết hồ sơ không tồn tại hoặc người chơi chưa có dữ liệu.'}</p>
         <button onClick={() => onNavigate?.('home')}>Về trang chủ</button>
       </section>
     );
   }
 
-  const summary = profile?.summary || { gamesPlayed: 0, wins: 0, losses: 0, draws: 0 };
-  const avatarURL = isPublicProfile ? profile?.photoURL : form.photoURL;
-  const shareId = profile?.id || profile?.username || '';
+  const summary = profile.summary || { gamesPlayed: 0, wins: 0, losses: 0, draws: 0 };
+  const avatarURL = isPublicProfile ? profile.photoURL : form.photoURL;
   const skills = skillProfile(profile, summary);
-
+  const highestRating = Math.max(0, ...(profile.ratings || []).map((rating) => Number(rating.rating) || 0));
+  const bestRating = (profile.ratings || []).reduce((best, rating) => (
+    Number(rating.rating || 0) > Number(best?.rating || 0) ? rating : best
+  ), null);
+  const unlockedAchievements = (profile.achievements || []).filter((item) => item.unlocked).length;
   return (
-    <section className="modern-profile-page">
-      {/* CSS CHO GIAO DIỆN HIỆN ĐẠI */}
-      <style>{`
-        /* Biến màu sắc toàn cục */
-        :root {
-          --brand-green: #abc854;
-          --brand-green-dark: #87a53b;
-        }
-        @media (prefers-color-scheme: dark) {
-          :root {
-            --text-adaptive: #132118;
-            --text-muted: #5b6b55;
-            --bg-surface-adaptive: rgba(255, 255, 248, 0.9);
-            --bg-input-adaptive: rgba(239, 247, 229, 0.88);
-            --border-adaptive: rgba(73, 101, 49, 0.16);
-          }
-        }
-        @media (prefers-color-scheme: light) {
-          :root {
-            --text-adaptive: #111827;
-            --text-muted: #6b7280;
-            --bg-surface-adaptive: #ffffff;
-            --bg-input-adaptive: #f3f4f6;
-            --border-adaptive: #e5e7eb;
-          }
-        }
-
-        .modern-profile-page {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-          padding: 6px 0 36px;
-          color: var(--text-adaptive);
-        }
-
-        /* Hero Section */
-        .modern-hero {
-          position: relative;
-          background: linear-gradient(135deg, #d8ed91 0%, #a8c45b 100%);
-          border-radius: 20px;
-          padding: 40px 32px;
-          display: flex;
-          align-items: center;
-          gap: 32px;
-          flex-wrap: wrap;
-          box-shadow: 0 16px 42px rgba(94, 122, 49, 0.18);
-          overflow: hidden;
-        }
-        /* Ép màu chữ đen tuyền cho phần Hero xanh lá */
-        .modern-hero * {
-          color: #000000 !important;
-        }
-        .modern-avatar {
-          position: relative;
-          width: 120px;
-          height: 120px;
-          border-radius: 50%;
-          border: 4px solid #ffffff;
-          background: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-          flex-shrink: 0;
-          overflow: hidden;
-        }
-        .modern-avatar img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .modern-hero-info h1 {
-          font-size: 32px;
-          font-weight: 800;
-          margin: 0 0 4px 0;
-        }
-        .modern-profile-name {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin: 0 0 4px;
-        }
-        .modern-profile-name h1 {
-          margin: 0;
-        }
-        .modern-hero-info p {
-          font-size: 16px;
-          opacity: 0.8;
-          margin: 0 0 12px 0;
-          font-weight: 500;
-        }
-        .modern-verified-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: rgba(255, 255, 255, 0.3);
-          padding: 6px 12px;
-          border-radius: 999px;
-          font-size: 13px;
-          font-weight: 600;
-          backdrop-filter: blur(4px);
-        }
-
-        /* Buttons in Hero */
-        .modern-hero-actions {
-          display: flex;
-          gap: 12px;
-          margin-top: 16px;
-          flex-wrap: wrap;
-        }
-        .modern-hero-actions button {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          border-radius: 10px;
-          font-weight: 700;
-          font-size: 14px;
-          cursor: pointer;
-          border: none;
-          transition: transform 0.2s, opacity 0.2s;
-          background: #ffffff; /* Nền nút trắng */
-          color: #000000 !important;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .modern-hero-actions button:hover {
-          transform: translateY(-2px);
-          opacity: 0.9;
-        }
-        .modern-hero-actions button.danger {
-          background: #fee2e2;
-          color: #b91c1c !important;
-        }
-
-        /* Cards Layout */
-        .modern-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-          gap: 24px;
-        }
-        .modern-card {
-          background: var(--bg-surface-adaptive);
-          border: 1px solid var(--border-adaptive);
-          border-radius: 20px;
-          padding: 28px;
-          color: var(--text-adaptive);
-          box-shadow: 0 16px 40px rgba(48, 72, 42, 0.1);
-        }
-        .modern-card h2 {
-          font-size: 20px;
-          font-weight: 700;
-          margin-top: 0;
-          margin-bottom: 20px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          color: var(--text-adaptive);
-        }
-
-        /* Form Inputs */
-        .modern-form label {
-          display: block;
-          margin-bottom: 16px;
-        }
-        .modern-form label span {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 600;
-          margin-bottom: 8px;
-          font-size: 14px;
-          color: var(--text-adaptive);
-        }
-        .modern-form input[type="text"], .modern-form textarea, .modern-form select {
-          width: 100%;
-          padding: 12px 16px;
-          border-radius: 10px;
-          border: 1px solid var(--border-adaptive);
-          background: var(--bg-input-adaptive);
-          color: var(--text-adaptive);
-          font-size: 14px;
-          transition: border-color 0.2s;
-        }
-        .modern-form input[type="text"]:focus {
-          outline: none;
-          border-color: var(--brand-green);
-        }
-        .modern-file-input {
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-        .modern-info-line {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 0;
-          border-bottom: 1px solid var(--border-adaptive);
-          font-size: 14px;
-          color: var(--text-adaptive);
-        }
-        .modern-info-line:last-of-type {
-          border-bottom: none;
-        }
-        .modern-btn-primary {
-          width: 100%;
-          padding: 14px;
-          border-radius: 10px;
-          background: var(--brand-green);
-          color: #000000;
-          font-weight: 700;
-          border: none;
-          cursor: pointer;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-          margin-top: 16px;
-          transition: opacity 0.2s;
-        }
-        .modern-btn-primary:hover { opacity: 0.9; }
-
-        /* Stats Blocks */
-        .modern-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-        .modern-stat-box {
-          background: var(--bg-input-adaptive);
-          padding: 16px;
-          border-radius: 16px;
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-        }
-        .modern-stat-box b { font-size: 20px; font-weight: 800; color: var(--text-adaptive); }
-        .modern-stat-box span { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
-
-        .modern-rating-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .modern-rating-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px;
-          background: var(--bg-input-adaptive);
-          border-radius: 12px;
-          border-left: 4px solid var(--brand-green);
-        }
-        .modern-rating-item strong { font-size: 15px; color: var(--text-adaptive); }
-        .modern-rating-item b { font-size: 20px; color: var(--text-adaptive); margin-left: auto; margin-right: 12px; }
-        .modern-rating-item small { font-size: 12px; color: var(--text-muted); }
-
-        /* Progress Bars (Skill Lab) */
-        .modern-skill-item {
-          margin-bottom: 20px;
-        }
-        .modern-skill-header {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-          font-size: 14px;
-        }
-        .modern-skill-header strong { color: var(--text-adaptive); }
-        .modern-skill-header b { color: var(--brand-green-dark); }
-        .modern-progress-bg {
-          height: 8px;
-          background: var(--border-adaptive);
-          border-radius: 99px;
-          overflow: hidden;
-        }
-        .modern-progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, var(--brand-green), var(--brand-green-dark));
-          border-radius: 99px;
-          transition: width 1s ease-out;
-        }
-        .modern-skill-note {
-          font-size: 12px;
-          color: var(--text-muted);
-          margin-top: 6px;
-          display: block;
-        }
-
-        /* Achievements */
-        .modern-achievements {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 16px;
-        }
-        .modern-badge {
-          background: var(--bg-input-adaptive);
-          padding: 16px;
-          border-radius: 16px;
-          border: 1px solid var(--border-adaptive);
-          text-align: center;
-          opacity: 0.6;
-          filter: grayscale(1);
-          transition: all 0.3s ease;
-        }
-        .modern-badge.unlocked {
-          opacity: 1;
-          filter: grayscale(0);
-          border-color: var(--brand-green);
-          box-shadow: 0 4px 12px rgba(171, 200, 84, 0.15);
-        }
-
-        /* Game History & Activities */
-        .modern-game-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px;
-          border-bottom: 1px solid var(--border-adaptive);
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .modern-game-item:last-child { border-bottom: none; }
-        .modern-game-result {
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 800;
-          text-transform: uppercase;
-        }
-        .modern-game-result.win { background: #dcfce7; color: #166534; }
-        .modern-game-result.loss { background: #fee2e2; color: #991b1b; }
-        .modern-game-result.draw { background: #f3f4f6; color: #374151; }
-        .modern-game-result.activity { background: var(--border-adaptive); color: var(--text-adaptive); }
-
-        .modern-game-info strong { display: block; color: var(--text-adaptive); font-size: 14px; margin-bottom: 4px; }
-        .modern-game-info small { color: var(--text-muted); font-size: 12px; }
-        .rating-up { color: #16a34a !important; font-weight: bold; margin-left: 8px; }
-        .rating-down { color: #dc2626 !important; font-weight: bold; margin-left: 8px; }
-      `}</style>
-
-      {/* 1. HERO SECTION */}
-      <header className="modern-hero">
-        <div className="modern-avatar">
-          {avatarURL ? <img src={avatarURL} alt="Avatar người chơi" /> : <UserRound size={60} color="#ccc" />}
+    <section className="player-profile-page">
+      <header className="player-profile-hero">
+        <div className="player-profile-avatar">
+          {avatarURL ? <img src={avatarURL} alt="" /> : <UserRound size={58} />}
+          {!isPublicProfile && (
+            <label title="Đổi ảnh đại diện">
+              <ImagePlus size={16} />
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
+            </label>
+          )}
         </div>
-        <div className="modern-hero-info">
-          <span style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {isPublicProfile ? 'Public Player Profile' : 'Player Profile'}
+
+        <div className="player-profile-identity">
+          <span className="player-profile-eyebrow">
+            <Sparkles size={15} />
+            {isPublicProfile ? 'Hồ sơ kỳ thủ' : 'Không gian cá nhân'}
           </span>
-          <div className="modern-profile-name">
-            <h1>{profile?.displayName || authUser?.displayName || 'Player'}</h1>
-            <MembershipBadge tier={profile?.membershipTier} />
+          <div>
+            <h1>{profile.displayName || authUser?.displayName || 'Player'}</h1>
+            <MembershipBadge tier={profile.membershipTier} />
           </div>
-          <p>@{profile?.username || 'player'} {shareId && `• ID: ${shareId}`}</p>
-
-          <div className="modern-verified-badge">
-            <ShieldCheck size={16} />
-            {isPublicProfile ? 'Hồ sơ công khai' : profile?.emailVerified ? 'Tài khoản đã xác thực' : 'Chưa xác thực email'}
+          <p>@{profile.username || 'player'}</p>
+          <div className="player-profile-meta">
+            <div className="player-profile-verification">
+              <ShieldCheck size={15} />
+              {isPublicProfile ? 'Hồ sơ công khai' : profile.emailVerified ? 'Tài khoản đã xác thực' : 'Email chưa xác thực'}
+            </div>
+            <span><Users size={14} /> {followSummary.followers} người theo dõi</span>
+            <span>{followSummary.following} đang theo dõi</span>
           </div>
+        </div>
 
-          <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: '600' }}>
-            {followSummary.followers} người theo dõi | đang theo dõi {followSummary.following}
+        <div className="player-profile-featured-rating">
+          <span>Phong độ nổi bật</span>
+          <strong>{highestRating ? `${highestRating} Elo` : 'Mới'}</strong>
+          <small>{bestRating ? `${MODE_LABELS[bestRating.mode] || bestRating.mode} · ${bestRating.games_played} ván` : 'Chưa có rating online'}</small>
+          <div>
+            <i style={{ width: `${Math.min(100, Math.max(8, ((highestRating || 400) - 300) / 14))}%` }} />
           </div>
+          <button type="button" onClick={() => onNavigate?.('leaderboard')}>
+            Bảng xếp hạng <ExternalLink size={14} />
+          </button>
+        </div>
 
-          {/* Social Actions cho Public Profile */}
+        <div className="player-profile-hero-actions">
           {isPublicProfile && authUser && (
-            <div className="modern-hero-actions">
-              <button disabled={socialBusy} onClick={toggleFollow} type="button">
+            <>
+              <button type="button" disabled={socialBusy} onClick={toggleFollow}>
                 {followSummary.followed ? <UserMinus size={16} /> : <UserPlus size={16} />}
                 {followSummary.followed ? 'Bỏ theo dõi' : 'Theo dõi'}
               </button>
-
               {friendship?.status === 'friends' ? (
                 <>
-                  <button disabled={socialBusy} onClick={challengeFriend} type="button">
+                  <button className="primary" type="button" disabled={socialBusy} onClick={challengeFriend}>
                     <Swords size={16} /> Thách đấu
                   </button>
-                  <button className="danger" disabled={socialBusy} onClick={removeFriend} type="button">
+                  <button className="danger" type="button" disabled={socialBusy} onClick={removeFriend}>
                     <UserMinus size={16} /> Hủy bạn
                   </button>
                 </>
               ) : friendship?.status === 'outgoing' ? (
-                <button className="danger" disabled={socialBusy} onClick={removeFriend} type="button">
+                <button className="danger" type="button" disabled={socialBusy} onClick={removeFriend}>
                   <UserMinus size={16} /> Hủy lời mời
                 </button>
               ) : friendship?.status === 'incoming' ? (
-                <button disabled type="button" style={{ opacity: 0.6 }}>
-                  <UserPlus size={16} /> Đang chờ phản hồi
-                </button>
+                <button type="button" disabled><Users size={16} /> Đang chờ phản hồi</button>
               ) : (
-                <button disabled={socialBusy} onClick={addFriend} type="button">
+                <button className="primary" type="button" disabled={socialBusy} onClick={addFriend}>
                   <UserPlus size={16} /> Kết bạn
                 </button>
               )}
-            </div>
+            </>
           )}
         </div>
+
+        <section className="player-profile-summary">
+          <article><Swords size={19} /><div><strong>{summary.gamesPlayed}</strong><span>Ván đã chơi</span></div></article>
+          <article><Trophy size={19} /><div><strong>{summary.wins}</strong><span>Chiến thắng</span></div></article>
+          <article><Target size={19} /><div><strong>{winRate(summary)}</strong><span>Tỷ lệ thắng</span></div></article>
+          <article><Award size={19} /><div><strong>{unlockedAchievements}</strong><span>Thành tựu</span></div></article>
+        </section>
       </header>
 
-      {/* Thông báo chung */}
-      {message && (
-        <div style={{ padding: '16px', background: '#eef2ff', color: '#4338ca', borderRadius: '12px', fontWeight: '600' }}>
-          {message}
-        </div>
-      )}
+      {message && <p className="player-profile-message">{message}</p>}
 
-      {/* 2. MAIN GRID (Cột trái: Thông tin/Edit, Cột phải: Stats) */}
-      <div className="modern-grid">
-
-        {/* INFO CÁ NHÂN / EDITOR */}
-        <div className="modern-card">
-          <h2><UserRound size={22} /> {isPublicProfile ? 'Thông tin người chơi' : 'Cập nhật hồ sơ'}</h2>
+      <div className="player-profile-workspace">
+        <div className="player-profile-main-grid player-profile-overview-grid">
+        <section className="player-profile-card">
+          <ProfileSectionHead
+            eyebrow={isPublicProfile ? 'Thông tin kỳ thủ' : 'Thiết lập tài khoản'}
+            title={isPublicProfile ? 'Thông tin hồ sơ' : 'Chỉnh sửa hồ sơ'}
+            icon={UserRound}
+          />
 
           {!isPublicProfile ? (
-            <form className="modern-form" onSubmit={submitProfile}>
+            <form className="player-profile-form" onSubmit={submitProfile}>
               <label>
                 <span>Tên hiển thị</span>
-                <input type="text" value={form.displayName} maxLength={80} onChange={(e) => setForm((curr) => ({ ...curr, displayName: e.target.value }))} />
+                <input
+                  type="text"
+                  value={form.displayName}
+                  maxLength={80}
+                  onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))}
+                />
               </label>
-
-              <label>
-                <span><ImagePlus size={18} /> Ảnh đại diện</span>
-                <input className="modern-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
-                <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '6px' }}>
-                  PNG, JPG hoặc WebP, tối đa 5MB. Ảnh sẽ tự động được cắt vuông.
-                </small>
+              <label className="player-profile-upload">
+                <span><ImagePlus size={16} /> Ảnh đại diện</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectAvatar} />
+                <small>PNG, JPG hoặc WebP, tối đa 5 MB. Ảnh được tự động cắt vuông.</small>
               </label>
-
-              <div className="modern-info-line"><Mail size={18} /> {profile?.email || 'Không có email'}</div>
-              <div className="modern-info-line"><CalendarDays size={18} /> Tham gia: {formattedDate(profile?.createdAt)}</div>
-
-              <button className="modern-btn-primary" disabled={saving} type="submit">
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                {saving ? 'Đang lưu...' : 'Lưu hồ sơ'}
-              </button>
-
-              <button
-                type="button"
-                onClick={copyProfileLink}
-                style={{ width: '100%', marginTop: '12px', padding: '14px', borderRadius: '10px', background: 'var(--bg-input-adaptive)', border: '1px solid var(--border-adaptive)', color: 'var(--text-adaptive)', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '8px' }}
-              >
-                <Copy size={18} /> Copy link hồ sơ
+              <div className="player-profile-details">
+                <div><Mail size={17} /><span><small>Email</small>{profile.email || 'Không có email'}</span></div>
+                <div><CalendarDays size={17} /><span><small>Ngày tham gia</small>{formattedDate(profile.createdAt)}</span></div>
+              </div>
+              <button className="player-profile-primary-button" disabled={saving} type="submit">
+                {saving ? <Loader2 size={17} /> : <Save size={17} />}
+                {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </form>
           ) : (
-            <div className="modern-form">
-              <div className="modern-info-line"><UserRound size={18} /> @{profile?.username || 'player'}</div>
-              <div className="modern-info-line"><CalendarDays size={18} /> Tham gia: {formattedDate(profile?.createdAt)}</div>
-              <button
-                type="button"
-                onClick={copyProfileLink}
-                style={{ width: '100%', marginTop: '24px', padding: '14px', borderRadius: '10px', background: 'var(--bg-input-adaptive)', border: '1px solid var(--border-adaptive)', color: 'var(--text-adaptive)', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '8px' }}
-              >
-                <Copy size={18} /> Copy link hồ sơ
-              </button>
+            <div className="player-profile-details public">
+              <div><UserRound size={17} /><span><small>Tên người dùng</small>@{profile.username || 'player'}</span></div>
+              <div><CalendarDays size={17} /><span><small>Ngày tham gia</small>{formattedDate(profile.createdAt)}</span></div>
             </div>
           )}
+        </section>
         </div>
 
-        {/* STATS ONLINE */}
-        <div className="modern-card">
-          <h2><Trophy size={22} /> Thành tích online</h2>
-
-          <div className="modern-stats-grid">
-            <div className="modern-stat-box"><Swords size={20} color="var(--brand-green-dark)"/><b>{summary.gamesPlayed}</b><span>Ván</span></div>
-            <div className="modern-stat-box"><Trophy size={20} color="#eab308"/><b>{summary.wins}</b><span>Thắng</span></div>
-            <div className="modern-stat-box"><b>{summary.losses}</b><span>Thua</span></div>
-            <div className="modern-stat-box"><b>{summary.draws}</b><span>Hòa</span></div>
-            <div className="modern-stat-box"><CheckCircle2 size={20} color="#3b82f6"/><b>{winRate(summary)}</b><span>Tỉ lệ</span></div>
-          </div>
-
-          <h3 style={{ fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>Rating hiện tại</h3>
-
-          {profile?.ratings?.length > 0 ? (
-            <div className="modern-rating-list">
-              {profile.ratings.map((rating) => (
-                <div className="modern-rating-item" key={rating.mode}>
-                  <div>
-                    <strong>{MODE_LABELS[rating.mode] || rating.mode}</strong>
-                    <br/>
-                    <small>{rating.games_played} ván {rating.provisional ? '(Tạm tính)' : ''}</small>
-                  </div>
-                  <b>{rating.rating}</b>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', background: 'var(--bg-input-adaptive)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
-              Chưa có rating online được ghi nhận.
-            </p>
-          )}
-
-          <button
-            onClick={() => onNavigate?.('leaderboard')}
-            style={{ width: '100%', marginTop: '24px', padding: '14px', borderRadius: '10px', background: 'var(--bg-input-adaptive)', border: '1px solid var(--border-adaptive)', color: 'var(--text-adaptive)', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '8px' }}
-          >
-            <Medal size={18} /> Xem bảng xếp hạng
-          </button>
-        </div>
-      </div>
-
-      {/* 3. SKILL LAB & ACHIEVEMENTS */}
-      <div className="modern-card">
-        <h2><Brain size={22} /> Hồ sơ kỹ năng chuyên sâu (Skill Lab)</h2>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Hệ thống AI đọc lịch sử đấu online để chấm điểm kỹ năng và phân tích điểm yếu của bạn.</p>
-
-        <div>
-          {skills.map((skill) => (
-            <div className="modern-skill-item" key={skill.label}>
-              <div className="modern-skill-header">
-                <strong>{skill.label}</strong>
-                <b>{skill.value}/100</b>
-              </div>
-              <div className="modern-progress-bg">
-                <div className="modern-progress-fill" style={{ width: `${skill.value}%` }} />
-              </div>
-              <span className="modern-skill-note">{skill.note}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ACHIEVEMENTS */}
-      <div className="modern-card">
-        <h2><Award size={22} /> Huy hiệu tiến bộ</h2>
-        <div className="modern-achievements">
-          {(profile?.achievements || []).map((ach) => (
-            <div className={`modern-badge ${ach.unlocked ? 'unlocked' : ''}`} key={ach.id}>
-              <strong style={{ display: 'block', fontSize: '15px', color: 'var(--text-adaptive)', marginBottom: '8px' }}>{ach.label}</strong>
-              <div className="modern-progress-bg" style={{ marginBottom: '8px' }}>
-                <div className="modern-progress-fill" style={{ width: `${ach.unlocked ? 100 : Math.round(((ach.progress ?? 0) / (ach.target ?? 1)) * 100)}%` }} />
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
-                {ach.unlocked ? 'ĐÃ MỞ KHÓA' : `${ach.progress ?? 0}/${ach.target ?? 1}`}
-              </span>
-              <small style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{ach.description}</small>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 4. TRAINING & FAIR PLAY (Chỉ hiện khi là chủ profile) */}
-      {!isPublicProfile && (
-        <div className="modern-grid">
-          <div className="modern-card">
-            <h2><Dumbbell size={22} /> Personal Training</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
-              {profile?.training?.nextAction || 'Review ván online đã kết thúc để hệ thống tạo bài tập.'}
-            </p>
-            <div className="modern-stats-grid">
-              <div className="modern-stat-box"><b>{profile?.training?.newPersonalPuzzles || 0}</b><span>Bài mới</span></div>
-              <div className="modern-stat-box"><b>{profile?.training?.personalPuzzles || 0}</b><span>Tổng bài</span></div>
-              <div className="modern-stat-box"><b>{profile?.training?.reviewedGames || 0}</b><span>Đã Review</span></div>
-            </div>
-            <button className="modern-btn-primary" onClick={() => onNavigate?.('personal-puzzles')}>
-              <Dumbbell size={18} /> Mở Puzzle cá nhân
-            </button>
-          </div>
-
-          {(fairPlay.reports?.length > 0 || fairPlay.appeals?.length > 0) && (
-            <div className="modern-card">
-              <h2><ShieldCheck size={22} color="#dc2626"/> Khiếu nại Fair-play</h2>
-              {fairPlay.reports?.length > 0 && (
-                <form className="modern-form" onSubmit={async (e) => {
-                  e.preventDefault();
-                  setSocialBusy(true);
-                  try {
-                    const result = await createAppeal(appealForm);
-                    setFairPlay((cur) => ({ ...cur, appeals: [result.appeal, ...(cur.appeals || [])] }));
-                    setAppealForm((cur) => ({ ...cur, message: '' }));
-                    setMessage('Đã gửi khiếu nại thành công.');
-                  } catch (err) { setMessage(err.message); }
-                  finally { setSocialBusy(false); }
-                }}>
-                  <select value={appealForm.reportId} onChange={(e) => setAppealForm((cur) => ({ ...cur, reportId: e.target.value }))} style={{ marginBottom: '12px' }}>
-                    {fairPlay.reports.map((r) => <option value={r.id} key={r.id}>Report #{r.id.slice(0, 8)} - Risk: {r.risk_score}</option>)}
-                  </select>
-                  <textarea required minLength={20} rows={3} value={appealForm.message} onChange={(e) => setAppealForm((cur) => ({ ...cur, message: e.target.value }))} placeholder="Trình bày lý do khiếu nại..." style={{ marginBottom: '12px' }}/>
-                  <button className="modern-btn-primary" type="submit" disabled={socialBusy} style={{ background: '#ef4444', color: 'white' }}>
-                    Gửi khiếu nại
-                  </button>
-                </form>
-              )}
-              {fairPlay.appeals?.length > 0 && (
-                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {fairPlay.appeals.map((app) => (
-                    <div key={app.id} style={{ padding: '12px', background: 'var(--bg-input-adaptive)', borderRadius: '8px', borderLeft: '3px solid #ef4444' }}>
-                      <strong style={{ display: 'block', fontSize: '13px' }}>Appeal #{app.id.slice(0, 8)} • {app.status}</strong>
-                      <small style={{ color: 'var(--text-muted)' }}>{app.admin_note || app.message}</small>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 5. RECENT GAMES */}
-      <div className="modern-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-          <h2 style={{ margin: 0 }}><History size={22} /> Lịch sử trận đấu</h2>
-          {!isPublicProfile && (
-            <button onClick={() => onNavigate?.('history')} style={{ background: 'transparent', border: '1px solid var(--border-adaptive)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-adaptive)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Xem toàn bộ <History size={14}/>
-            </button>
-          )}
-        </div>
-
-        {(profile?.recentGames || []).length > 0 ? (
-          <div>
-            {profile.recentGames.map((game) => {
-              const resClass = game.outcome === 'win' ? 'win' : game.outcome === 'loss' ? 'loss' : 'draw';
-              return (
-                <div className="modern-game-item" key={game.id}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span className={`modern-game-result ${resClass}`}>{matchLabel(game)}</span>
-                    <div className="modern-game-info">
-                      <strong>
-                        vs {game.opponent?.name || 'Player'}
-                        {Number.isFinite(game.ratingDelta) && (
-                          <span className={game.ratingDelta > 0 ? 'rating-up' : game.ratingDelta < 0 ? 'rating-down' : ''}>
-                            {game.ratingDelta > 0 ? '+' : ''}{game.ratingDelta}
-                          </span>
-                        )}
-                      </strong>
-                      <small>
-                        {game.mode || 'rapid'} • {game.timeControl || '--'} • Cầm quân {game.color === 'w' ? 'Trắng' : 'Đen'}
-                        {game.review && ` • Accuracy: ${game.review.accuracy}%`}
-                      </small>
-                    </div>
-                  </div>
-                  <small style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatMatchDate(game.finishedAt)}</small>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
-            {isPublicProfile ? 'Người chơi này chưa có trận online.' : 'Bạn chưa chơi trận online nào. Hãy tham gia một ván đấu để hệ thống ghi nhận.'}
+        <div className="player-profile-insights-grid">
+        <section className="player-profile-card">
+          <ProfileSectionHead eyebrow="Phân tích dữ liệu" title="Hồ sơ kỹ năng" icon={Brain} />
+          <p className="player-profile-section-description">
+            Điểm kỹ năng được ước tính từ phong độ, rating và dữ liệu Game Review hiện có.
           </p>
-        )}
-      </div>
+          <div className="player-profile-skill-grid">
+            {skills.map((skill) => (
+              <article key={skill.label}>
+                <div><strong>{skill.label}</strong><b>{skill.value}</b></div>
+                <i><span style={{ width: `${skill.value}%` }} /></i>
+                <p>{skill.note}</p>
+              </article>
+            ))}
+          </div>
+        </section>
 
-      {/* 6. ACTIVITY FEED */}
-      {activities.length > 0 && (
-        <div className="modern-card">
-          <h2 style={{ margin: 0, marginBottom: '20px' }}><CalendarDays size={22} /> Hoạt động gần đây</h2>
-          <div>
-            {activities.map((activity) => {
-              const actLabel = activity.type === 'won_game' ? 'Thắng ván' : activity.type === 'drew_game' ? 'Hòa ván' : activity.type === 'followed_player' ? 'Theo dõi người chơi' : 'Hoạt động';
+        <section className="player-profile-card">
+          <ProfileSectionHead
+            eyebrow="Cột mốc cá nhân"
+            title="Thành tựu"
+            icon={Award}
+            action={!isPublicProfile ? (
+              <button className="player-profile-text-button" type="button" onClick={() => onNavigate?.('achievements')}>
+                Xem tất cả <ExternalLink size={14} />
+              </button>
+            ) : null}
+          />
+          <div className="player-profile-achievement-grid">
+            {(profile.achievements || []).map((achievement) => {
+              const translation = ACHIEVEMENT_TEXT[achievement.id] || [achievement.label, achievement.description];
+              const percent = achievement.unlocked
+                ? 100
+                : Math.min(100, Math.round(((achievement.progress || 0) / Math.max(1, achievement.target || 1)) * 100));
               return (
-                <div className="modern-game-item" key={activity.id}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span className="modern-game-result activity">{actLabel}</span>
-                    <div className="modern-game-info">
-                      <strong>{activity.metadata?.mode || activity.subject_id || 'Tương tác hệ thống'}</strong>
-                    </div>
+                <article className={achievement.unlocked ? 'unlocked' : 'locked'} key={achievement.id}>
+                  <span>{achievement.unlocked ? <Award size={21} /> : <Lock size={19} />}</span>
+                  <div>
+                    <strong>{translation[0]}</strong>
+                    <p>{translation[1]}</p>
+                    <i><span style={{ width: `${percent}%` }} /></i>
+                    <small>{achievement.unlocked ? 'Đã hoàn thành' : `${achievement.progress || 0} / ${achievement.target || 1}`}</small>
                   </div>
-                  <small style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatMatchDate(activity.created_at)}</small>
-                </div>
+                </article>
               );
             })}
           </div>
+        </section>
         </div>
-      )}
 
+        {!isPublicProfile && (
+          <div className="player-profile-main-grid player-profile-support-grid">
+          <section className="player-profile-card training">
+            <ProfileSectionHead eyebrow="Lộ trình cá nhân" title="Luyện tập tiếp theo" icon={Dumbbell} />
+            <p className="player-profile-training-copy">
+              {profile.training?.nextAction || 'Review ván online đã kết thúc để hệ thống tạo bài tập.'}
+            </p>
+            <div className="player-profile-training-stats">
+              <div><strong>{profile.training?.newPersonalPuzzles || 0}</strong><span>Bài mới</span></div>
+              <div><strong>{profile.training?.personalPuzzles || 0}</strong><span>Tổng bài</span></div>
+              <div><strong>{profile.training?.reviewedGames || 0}</strong><span>Đã review</span></div>
+            </div>
+            <button className="player-profile-primary-button" type="button" onClick={() => onNavigate?.('personal-puzzles')}>
+              <Dumbbell size={17} /> Mở Puzzle cá nhân
+            </button>
+          </section>
+
+          {(fairPlay.reports?.length > 0 || fairPlay.appeals?.length > 0) && (
+            <section className="player-profile-card fair-play">
+              <ProfileSectionHead eyebrow="Hỗ trợ tài khoản" title="Khiếu nại Fair-play" icon={ShieldCheck} />
+              {fairPlay.reports?.length > 0 && (
+                <form className="player-profile-appeal-form" onSubmit={submitAppeal}>
+                  <select
+                    value={appealForm.reportId}
+                    onChange={(event) => setAppealForm((current) => ({ ...current, reportId: event.target.value }))}
+                  >
+                    {fairPlay.reports.map((report) => (
+                      <option value={report.id} key={report.id}>
+                        Báo cáo #{report.id.slice(0, 8)} · Mức rủi ro {report.risk_score}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea
+                    required
+                    minLength={20}
+                    rows={3}
+                    value={appealForm.message}
+                    onChange={(event) => setAppealForm((current) => ({ ...current, message: event.target.value }))}
+                    placeholder="Trình bày lý do khiếu nại..."
+                  />
+                  <button type="submit" disabled={socialBusy}>Gửi khiếu nại</button>
+                </form>
+              )}
+              {fairPlay.appeals?.length > 0 && (
+                <div className="player-profile-appeal-list">
+                  {fairPlay.appeals.map((appeal) => (
+                    <article key={appeal.id}>
+                      <strong>Khiếu nại #{appeal.id.slice(0, 8)} · {appeal.status}</strong>
+                      <p>{appeal.admin_note || appeal.message}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+          </div>
+        )}
+
+        <div className="player-profile-timeline-grid">
+        <section className="player-profile-card">
+          <ProfileSectionHead
+            eyebrow="Phong độ gần đây"
+            title="Lịch sử trận đấu"
+            icon={History}
+            action={!isPublicProfile ? (
+              <button className="player-profile-text-button" type="button" onClick={() => onNavigate?.('history')}>
+                Xem toàn bộ <ExternalLink size={14} />
+              </button>
+            ) : null}
+          />
+
+          {(profile.recentGames || []).length > 0 ? (
+            <div className="player-profile-game-list">
+              {profile.recentGames.map((game) => (
+                <article key={game.id}>
+                  <span className={`player-profile-result ${game.outcome}`}>{matchLabel(game)}</span>
+                  <div>
+                    <strong>
+                      vs {game.opponent?.name || 'Player'}
+                      {Number.isFinite(game.ratingDelta) && (
+                        <b className={game.ratingDelta > 0 ? 'up' : game.ratingDelta < 0 ? 'down' : ''}>
+                          {game.ratingDelta > 0 ? '+' : ''}{game.ratingDelta}
+                        </b>
+                      )}
+                    </strong>
+                    <p>
+                      {MODE_LABELS[game.mode] || game.mode || 'Rapid'} · {game.timeControl || '--'} ·
+                      {' '}Quân {game.color === 'w' ? 'Trắng' : 'Đen'}
+                      {game.review && ` · Chính xác ${game.review.accuracy}%`}
+                    </p>
+                  </div>
+                  <time>{formattedDate(game.finishedAt, true)}</time>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="player-profile-empty">
+              {isPublicProfile ? 'Người chơi này chưa có ván online.' : 'Bạn chưa có ván online nào được ghi nhận.'}
+            </div>
+          )}
+        </section>
+
+        {activities.length > 0 && (
+          <section className="player-profile-card">
+            <ProfileSectionHead eyebrow="Dòng thời gian" title="Hoạt động gần đây" icon={Activity} />
+            <div className="player-profile-activity-list">
+              {activities.map((activity) => (
+                <article key={activity.id}>
+                  <span><Activity size={16} /></span>
+                  <div>
+                    <strong>{activityLabel(activity.type)}</strong>
+                    <p>{activity.metadata?.mode || activity.subject_id || 'Tương tác trên ChessArena'}</p>
+                  </div>
+                  <time>{formattedDate(activity.created_at, true)}</time>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+        </div>
+      </div>
     </section>
   );
 }

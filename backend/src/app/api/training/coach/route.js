@@ -33,56 +33,66 @@ function buildInsights({ ratings, games, reviewMoves, puzzleSessions }) {
     return summary;
   }, { opening: 0, middlegame: 0, endgame: 0 });
   const weakestPhase = Object.entries(phaseMistakes).sort((first, second) => second[1] - first[1])[0]?.[0] || 'middlegame';
+  const phaseLabels = {
+    opening: 'Khai cuộc',
+    middlegame: 'Trung cuộc',
+    endgame: 'Tàn cuộc'
+  };
 
   const cards = [
     {
-      title: 'Online form',
+      key: 'onlineForm',
+      title: 'Phong độ online',
       value: `${wins}-${draws}-${losses}`,
-      detail: `${finishedGames.length} finished games. Win rate ${pct(wins / total)}.`
+      detail: `${finishedGames.length} ván đã hoàn thành. Tỷ lệ thắng ${pct(wins / total)}.`
     },
     {
-      title: 'Best rating',
-      value: bestRating || 'New',
-      detail: bestRating ? 'Highest current mode rating.' : 'Play rated games to unlock rating advice.'
+      key: 'bestRating',
+      title: 'Rating cao nhất',
+      value: bestRating || 'Mới',
+      detail: bestRating ? 'Mức rating cao nhất trong các chế độ hiện tại.' : 'Chơi ván tính điểm để nhận tư vấn rating.'
     },
     {
-      title: 'Review risk',
+      key: 'reviewRisk',
+      title: 'Rủi ro khi review',
       value: mistakeCount,
-      detail: `${blunderCount} blunders found in reviewed moves.`
+      detail: `Phát hiện ${blunderCount} nước sai nghiêm trọng trong các nước đã review.`
     },
     {
-      title: 'Puzzle form',
-      value: puzzleAttempted ? pct(puzzleAccuracy) : 'New',
-      detail: `Rush best ${bestRush}. Streak best ${bestStreak}.`
+      key: 'puzzleForm',
+      title: 'Phong độ puzzle',
+      value: puzzleAttempted ? pct(puzzleAccuracy) : 'Mới',
+      detail: `Rush tốt nhất ${bestRush}. Chuỗi tốt nhất ${bestStreak}.`
     }
   ];
 
   const recommendations = [];
   if (finishedGames.length < 5) {
-    recommendations.push('Finish at least 5 online games so the coach can separate opening, middlegame and endgame patterns.');
+    recommendations.push('Hoàn thành ít nhất 5 ván online để Coach phân tích rõ xu hướng ở khai cuộc, trung cuộc và tàn cuộc.');
   }
   if (mistakeCount >= 5) {
-    recommendations.push('Open Game Review after each loss and replay every blunder position before starting a new match.');
+    recommendations.push('Mở Game Review sau mỗi ván thua và chơi lại các vị trí sai trước khi bắt đầu ván mới.');
   }
   if (blunderCount >= 3) {
-    recommendations.push('Prioritize personal puzzles generated from your reviewed games. Your biggest rating gain is reducing one-move blunders.');
+    recommendations.push('Ưu tiên puzzle cá nhân được tạo từ các ván đã review. Giảm lỗi một nước là cách cải thiện rating nhanh nhất lúc này.');
   }
   if (!puzzleAttempted || puzzleAccuracy < 0.65) {
-    recommendations.push('Play Puzzle Streak before Puzzle Rush. Accuracy matters more than speed until you pass 65%.');
+    recommendations.push('Luyện Puzzle Streak trước Puzzle Rush. Hãy ưu tiên độ chính xác cho đến khi vượt mốc 65%.');
   }
   if (bestRush >= 20) {
-    recommendations.push('Your tactical speed is strong. Add slower custom puzzles filtered by endgame or material conversion.');
+    recommendations.push('Tốc độ chiến thuật của bạn đang tốt. Hãy bổ sung puzzle chậm về tàn cuộc và kỹ thuật chuyển hóa ưu thế.');
   }
   if (!recommendations.length) {
-    recommendations.push('Your training data is balanced. Keep alternating online games, Game Review and daily puzzle streaks.');
+    recommendations.push('Dữ liệu luyện tập đang cân bằng. Tiếp tục luân phiên ván online, Game Review và chuỗi puzzle hằng ngày.');
   }
 
   const weeklyPlan = [
-    { day: 'Thứ 2', focus: `${weakestPhase} review`, target: '2 ván đã review' },
-    { day: 'Thứ 4', focus: 'Tactical accuracy', target: '15 puzzle, mục tiêu 70%' },
-    { day: 'Thứ 6', focus: 'Opening repertoire', target: 'Ôn 2 line bằng PGN' },
-    { day: 'Cuối tuần', focus: 'Rated practice', target: '3 ván chậm và review toàn bộ' }
+    { day: 'Thứ 2', focus: `Review ${phaseLabels[weakestPhase].toLowerCase()}`, target: 'Review kỹ 2 ván đã chơi' },
+    { day: 'Thứ 4', focus: 'Độ chính xác chiến thuật', target: '15 puzzle, mục tiêu chính xác 70%' },
+    { day: 'Thứ 6', focus: 'Thư viện khai cuộc', target: 'Ôn 2 biến bằng PGN đã lưu' },
+    { day: 'Cuối tuần', focus: 'Luyện tập tính điểm', target: '3 ván chậm và review toàn bộ' }
   ];
+
   return { cards, recommendations, phaseMistakes, weakestPhase, weeklyPlan };
 }
 

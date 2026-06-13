@@ -109,104 +109,31 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
 
   return (
     <section className="notifications-page">
-      <style>{`
-        /* CSS Layout và UI của các nút action */
-        .modern-hero-layout {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 24px;
-        }
-        .modern-btn-group {
-          display: flex;
-          gap: 12px;
-        }
-        .modern-action-btn {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          padding: 12px 16px;
-          background-color: #abc854;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-        .modern-action-btn span,
-        .modern-action-btn svg {
-          color: #000000 !important;
-          font-weight: 700 !important;
-          font-size: 13px !important;
-          white-space: nowrap !important;
-        }
-        .modern-action-btn:hover:not(:disabled) {
-          background-color: #bce05d;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(171, 200, 84, 0.3);
-        }
-        .modern-action-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          box-shadow: none;
-        }
-
-        /* CSS Animation cho vòng tròn Loading */
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin {
-          animation: spin 1s linear infinite;
-        }
-        .loading-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 60px 0;
-          color: #888;
-        }
-      `}</style>
-
       <header className="notifications-hero">
-        <div className="modern-hero-layout">
-          <div style={{ flex: 1, minWidth: '280px' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <Bell size={17} /> Trung tâm thông báo
-            </span>
-            <h1 style={{ marginBottom: '12px' }}>Thông báo của bạn</h1>
-            <p style={{ lineHeight: '1.5' }}>
+        <div className="notifications-hero-layout">
+          <div className="notifications-hero-copy">
+            <span><Bell size={17} /> Trung tâm thông báo</span>
+            <h1>Thông báo của bạn</h1>
+            <p>
               Có <strong>{unreadCount}</strong> thông báo chưa đọc. Các sự kiện quan trọng như <strong>kết bạn</strong>, <strong>fair play</strong> và <strong>tài khoản</strong> sẽ nằm ở đây.
             </p>
           </div>
 
-          <div className="modern-btn-group">
+          <div className="notifications-actions">
             {browserPermission !== 'granted' && browserPermission !== 'unsupported' && (
-              <button
-                className="modern-action-btn"
-                onClick={enableBrowserNotifications}
-              >
-                <Bell size={20} strokeWidth={2} />
+              <button onClick={enableBrowserNotifications}>
+                <Bell size={18} strokeWidth={2} />
                 <span>Bật thông báo</span>
               </button>
             )}
 
-            <button
-              className="modern-action-btn"
-              onClick={toggleUnreadOnly}
-            >
-              <Filter size={20} strokeWidth={2} />
+            <button className={unreadOnly ? 'active' : ''} onClick={toggleUnreadOnly}>
+              <Filter size={18} strokeWidth={2} />
               <span>{unreadOnly ? 'Hiện tất cả' : 'Chưa đọc'}</span>
             </button>
 
-            <button
-              className="modern-action-btn"
-              onClick={markAll}
-              disabled={loading || unreadCount === 0}
-            >
-              <CheckCheck size={20} strokeWidth={2} />
+            <button onClick={markAll} disabled={loading || unreadCount === 0}>
+              <CheckCheck size={18} strokeWidth={2} />
               <span>Đánh dấu đã đọc</span>
             </button>
           </div>
@@ -215,10 +142,10 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
 
       {message && <p className="notifications-message">{message}</p>}
 
-      {/* Logic hiển thị Loading, Trạng thái rỗng hoặc Danh sách thông báo */}
       {loading ? (
-        <div className="loading-container">
-          <Loader2 size={40} className="animate-spin" />
+        <div className="social-loading">
+          <Loader2 size={38} className="social-spin" />
+          <span>Đang tải thông báo...</span>
         </div>
       ) : items.length === 0 ? (
         <p className="notifications-empty">Chưa có thông báo phù hợp.</p>

@@ -1,7 +1,15 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import SystemStatePage from './components/SystemStatePage.jsx';
 import './styles.css';
+import './styles/profile-history.css';
+import './styles/social-center.css';
+import './styles/learning-tournaments.css';
+import './styles/puzzle-premium.css';
+import './styles/leaderboard.css';
+import './styles/auth.css';
+import './styles/system-states.css';
 
 class AppErrorBoundary extends React.Component {
   constructor(props) {
@@ -16,11 +24,17 @@ class AppErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <main className="runtime-error">
-          <h1>Không thể hiển thị bàn cờ</h1>
-          <p>{this.state.error.message}</p>
-          <button onClick={() => window.location.reload()}>Tải lại</button>
-        </main>
+        <SystemStatePage
+          variant="runtime"
+          eyebrow="ChessArena gặp sự cố"
+          title="Không thể hiển thị nội dung"
+          description="Một thành phần giao diện vừa gặp lỗi. Bạn có thể tải lại trang; dữ liệu tài khoản và các ván đã lưu không bị ảnh hưởng."
+          icon="error"
+          primaryLabel="Tải lại trang"
+          onPrimary={() => window.location.reload()}
+          secondaryLabel="Về trang chủ"
+          onSecondary={() => window.location.assign('/')}
+        />
       );
     }
 

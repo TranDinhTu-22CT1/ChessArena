@@ -53,14 +53,17 @@ export async function GET(request) {
     .order('finished_at', { ascending: false })
     .limit(10);
   let scanned = 0;
+  let reportsCreated = 0;
   for (const game of games) {
     const { data: moves = [] } = await supabase.from('online_game_moves').select('*').eq('game_id', game.id).order('ply');
     for (const userId of [game.white_user_id, game.black_user_id].filter(Boolean)) {
       const { data: existing } = await supabase.from('anti_cheat_reports').select('id').eq('game_id', game.id).eq('user_id', userId).maybeSingle();
       if (existing) continue;
       try {
-        const analysis = await analyzeOnlineGameForUser(game, moves, userId);
-        await supabase.from('anti_cheat_reports').insert({
+        const analysis = await analyzeOnlineGameForUser(game, moves, userId, { movetime: 180, maxPositions: 36 });
+        scanned += 1;
+        if (analysis.riskScore < 55) continue;
+        const { error: reportError } = await supabase.from('anti_cheat_reports').insert({
           user_id: userId,
           game_id: game.id,
           risk_score: analysis.riskScore,
@@ -70,7 +73,8 @@ export async function GET(request) {
           total_moves: analysis.totalMoves,
           details: { ...analysis.details, source: 'scheduled_scan' }
         });
-        scanned += 1;
+        if (reportError) throw reportError;
+        reportsCreated += 1;
       } catch (error) {
         console.error('Scheduled anti-cheat scan failed.', { gameId: game.id, userId, message: error.message });
       }
@@ -81,6 +85,7 @@ export async function GET(request) {
   return Response.json({
     ok: true,
     matchmakingCleanup: cleanupError ? { error: cleanupError.message } : matchmakingCleanup,
-    antiCheatScans: scanned
+    antiCheatScans: scanned,
+    antiCheatReports: reportsCreated
   });
 }

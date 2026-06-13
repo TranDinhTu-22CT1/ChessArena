@@ -156,7 +156,8 @@ export async function requireOnlineUser(options = {}) {
     }
     return {
       supabase,
-      user: userPayload
+      user: userPayload,
+      activeBan: null
     };
   }
 

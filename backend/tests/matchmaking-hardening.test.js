@@ -64,6 +64,8 @@ test('a stale pre-join heartbeat cannot cancel a newly-created queue ticket', as
 
   assert.doesNotMatch(heartbeat, /left_queue_view/);
   assert.match(onlinePage, /queueing && !data\.queueTicketId/);
+  assert.doesNotMatch(onlinePage, /Search ended before a match was created/);
+  assert.match(onlinePage, /Reconnecting to matchmaking automatically/);
 });
 
 test('matchmaking v2 has leases, session ownership, region expansion, and an outbox', async () => {

@@ -26,7 +26,7 @@ function openProfile(userId) {
 
 function PlayerAvatar({ user }) {
   return (
-    <span className="friend-avatar">
+    <span className={`friend-avatar ${user?.presence?.online ? 'online' : ''}`}>
       {user?.photoURL ? <img src={user.photoURL} alt="" /> : <Users size={22} />}
     </span>
   );
@@ -277,38 +277,24 @@ export default function FriendsPage({ authUser, onLogin }) {
 
   return (
     <section className="friends-page">
-      {/* CSS Animation cho spinner */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin {
-          animation: spin 1s linear infinite;
-        }
-        .loading-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 60px 0;
-          color: #888;
-        }
-      `}</style>
-
       <header className="friends-hero">
-        <div>
+        <div className="friends-hero-copy">
           <span><Users size={18} /> ChessArena Social</span>
           <h1>Bạn bè và thách đấu</h1>
           <p>Quản lý danh sách bạn bè, theo dõi trạng thái online và tạo lời mời chơi cờ trực tiếp.</p>
         </div>
+        <div className="friends-hero-stats" aria-label="Tổng quan bạn bè">
+          <article><strong>{friends.length}</strong><small>Bạn bè</small></article>
+          <article><strong>{friends.filter((item) => item.user?.presence?.online).length}</strong><small>Đang online</small></article>
+          <article><strong>{incoming.length}</strong><small>Lời mời mới</small></article>
+        </div>
         <button
+          className="friends-refresh-button"
           disabled={loading}
           onClick={loadFriends}
           type="button"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          {/* Thêm class xoay vòng vào icon khi đang loading */}
-          <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={17} className={loading ? 'social-spin' : ''} />
           {loading ? 'Đang tải...' : 'Tải lại'}
         </button>
       </header>
@@ -336,20 +322,20 @@ export default function FriendsPage({ authUser, onLogin }) {
       {invite && (
         <article className="friends-invite-card">
           <div>
-            <span>Invite challenge</span>
+            <span>Lời mời thách đấu</span>
             <strong>{invite.code}</strong>
             <small>Gửi link này cho {invite.name}. Link hết hạn lúc {formatInviteExpiry(invite.expiresAt)}.</small>
           </div>
-          <button onClick={copyInvite} type="button"><Copy size={17} /> Copy link</button>
+          <button onClick={copyInvite} type="button"><Copy size={17} /> Sao chép link</button>
         </article>
       )}
 
-      {/* TAB BẠN BÈ */}
       {activeTab === 'friends' && (
         <div className="friends-list">
           {loading ? (
-            <div className="loading-container">
-              <Loader2 size={40} className="animate-spin" />
+            <div className="social-loading">
+              <Loader2 size={38} className="social-spin" />
+              <span>Đang tải danh sách bạn bè...</span>
             </div>
           ) : friends.length === 0 ? (
             <p className="friends-empty">Chưa có bạn bè. Mở tab Tìm người chơi để gửi lời mời kết bạn.</p>
@@ -364,12 +350,12 @@ export default function FriendsPage({ authUser, onLogin }) {
         </div>
       )}
 
-      {/* TAB LỜI MỜI */}
       {activeTab === 'requests' && (
         <div className="friends-list">
           {loading ? (
-            <div className="loading-container">
-              <Loader2 size={40} className="animate-spin" />
+            <div className="social-loading">
+              <Loader2 size={38} className="social-spin" />
+              <span>Đang tải lời mời...</span>
             </div>
           ) : requestItems.length === 0 ? (
             <p className="friends-empty">Chưa có lời mời kết bạn nào.</p>
@@ -394,7 +380,6 @@ export default function FriendsPage({ authUser, onLogin }) {
         </div>
       )}
 
-      {/* TAB TÌM NGƯỜI CHƠI */}
       {activeTab === 'search' && (
         <div className="friends-search-panel">
           <label className="friends-search-box">
@@ -403,8 +388,9 @@ export default function FriendsPage({ authUser, onLogin }) {
           </label>
 
           {searching ? (
-            <div className="loading-container">
-              <Loader2 size={40} className="animate-spin" />
+            <div className="social-loading">
+              <Loader2 size={38} className="social-spin" />
+              <span>Đang tìm người chơi...</span>
             </div>
           ) : query.trim().length >= 2 && results.length === 0 ? (
             <p className="friends-empty">Không tìm thấy người chơi phù hợp.</p>

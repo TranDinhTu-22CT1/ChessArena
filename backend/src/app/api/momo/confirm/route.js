@@ -1,6 +1,12 @@
 import { distributedRateLimit } from '../../../../lib/rateLimit';
-import { requireSupabase } from '../../../../lib/online';
-import { momoAmount, readMomoExtraData, verifyMomoResultSignature } from '../../../../lib/momo';
+import { requireOnlineUser, requireSupabase } from '../../../../lib/online';
+import {
+  isMomoPendingResult,
+  momoAmount,
+  momoResultMessage,
+  readMomoExtraData,
+  verifyMomoResultSignature
+} from '../../../../lib/momo';
 import { recordPaymentTransaction } from '../../../../lib/payments';
 
 export const runtime = 'nodejs';
@@ -9,10 +15,21 @@ function cleanTransactionId(payload) {
   return String(payload?.transId || payload?.orderId || '').trim().slice(0, 160);
 }
 
-async function activateMomoMembership(supabase, payload) {
+export async function activateMomoMembership(
+  supabase,
+  payload,
+  expectedUserId = null,
+  { verifySignature = true } = {}
+) {
   const extra = readMomoExtraData(payload.extraData);
   if (!extra?.userId || !extra?.tier || !extra?.billingCycle) {
     return Response.json({ ok: false, error: 'Missing MoMo membership metadata.' }, { status: 400 });
+  }
+  if (expectedUserId && extra.userId !== expectedUserId) {
+    return Response.json({
+      ok: false,
+      error: 'Phiên đăng nhập hiện tại không khớp với tài khoản đã tạo giao dịch MoMo. Hãy đăng nhập lại đúng tài khoản; hệ thống vẫn nhận IPN để cập nhật giao dịch cho tài khoản ban đầu.'
+    }, { status: 409 });
   }
 
   const expectedAmount = momoAmount(extra.tier, extra.billingCycle);
@@ -20,17 +37,60 @@ async function activateMomoMembership(supabase, payload) {
     return Response.json({ ok: false, error: 'MoMo amount does not match the selected membership.' }, { status: 400 });
   }
 
-  if (Number(payload.resultCode) !== 0) {
-    return Response.json({ ok: false, error: payload.message || 'MoMo payment was not successful.' }, { status: 400 });
-  }
-
-  if (!verifyMomoResultSignature(payload)) {
+  if (verifySignature && !verifyMomoResultSignature(payload)) {
     return Response.json({ ok: false, error: 'Invalid MoMo signature.' }, { status: 400 });
   }
 
   const transactionId = cleanTransactionId(payload);
   if (!transactionId) {
     return Response.json({ ok: false, error: 'Missing MoMo transaction id.' }, { status: 400 });
+  }
+
+  const orderId = String(payload.orderId || '').trim().slice(0, 160);
+  const { data: existingTransaction } = orderId
+    ? await supabase
+      .from('payment_transactions')
+      .select('status, tier, billing_cycle, user_id')
+      .eq('provider', 'momo')
+      .eq('provider_event_id', orderId)
+      .maybeSingle()
+    : { data: null };
+
+  if (existingTransaction?.status === 'completed') {
+    return Response.json({
+      ok: true,
+      idempotent: true,
+      tier: existingTransaction.tier,
+      billingCycle: existingTransaction.billing_cycle
+    });
+  }
+
+  if (Number(payload.resultCode) !== 0) {
+    const pending = isMomoPendingResult(payload.resultCode);
+    await recordPaymentTransaction(supabase, {
+      userId: extra.userId,
+      provider: 'momo',
+      providerTransactionId: transactionId,
+      providerEventId: orderId || null,
+      status: pending ? 'pending' : 'failed',
+      tier: extra.tier,
+      billingCycle: extra.billingCycle,
+      currency: 'VND',
+      amount: payload.amount,
+      metadata: {
+        orderId: payload.orderId,
+        requestId: payload.requestId,
+        resultCode: Number(payload.resultCode),
+        providerMessage: payload.message || ''
+      }
+    }).catch(() => null);
+    return Response.json({
+      ok: false,
+      pending,
+      final: !pending,
+      resultCode: Number(payload.resultCode),
+      error: momoResultMessage(payload.resultCode, payload.message)
+    }, { status: pending ? 202 : 200 });
   }
 
   const { data: existingPayment, error: lookupError } = await supabase
@@ -76,6 +136,7 @@ async function activateMomoMembership(supabase, payload) {
     userId: extra.userId,
     provider: 'momo',
     providerTransactionId: transactionId,
+    providerEventId: orderId || null,
     status: 'completed',
     tier: extra.tier,
     billingCycle: extra.billingCycle,
@@ -98,7 +159,13 @@ export async function POST(request) {
 
   const payload = await request.json().catch(() => null);
   if (!payload) return Response.json({ ok: false, error: 'Invalid MoMo payload.' }, { status: 400 });
-  return activateMomoMembership(supabase, payload);
+  let expectedUserId = null;
+  if (request.headers.get('origin')) {
+    const context = await requireOnlineUser();
+    if (context.error) return context.error;
+    expectedUserId = context.user.id;
+  }
+  return activateMomoMembership(supabase, payload, expectedUserId);
 }
 
 export function OPTIONS() {

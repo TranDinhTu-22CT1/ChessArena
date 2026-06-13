@@ -89,7 +89,7 @@ export async function POST(request) {
         .order('ply', { ascending: true });
       if (movesError) throw movesError;
 
-      const analysis = await analyzeOnlineGameForUser(game, safeArray(moves), userId);
+      const analysis = await analyzeOnlineGameForUser(game, safeArray(moves), userId, { movetime: 220, maxPositions: 40 });
       const reportPayload = {
         user_id: userId,
         game_id: game.id,

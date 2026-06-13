@@ -49,12 +49,12 @@ export async function createFirebaseSessionCookie(idToken, expiresIn) {
 
 export async function verifyFirebaseSession(sessionCookie) {
   const firebaseAdmin = getFirebaseAdmin();
+  return firebaseAdmin.auth().verifySessionCookie(sessionCookie, true);
+}
 
-  try {
-    return await firebaseAdmin.auth().verifySessionCookie(sessionCookie, true);
-  } catch {
-    return firebaseAdmin.auth().verifyIdToken(sessionCookie);
-  }
+export async function revokeFirebaseSessions(uid) {
+  const firebaseAdmin = getFirebaseAdmin();
+  return firebaseAdmin.auth().revokeRefreshTokens(uid);
 }
 
 export async function firebaseUserExists(email) {

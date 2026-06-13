@@ -31,7 +31,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-setPersistence(auth, browserSessionPersistence).catch(() => {});
+export const authPersistenceReady = setPersistence(auth, browserSessionPersistence).catch(() => {});
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
 githubProvider.addScope('user:email');

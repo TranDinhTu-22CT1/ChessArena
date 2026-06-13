@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import { Chess } from 'chess.js';
-import { BarChart3, Brain, Copy, Download, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { BarChart3, Brain, Copy, Download, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, X } from 'lucide-react';
 import {
   cancelOnlineQueue,
   createFriendGame,
@@ -285,7 +285,7 @@ function playMoveSound(audioRef, move = {}, pieceSet = 'neo', theme = {}) {
   playChessSound(context, chessSoundEvent(move), chessSoundProfile(pieceSet, theme));
 }
 
-export default function OnlinePage({ authUser, userName, pieceSet, theme, membership, onLogin, onNavigate, historyOnly = false, historyReviewGameId = '' }) {
+export default function OnlinePage({ authUser, userName, pieceSet, theme, membership, onLogin, onNavigate, onCoachContextChange, historyOnly = false, historyReviewGameId = '' }) {
   const [summary, setSummary] = React.useState({ onlineCount: 0, queueCount: 0 });
   const [timeControl, setTimeControl] = React.useState('600+0');
   const [queueing, setQueueing] = React.useState(false);
@@ -389,6 +389,31 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   const reviewedMoveCount = stockfishReview.filter(Boolean).length;
   const reviewProgress = moves.length ? Math.round((reviewedMoveCount / moves.length) * 100) : 0;
   const reviewingLiveGame = reviewMode && !terminalGame;
+  const coachContext = React.useMemo(() => {
+    if (!game || !board) return null;
+    const latestMove = moves.at(-1);
+    return {
+      hasBoardContext: true,
+      fen: board.fen(),
+      pgn: board.pgn(),
+      turn: board.turn(),
+      playerColor: game.playerColor || '',
+      latestMove: latestMove?.san || latestMove?.lan || '',
+      recentMoves: moves.slice(-12).map((move) => `${move.ply}. ${move.color === 'w' ? 'White' : 'Black'} ${move.san || move.lan}`),
+      review: currentReviewAnalysis ? {
+        label: currentReviewAnalysis.label,
+        tone: currentReviewAnalysis.tone,
+        bestMove: currentReviewAnalysis.bestMove || '',
+        centipawnLoss: currentReviewAnalysis.centipawnLoss,
+        winLoss: currentReviewAnalysis.winLoss
+      } : null
+    };
+  }, [board, currentReviewAnalysis, game, moves]);
+
+  React.useEffect(() => {
+    onCoachContextChange?.(coachContext);
+    return () => onCoachContextChange?.(null);
+  }, [coachContext, onCoachContextChange]);
 
   const refreshGame = React.useCallback(async (id = gameId) => {
     if (!id || gameFetchInFlightRef.current) return;
@@ -447,11 +472,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
             setGameId(data.currentGameId);
             setMessage('Matched. Loading board...');
           } else if (queueing && !data.queueTicketId) {
-            setQueueing(false);
-            setQueueStartedAt(null);
-            setQueueSeconds(0);
-            setQueueRatingWindow(50);
-            setMessage('Search ended before a match was created. Please try again.');
+            setMessage('Still searching. Reconnecting to matchmaking automatically...');
           }
         }
       } catch {
@@ -1228,19 +1249,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
 
   return (
     <section className="online-workspace">
-      <header className="online-header">
-        <div>
-          <span><Radio size={16} /> {openedFromHistory ? 'Saved game' : 'Live players'}</span>
-          <h1>{openedFromHistory ? 'Online Game Review' : 'Online Chess'}</h1>
-        </div>
-        {!playingView && !openedFromHistory && (
-          <div className="online-metrics">
-            <b><Users size={17} />{summary.onlineCount} online</b>
-            <b><Search size={17} />{summary.queueCount} searching</b>
-          </div>
-        )}
-      </header>
-
       <main className="online-layout">
         <section className="online-board-section">
           <div className={`online-player-bar top ${game?.turn === topColor && game?.status === 'active' ? 'active-clock' : ''}`}>

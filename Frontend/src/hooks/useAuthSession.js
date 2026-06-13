@@ -2,6 +2,7 @@ import React from 'react';
 import { apiUrl } from '../api/config';
 import {
   auth,
+  authPersistenceReady,
   fetchSignInMethodsForEmail,
   getAdditionalUserInfo,
   GithubAuthProvider,
@@ -44,6 +45,64 @@ function isBuiltInTestUser(email, password) {
   return String(email || '').trim().toLowerCase() === 'test@gmail.com' && String(password || '') === '123456';
 }
 
+const SESSION_UID_KEY = 'chessarena:authenticated-uid';
+
+function rememberedSessionUid() {
+  try {
+    return window.sessionStorage.getItem(SESSION_UID_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function rememberSessionUid(uid) {
+  try {
+    if (uid) window.sessionStorage.setItem(SESSION_UID_KEY, uid);
+    else window.sessionStorage.removeItem(SESSION_UID_KEY);
+  } catch {
+    // Session storage can be unavailable in restricted browser modes.
+  }
+}
+
+async function requestBackendSession(firebaseUser, { remember = false, profile = {} } = {}) {
+  const token = await firebaseUser.getIdToken();
+  const deviceId = await getDeviceFingerprint().catch(() => null);
+  const response = await fetch(apiUrl('/api/auth/session'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      idToken: token,
+      remember: Boolean(remember),
+      deviceId,
+      profile: {
+        displayName: profile.displayName || firebaseUser.displayName || '',
+        githubLogin: profile.githubLogin || '',
+        githubName: profile.githubName || '',
+        photoURL: profile.photoURL || firebaseUser.photoURL || ''
+      }
+    })
+  });
+  const responseText = await response.text();
+  let data = {};
+
+  try {
+    data = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    const plainText = responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    data = {
+      error: plainText.includes('TurbopackInternalError')
+        ? 'Backend auth server đang lỗi dev cache/Turbopack. Hãy restart backend rồi thử lại.'
+        : plainText.slice(0, 220) || 'Backend did not return JSON.'
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Không thể tạo phiên đăng nhập.');
+  }
+  return data.user;
+}
+
 export function useAuthSession() {
   const [userName, setUserName] = React.useState('Player');
   const [authMode, setAuthMode] = React.useState(null);
@@ -83,31 +142,48 @@ export function useAuthSession() {
   }, []);
 
   React.useEffect(() => {
+    let cancelled = false;
     const adminView = new URLSearchParams(window.location.search).get('adminView') === '1';
-    const clearUserSession = adminView
-      ? Promise.all([
-        fetch(apiUrl('/api/auth/logout'), {
-          method: 'POST',
-          credentials: 'include'
-        }).catch(() => {}),
-        signOut(auth).catch(() => {})
-      ])
-      : Promise.resolve();
 
-    clearUserSession
+    Promise.all([
+      authPersistenceReady.then(() => auth.authStateReady())
+    ])
       .then(() => fetch(apiUrl(`/api/auth/me${adminView ? '?adminView=1' : ''}`), { credentials: 'include' }))
       .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
+      .then(async (data) => {
+        if (cancelled) return;
         if (!data?.user) {
+          const expectedUid = rememberedSessionUid();
+          const canRestoreCurrentFirebaseUser = auth.currentUser
+            && (!expectedUid || expectedUid === auth.currentUser.uid);
+          if (!adminView && canRestoreCurrentFirebaseUser) {
+            const restoredUser = await requestBackendSession(auth.currentUser);
+            if (cancelled) return;
+            rememberSessionUid(restoredUser.uid);
+            setAuthUser(restoredUser);
+            setUserName(displayNameFromUser(restoredUser));
+            setAuthMode(null);
+            return;
+          }
           setAuthMode('login');
           return;
         }
+        if (cancelled) return;
+        rememberSessionUid(data.user.uid);
         setAuthUser(data.user);
         setUserName(displayNameFromUser(data.user));
         setAuthMode(null);
       })
-      .catch(() => setAuthMode('login'))
-      .finally(() => setAuthReady(true));
+      .catch(() => {
+        if (!cancelled) setAuthMode('login');
+      })
+      .finally(() => {
+        if (!cancelled) setAuthReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   React.useEffect(() => {
@@ -155,6 +231,7 @@ export function useAuthSession() {
     }
 
     setAuthUser(data.user);
+    rememberSessionUid(data.user.uid);
     setUserName(displayNameFromUser(data.user));
     setAuthMode(null);
     clearAuthMessage();
@@ -413,17 +490,20 @@ export function useAuthSession() {
   };
 
   const logout = React.useCallback(async () => {
-    await fetch(apiUrl('/api/auth/logout'), {
-      method: 'POST',
-      credentials: 'include'
-    }).catch(() => {});
-    await signOut(auth).catch(() => {});
     setAuthUser(null);
     setOtpState(null);
     setAuthMode('login');
     setUserName('Player');
     setAuthForm((form) => ({ ...form, password: '', otp: '', newPassword: '', remember: false }));
     clearAuthMessage();
+    rememberSessionUid('');
+    await signOut(auth).catch(() => {});
+    await fetch(apiUrl('/api/auth/logout'), {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store'
+    }).catch(() => {});
+    window.location.replace('/login');
   }, [clearAuthMessage]);
 
   const updateSessionProfile = React.useCallback((profile) => {
