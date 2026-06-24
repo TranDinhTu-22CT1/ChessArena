@@ -19,25 +19,20 @@ export async function recordPaymentTransaction(supabase, transaction) {
     updated_at: new Date().toISOString()
   };
 
-  if (!row.provider || !row.provider_transaction_id) {
-    throw new Error('Missing payment transaction provider or provider_transaction_id.');
-  }
-
-  const { data, error } = await supabase
-    .from('payment_transactions')
-    .upsert(row, {
+  let query = supabase.from('payment_transactions').insert(row);
+  if (row.provider_event_id) {
+    query = supabase.from('payment_transactions').upsert(row, {
+      onConflict: 'provider,provider_event_id',
+      ignoreDuplicates: false
+    });
+  } else if (row.provider_transaction_id) {
+    query = supabase.from('payment_transactions').upsert(row, {
       onConflict: 'provider,provider_transaction_id,kind',
       ignoreDuplicates: false
-    })
-    .select('*')
-    .maybeSingle();
-
-  if (error) {
-    if (error.code === '23505') {
-      return null;
-    }
-    throw error;
+    });
   }
 
+  const { data, error } = await query.select('*').single();
+  if (error) throw error;
   return data;
 }
