@@ -10,8 +10,9 @@ const nextConfig = {
   },
   serverExternalPackages: ['stockfish'],
   outputFileTracingIncludes: {
-    '/api/analysis/*': ['./node_modules/stockfish/src/stockfish-17.1-lite-single-03e3232.*'],
-    '/api/puzzles/*': ['./node_modules/stockfish/src/stockfish-17.1-lite-single-03e3232.*']
+    '/api/analysis/*': ['./node_modules/stockfish/bin/stockfish-18-single.*', './node_modules/stockfish/bin/stockfish-18-lite-single.*'],
+    '/api/puzzles/*': ['./node_modules/stockfish/bin/stockfish-18-single.*', './node_modules/stockfish/bin/stockfish-18-lite-single.*'],
+    '/api/ai/coach-chat': ['./node_modules/stockfish/bin/stockfish-18-single.*', './node_modules/stockfish/bin/stockfish-18-lite-single.*']
   },
   async headers() {
     const securityHeaders = [

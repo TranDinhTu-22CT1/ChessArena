@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { corsHeaders } from './lib/cors';
+import { corsHeaders, mutationGuard } from './lib/cors';
 
 export function proxy(request) {
   if (!request.nextUrl.pathname.startsWith('/api/')) return;
@@ -11,7 +11,7 @@ export function proxy(request) {
     });
   }
 
-  const response = NextResponse.next();
+  const response = mutationGuard(request) || NextResponse.next();
   const headers = corsHeaders(request);
   Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
   return response;

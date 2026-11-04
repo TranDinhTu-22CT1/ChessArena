@@ -56,13 +56,6 @@ export const ACHIEVEMENTS = [
     title: 'Daily Streak 7',
     description: 'Keep a 7-day Daily Puzzle streak.',
     target: 7
-  },
-  {
-    key: 'tournament_joined',
-    tier: 'bronze',
-    title: 'Tournament Entrant',
-    description: 'Join your first Arena tournament.',
-    target: 1
   }
 ];
 
@@ -91,8 +84,7 @@ export async function computeAchievementProgress(supabase, userId) {
     { data: games = [] },
     { count: reviewCount = 0 },
     { data: puzzleTotals = [] },
-    { data: dailyClaims = [] },
-    { count: tournamentCount = 0 }
+    { data: dailyClaims = [] }
   ] = await Promise.all([
     supabase.from('user_ratings').select('rating, games_played, wins').eq('user_id', userId),
     supabase
@@ -112,11 +104,7 @@ export async function computeAchievementProgress(supabase, userId) {
       .select('streak')
       .eq('user_id', userId)
       .order('puzzle_date', { ascending: false })
-      .limit(1),
-    supabase
-      .from('arena_tournament_players')
-      .select('tournament_id', { count: 'exact', head: true })
-      .eq('user_id', userId)
+      .limit(1)
   ]);
 
   const ratingRows = safeArray(ratings);
@@ -143,8 +131,7 @@ export async function computeAchievementProgress(supabase, userId) {
     progressPayload('puzzle_50_correct', correctPuzzles),
     progressPayload('rush_20', bestRush),
     progressPayload('streak_15', bestStreak),
-    progressPayload('daily_7', dailyStreak),
-    progressPayload('tournament_joined', tournamentCount || 0)
+    progressPayload('daily_7', dailyStreak)
   ];
 }
 

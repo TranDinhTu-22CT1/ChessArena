@@ -1,5 +1,5 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { ensureAdminAppUser, requireAdminCsrf, requireAdminPermission, requireAdminUser, riskSignalsFromDevice, writeAdminAudit } from '../../../../lib/admin';
+import { ensureAdminAppUser, requireAdminCsrf, requireAdminPermission, requireAdminUser, writeAdminAudit } from '../../../../lib/admin';
 import { createUserNotification } from '../../../../lib/notifications';
 import { safeArray } from '../../../../lib/validation';
 
@@ -11,10 +11,6 @@ function cleanSearch(value) {
 
 function cleanReason(value) {
   return String(value || 'Policy violation').trim().replace(/\s+/g, ' ').slice(0, 300) || 'Policy violation';
-}
-
-function cleanBanType(value) {
-  return ['account', 'device', 'account_device', 'risk'].includes(value) ? value : 'account';
 }
 
 function cleanExpiresAt(value) {
@@ -71,13 +67,10 @@ export async function GET(request) {
   const users = safeArray(userRows);
 
   const ids = users.map((user) => user.id);
-  const [ratings, bans, mutes, devices, trustScores, reports] = ids.length ? await Promise.all([
+  const [ratings, bans, mutes] = ids.length ? await Promise.all([
     context.supabase.from('user_ratings').select('*').in('user_id', ids),
     context.supabase.from('user_bans').select('*').in('user_id', ids).order('created_at', { ascending: false }),
     context.supabase.from('user_mutes').select('*').in('user_id', ids).order('created_at', { ascending: false }),
-    context.supabase.from('user_devices').select('user_id, device_fingerprint, user_agent, user_agent_hash, ip_prefix, last_seen_at').in('user_id', ids).order('last_seen_at', { ascending: false }),
-    context.supabase.from('user_trust_scores').select('*').in('user_id', ids),
-    context.supabase.from('anti_cheat_reports').select('user_id, status, risk_score, created_at').in('user_id', ids).order('created_at', { ascending: false })
   ]) : [];
 
   return Response.json({
@@ -91,9 +84,6 @@ export async function GET(request) {
       ratings: safeArray(ratings?.data).filter((row) => row.user_id === user.id),
       bans: safeArray(bans?.data).filter((row) => row.user_id === user.id),
       mutes: safeArray(mutes?.data).filter((row) => row.user_id === user.id),
-      devices: safeArray(devices?.data).filter((row) => row.user_id === user.id).slice(0, 5),
-      trust: safeArray(trustScores?.data).find((row) => row.user_id === user.id) || null,
-      reports: safeArray(reports?.data).filter((row) => row.user_id === user.id).slice(0, 5)
     }))
   });
 }
@@ -116,45 +106,17 @@ export async function PATCH(request) {
   const payload = await request.json().catch(() => null);
   const action = payload?.action;
   const userId = String(payload?.userId || '').trim();
-  const deviceFingerprint = String(payload?.deviceFingerprint || '').trim().slice(0, 160);
 
   if (!userId) return Response.json({ ok: false, error: 'Missing user id.' }, { status: 400 });
 
   if (action === 'ban') {
-    const requestedBanType = cleanBanType(payload?.banType);
-    const { data: latestDevice } = await context.supabase
-      .from('user_devices')
-      .select('*')
-      .eq('user_id', userId)
-      .order('last_seen_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const signals = riskSignalsFromDevice({
-      ...latestDevice,
-      device_fingerprint: deviceFingerprint || latestDevice?.device_fingerprint
-    });
-    const hasDeviceSignal = Boolean(signals.deviceFingerprint);
-    const hasRiskSignals = Boolean(signals.deviceFingerprint && signals.ipPrefix && signals.userAgentHash);
-    const banType = requestedBanType === 'risk' && !hasRiskSignals
-      ? 'account'
-      : ['device', 'account_device'].includes(requestedBanType) && !hasDeviceSignal
-        ? 'account'
-        : requestedBanType;
-
-    if (requestedBanType !== banType) {
-      signals.fallbackBanType = banType;
-      signals.requestedBanType = requestedBanType;
-    }
-
+    if (payload.banType && payload.banType !== 'account') return Response.json({ ok: false, error: 'Chỉ hỗ trợ khóa tài khoản.' }, { status: 400 });
+    if (payload.expiresAt && !cleanExpiresAt(payload.expiresAt)) return Response.json({ ok: false, error: 'Thời hạn phải ở trong tương lai.' }, { status: 400 });
     const { data, error } = await context.supabase
       .from('user_bans')
       .insert({
-        user_id: banType === 'device' ? null : userId,
-        device_fingerprint: banType === 'account' ? null : signals.deviceFingerprint,
-        ip_prefix: banType === 'risk' ? signals.ipPrefix : null,
-        user_agent_hash: banType === 'risk' ? signals.userAgentHash : null,
-        risk_signals: banType === 'risk' ? signals : {},
-        ban_type: banType,
+        user_id: userId,
+        ban_type: 'account',
         reason: cleanReason(payload?.reason),
         expires_at: cleanExpiresAt(payload?.expiresAt),
         created_by: context.admin.id
@@ -165,26 +127,22 @@ export async function PATCH(request) {
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
     await writeAdminAudit(context.supabase, context.admin, 'user.ban', {
       targetUserId: userId,
-      deviceFingerprint: signals.deviceFingerprint,
-      banType,
-      requestedBanType,
-      riskSignals: banType === 'risk' ? signals : undefined,
       reason: data.reason
     });
     await createUserNotification(context.supabase, {
       recipientUserId: userId,
       type: 'account_ban',
       title: 'Tài khoản bị hạn chế',
-      body: data.reason || 'Tài khoản của bạn đang bị cấm theo chính sách fair play.',
-      actionUrl: '/profile',
+      body: data.reason || 'Tài khoản của bạn đang bị cấm theo chính sách cộng đồng.',
+      actionUrl: '/login',
       priority: 'critical',
-      metadata: { banId: data.id, banType, requestedBanType, expiresAt: data.expires_at }
+      metadata: { banId: data.id, expiresAt: data.expires_at }
     });
     await notifyAdminAction(context, {
       type: 'admin_user_ban',
       title: 'Đã cấm người chơi',
-      body: `Ban type ${banType}. Lý do: ${data.reason}`,
-      metadata: { targetUserId: userId, banId: data.id, banType }
+      body: `Khóa tài khoản. Lý do: ${data.reason}`,
+      metadata: { targetUserId: userId, banId: data.id }
     });
     return Response.json({ ok: true, ban: data });
   }

@@ -1,13 +1,14 @@
+import { banNotice, findOnlineProfile } from './banPolicy.js';
+import { hasPaidAccess } from './membershipPolicy.js';
 import { cookies } from 'next/headers';
 import { Chess } from 'chess.js';
 import { verifyFirebaseSession } from './firebaseAdmin';
 import { getSupabaseAdmin } from './supabaseAdmin';
-import { activeBanForUser, ensureAdminAppUser, requireAdminUser } from './admin';
+import { ensureAdminAppUser, requireAdminUser } from './admin';
 import { sanitizePieceSet } from './validation';
 
 const ONLINE_WINDOW_MS = 45_000;
 const QUEUE_STALE_MS = 30_000;
-const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const OPENING_MOVE_DEADLINE_MS = 20_000;
 export const DEFAULT_ONLINE_RATING = 400;
 
@@ -56,12 +57,7 @@ export function gameParticipantUserId(game, userIds, fallbackId = null) {
   return userIds.find((userId) => game.white_user_id === userId || game.black_user_id === userId) || fallbackId;
 }
 
-export function randomInviteCode(length = 6) {
-  let code = '';
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  for (const byte of bytes) code += INVITE_ALPHABET[byte % INVITE_ALPHABET.length];
-  return code;
-}
+
 
 export function staleIso(ms) {
   return new Date(Date.now() - ms).toISOString();
@@ -104,38 +100,40 @@ export async function requireOnlineUser(options = {}) {
 
   const cookieStore = await cookies();
   const token = cookieStore.get('firebase_id_token')?.value;
-  if (!token) {
-    const adminContext = await requireAdminUser();
-    if (!adminContext.error) {
-      try {
-        return {
-          supabase,
-          user: await ensureAdminAppUser(supabase, adminContext.admin)
-        };
-      } catch (error) {
-        return { error: Response.json({ ok: false, error: error.message || 'Could not create admin user context.' }, { status: 500 }) };
-      }
+  const adminContext = await requireAdminUser();
+  if (!adminContext.error) {
+    try {
+      return {
+        supabase,
+        user: await ensureAdminAppUser(supabase, adminContext.admin)
+      };
+    } catch (error) {
+      return { error: Response.json({ ok: false, error: error.message || 'Could not create admin user context.' }, { status: 500 }) };
     }
+  }
 
+  if (!token) {
     return { error: Response.json({ ok: false, error: 'Sign in is required for online play.' }, { status: 401 }) };
   }
 
   let decoded;
   try {
-    decoded = await verifyFirebaseSession(token);
+    // Verify signature/expiry locally before looking up this identity. Revocation
+    // and the live account-ban query then run concurrently; both must succeed.
+    decoded = await verifyFirebaseSession(token, false);
   } catch {
     return { error: Response.json({ ok: false, error: 'Invalid or expired session.' }, { status: 401 }) };
   }
 
   const username = safeUsername(decoded.email || decoded.uid);
-  const { data: storedUser } = await supabase
-    .from('users')
-    .select('id, username, display_name, firebase_uid, photo_url, email')
-    .eq('firebase_uid', decoded.uid)
-    .maybeSingle();
-
+  const [verifiedSession, profile] = await Promise.allSettled([
+    verifyFirebaseSession(token), findOnlineProfile(supabase, decoded.uid)
+  ]);
+  if (verifiedSession.status !== 'fulfilled') return {error:Response.json({ok:false,error:'Invalid or expired session.'},{status:401})};
+  if (profile.status !== 'fulfilled') return {error:Response.json({ok:false,error:profile.reason.message},{status:503})};
+  const storedUser = profile.value;
   if (storedUser) {
-    const activeBan = await activeBanForUser(supabase, storedUser.id);
+    const activeBan = storedUser.bans?.[0] || null;
     const userPayload = {
       id: storedUser.id,
       username: storedUser.username,
@@ -152,7 +150,7 @@ export async function requireOnlineUser(options = {}) {
       };
     }
     if (activeBan) {
-      return { error: Response.json({ ok: false, error: activeBan.reason || 'This account is banned.' }, { status: 403 }) };
+      return { error: Response.json(banNotice(activeBan), { status: 403 }) };
     }
     return {
       supabase,
@@ -281,27 +279,6 @@ export async function ensureModeRating(supabase, userId, mode) {
   return error ? { ...legacy, mode: normalizedMode, provisional: true } : created;
 }
 
-function ratingKFactor(player) {
-  if ((player.games_played ?? 0) < 30) return 40;
-  if ((player.rating ?? DEFAULT_ONLINE_RATING) < 1200) return 32;
-  if ((player.rating ?? DEFAULT_ONLINE_RATING) < 2000) return 24;
-  return 16;
-}
-
-function ratingDelta(player, opponent, score) {
-  const rating = player.rating ?? DEFAULT_ONLINE_RATING;
-  const opponentRating = opponent.rating ?? DEFAULT_ONLINE_RATING;
-  const expected = 1 / (1 + (10 ** ((opponentRating - rating) / 400)));
-  return Math.round(ratingKFactor(player) * (score - expected));
-}
-
-function scoreForResult(result, color) {
-  if (result === '1/2-1/2') return 0.5;
-  if (result === '1-0') return color === 'w' ? 1 : 0;
-  if (result === '0-1') return color === 'b' ? 1 : 0;
-  return null;
-}
-
 export async function applyOnlineRatingResult(supabase, game, result) {
   if (game.rated === false || !['1-0', '0-1', '1/2-1/2'].includes(result) || !game.white_user_id || !game.black_user_id) {
     return null;
@@ -331,62 +308,7 @@ export async function applyOnlineRatingResult(supabase, game, result) {
     return rpcResult;
   }
 
-  const { error: eventError } = await supabase
-    .from('online_rating_events')
-    .insert({
-      game_id: game.id,
-      white_user_id: game.white_user_id,
-      black_user_id: game.black_user_id,
-      result
-    });
-
-  if (eventError) return null;
-
-  const mode = game.mode || onlineModeFromTimeControl(game.time_control);
-  const [whiteRating, blackRating] = await Promise.all([
-    ensureModeRating(supabase, game.white_user_id, mode),
-    ensureModeRating(supabase, game.black_user_id, mode)
-  ]);
-  const whiteScore = scoreForResult(result, 'w');
-  const blackScore = scoreForResult(result, 'b');
-  const whiteDelta = ratingDelta(whiteRating, blackRating, whiteScore);
-  const blackDelta = ratingDelta(blackRating, whiteRating, blackScore);
-  const now = new Date().toISOString();
-
-  const whitePatch = {
-    rating: Math.max(100, (whiteRating.rating ?? DEFAULT_ONLINE_RATING) + whiteDelta),
-    games_played: (whiteRating.games_played ?? 0) + 1,
-    wins: (whiteRating.wins ?? 0) + (whiteScore === 1 ? 1 : 0),
-    losses: (whiteRating.losses ?? 0) + (whiteScore === 0 ? 1 : 0),
-    draws: (whiteRating.draws ?? 0) + (whiteScore === 0.5 ? 1 : 0),
-    provisional: (whiteRating.games_played ?? 0) + 1 < 20,
-    updated_at: now
-  };
-  const blackPatch = {
-    rating: Math.max(100, (blackRating.rating ?? DEFAULT_ONLINE_RATING) + blackDelta),
-    games_played: (blackRating.games_played ?? 0) + 1,
-    wins: (blackRating.wins ?? 0) + (blackScore === 1 ? 1 : 0),
-    losses: (blackRating.losses ?? 0) + (blackScore === 0 ? 1 : 0),
-    draws: (blackRating.draws ?? 0) + (blackScore === 0.5 ? 1 : 0),
-    provisional: (blackRating.games_played ?? 0) + 1 < 20,
-    updated_at: now
-  };
-
-  await Promise.all([
-    supabase.from('user_ratings').update(whitePatch).eq('user_id', game.white_user_id).eq('mode', mode),
-    supabase.from('user_ratings').update(blackPatch).eq('user_id', game.black_user_id).eq('mode', mode),
-    supabase.from('online_games').update({
-      white_rating_before: game.white_rating_before ?? whiteRating.rating,
-      black_rating_before: game.black_rating_before ?? blackRating.rating,
-      white_rating_after: whitePatch.rating,
-      black_rating_after: blackPatch.rating
-    }).eq('id', game.id)
-  ]);
-
-  return {
-    white: { before: whiteRating.rating, after: whitePatch.rating, delta: whiteDelta },
-    black: { before: blackRating.rating, after: blackPatch.rating, delta: blackDelta }
-  };
+  throw rpcError;
 }
 
 export async function decorateGameRatings(supabase, game) {
@@ -410,7 +332,7 @@ export async function decorateGameRatings(supabase, game) {
       .in('user_id', ids),
     supabase
       .from('user_memberships')
-      .select('user_id, tier, status')
+      .select('user_id, tier, status, current_period_end')
       .in('user_id', ids)
   ]);
   let data = modeRatings || [];
@@ -430,7 +352,7 @@ export async function decorateGameRatings(supabase, game) {
   ]));
   const membershipByUser = new Map((memberships || []).map((membership) => [
     membership.user_id,
-    membership.status === 'active' ? membership.tier : 'free'
+    hasPaidAccess(membership) ? membership.tier : 'free'
   ]));
   return {
     ...game,
@@ -443,122 +365,6 @@ export async function decorateGameRatings(supabase, game) {
     white_membership_tier: membershipByUser.get(game.white_user_id) ?? 'free',
     black_membership_tier: membershipByUser.get(game.black_user_id) ?? 'free'
   };
-}
-
-function tournamentPoints(result, color) {
-  const score = scoreForResult(result, color);
-  if (score === 1) return 2;
-  if (score === 0.5) return 1;
-  return 0;
-}
-
-export async function applyTournamentResult(supabase, game, result) {
-  if (!['1-0', '0-1', '1/2-1/2'].includes(result) || !game?.white_user_id || !game?.black_user_id) {
-    return null;
-  }
-
-  const finishedAt = game.finished_at || new Date().toISOString();
-  const { data: tournaments = [], error: tournamentError } = await supabase
-    .from('arena_tournaments')
-    .select('id, title, status, time_control, starts_at, ends_at')
-    .in('status', ['open', 'running'])
-    .eq('time_control', game.time_control)
-    .lte('starts_at', finishedAt)
-    .gte('ends_at', finishedAt);
-  if (tournamentError || tournaments.length === 0) return null;
-
-  const updates = [];
-  for (const tournament of tournaments) {
-    const { data: players = [] } = await supabase
-      .from('arena_tournament_players')
-      .select('user_id')
-      .eq('tournament_id', tournament.id)
-      .in('user_id', [game.white_user_id, game.black_user_id]);
-    if ((players || []).length !== 2) continue;
-
-    const whitePoints = tournamentPoints(result, 'w');
-    const blackPoints = tournamentPoints(result, 'b');
-    const { data: existingTournamentGame } = await supabase
-      .from('arena_tournament_games')
-      .select('result')
-      .eq('tournament_id', tournament.id)
-      .eq('game_id', game.id)
-      .maybeSingle();
-    if (existingTournamentGame && ['1-0', '0-1', '1/2-1/2'].includes(existingTournamentGame.result)) continue;
-    const { error: eventError } = await supabase.from('arena_tournament_games').upsert({
-      tournament_id: tournament.id,
-      game_id: game.id,
-      white_user_id: game.white_user_id,
-      black_user_id: game.black_user_id,
-      result,
-      score_white: whitePoints,
-      score_black: blackPoints
-    }, { onConflict: 'tournament_id,game_id' });
-    if (eventError) continue;
-    await supabase
-      .from('tournament_pairings')
-      .update({ status: 'finished', updated_at: new Date().toISOString() })
-      .eq('tournament_id', tournament.id)
-      .eq('game_id', game.id);
-
-    const now = new Date().toISOString();
-    await Promise.all([
-      supabase
-        .from('arena_tournament_players')
-        .update({ updated_at: now })
-        .eq('tournament_id', tournament.id)
-        .eq('user_id', game.white_user_id),
-      supabase
-        .from('arena_tournament_players')
-        .update({ updated_at: now })
-        .eq('tournament_id', tournament.id)
-        .eq('user_id', game.black_user_id)
-    ]);
-
-    const { data: whiteRow } = await supabase
-      .from('arena_tournament_players')
-      .select('score, games_played, wins, draws, losses')
-      .eq('tournament_id', tournament.id)
-      .eq('user_id', game.white_user_id)
-      .single();
-    const { data: blackRow } = await supabase
-      .from('arena_tournament_players')
-      .select('score, games_played, wins, draws, losses')
-      .eq('tournament_id', tournament.id)
-      .eq('user_id', game.black_user_id)
-      .single();
-
-    await Promise.all([
-      supabase
-        .from('arena_tournament_players')
-        .update({
-          score: Number(whiteRow?.score || 0) + whitePoints,
-          games_played: Number(whiteRow?.games_played || 0) + 1,
-          wins: Number(whiteRow?.wins || 0) + (whitePoints === 2 ? 1 : 0),
-          draws: Number(whiteRow?.draws || 0) + (whitePoints === 1 ? 1 : 0),
-          losses: Number(whiteRow?.losses || 0) + (whitePoints === 0 ? 1 : 0),
-          updated_at: now
-        })
-        .eq('tournament_id', tournament.id)
-        .eq('user_id', game.white_user_id),
-      supabase
-        .from('arena_tournament_players')
-        .update({
-          score: Number(blackRow?.score || 0) + blackPoints,
-          games_played: Number(blackRow?.games_played || 0) + 1,
-          wins: Number(blackRow?.wins || 0) + (blackPoints === 2 ? 1 : 0),
-          draws: Number(blackRow?.draws || 0) + (blackPoints === 1 ? 1 : 0),
-          losses: Number(blackRow?.losses || 0) + (blackPoints === 0 ? 1 : 0),
-          updated_at: now
-        })
-        .eq('tournament_id', tournament.id)
-        .eq('user_id', game.black_user_id)
-    ]);
-
-    updates.push({ tournamentId: tournament.id, whitePoints, blackPoints });
-  }
-
-  return updates.length ? updates : null;
 }
 
 let onlineSummaryCache = {
@@ -680,39 +486,21 @@ export async function abortOnlineGameIfOpeningIdle(supabase, game, moves) {
     return { game, aborted: false };
   }
 
-  const now = new Date().toISOString();
-  const { data: updatedGame, error } = await supabase
-    .from('online_games')
-    .update({ status: 'abandoned', result: '*', finished_at: now, updated_at: now })
-    .eq('id', game.id)
-    .eq('status', 'active')
-    .select('*')
-    .maybeSingle();
-
-  if (error || !updatedGame) return { game, aborted: false };
-  return { game: updatedGame, aborted: true };
+  const { data, error } = await supabase.rpc('expire_online_game', { p_game: game.id });
+  if (error) throw error;
+  return { game: data, aborted: data.status === 'abandoned' };
 }
 
 export async function expireOnlineGameOnClock(supabase, game, moves) {
   if (!game || game.status !== 'active') return { game, timedOut: false };
   const clocks = onlineClockMilliseconds(game, moves);
-  const expiredColor = game.turn && clocks[game.turn] <= 0 ? game.turn : null;
-  if (!expiredColor) return { game, timedOut: false };
-
-  const result = expiredColor === 'w' ? '0-1' : '1-0';
-  const now = new Date().toISOString();
-  const { data: updatedGame, error } = await supabase
-    .from('online_games')
-    .update({ status: 'resigned', result, finished_at: now, updated_at: now })
-    .eq('id', game.id)
-    .eq('status', 'active')
-    .select('*')
-    .maybeSingle();
-
-  if (error || !updatedGame) return { game, timedOut: false };
-  await applyOnlineRatingResult(supabase, updatedGame, result);
-  await applyTournamentResult(supabase, updatedGame, result);
-  return { game: updatedGame, timedOut: true };
+  if (!game.turn || clocks[game.turn] > 0) return { game, timedOut: false };
+  const { data, error } = await supabase.rpc('expire_online_game', { p_game: game.id });
+  if (error) throw error;
+  if (data.status === 'resigned') {
+    await applyOnlineRatingResult(supabase, data, data.result);
+  }
+  return { game: data, timedOut: data.status !== 'active' };
 }
 
 export function publicGame(game, moves, userId) {
@@ -725,7 +513,8 @@ export function publicGame(game, moves, userId) {
     : game.rematch_requested_by === game.black_user_id
       ? blackName
       : null;
-  const clocks = onlineClockMilliseconds(game, moves);
+  const clockSnapshotAt = new Date().toISOString();
+  const clocks = onlineClockMilliseconds(game, moves, Date.parse(clockSnapshotAt));
   const endedByTimeout = game.status === 'resigned' && clocks[game.turn] <= 0;
   const openingDeadline = openingMoveDeadline(game, moves);
   const whiteRatingBefore = game.white_rating_before ?? game.white_rating ?? DEFAULT_ONLINE_RATING;
@@ -738,8 +527,7 @@ export function publicGame(game, moves, userId) {
   const blackDisplayRating = blackRatingAfter ?? blackRatingBefore;
   return {
     id: game.id,
-    inviteCode: game.invite_code,
-    inviteExpiresAt: game.invite_expires_at || null,
+    stateVersion: Number(game.state_version || 1),
     status: game.status,
     matchType: game.match_type,
     mode: game.mode || onlineModeFromTimeControl(game.time_control),
@@ -765,6 +553,7 @@ export function publicGame(game, moves, userId) {
     endReason: game.status === 'abandoned' ? 'aborted' : endedByTimeout ? 'timeout' : game.status === 'resigned' ? 'resignation' : null,
     openingDeadline,
     clocks,
+    clockSnapshotAt,
     createdAt: game.created_at,
     playerColor,
     white: {

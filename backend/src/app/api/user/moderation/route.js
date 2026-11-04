@@ -1,6 +1,7 @@
 import { requireOnlineUser } from '../../../../lib/online';
 import { activeBanForUser, activeMuteForUser } from '../../../../lib/admin';
 import { rateLimit } from '../../../../lib/rateLimit';
+import { banNotice } from '../../../../lib/banPolicy';
 
 export const runtime = 'nodejs';
 
@@ -18,6 +19,7 @@ export async function GET(request) {
     activeMuteForUser(context.supabase, context.user.id)
   ]);
 
+  if (ban) return Response.json(banNotice(ban), {status:403});
   return Response.json({
     ok: true,
     moderation: {

@@ -5,11 +5,6 @@ import { safeArray } from '../../../../lib/validation';
 export const runtime = 'nodejs';
 
 const ACTION_LABELS = {
-  'anti_cheat.scan': 'Admin quét gian lận',
-  'anti_cheat.review': 'Admin chuyển báo cáo gian lận sang đã xem',
-  'anti_cheat.dismiss': 'Admin bỏ qua báo cáo gian lận',
-  'anti_cheat.action': 'Admin xử lý báo cáo gian lận',
-  'anti_cheat.report_status': 'Admin đổi trạng thái báo cáo gian lận',
   'user.ban': 'Admin cấm người chơi',
   'user.unban': 'Admin gỡ cấm người chơi',
   'user.mute': 'Admin mute người chơi',
@@ -20,8 +15,6 @@ const ACTION_LABELS = {
   'event.create': 'Admin tạo sự kiện',
   'event.update': 'Admin cập nhật sự kiện',
   'match.update_status': 'Admin cập nhật trạng thái trận',
-  'tournament.create': 'Admin tạo giải đấu',
-  'tournament.update_status': 'Admin cập nhật trạng thái giải đấu',
   'moderation.update': 'Admin cập nhật báo cáo người chơi',
   'moderation.report_status': 'Admin đổi trạng thái báo cáo người chơi',
   'admin.me': 'Admin kiểm tra phiên đăng nhập',
@@ -81,7 +74,7 @@ export async function GET(request) {
   const action = String(searchParams.get('action') || '').trim();
   let query = context.supabase
     .from('admin_audit_logs')
-    .select('id, admin_user_id, action, target_user_id, target_device_fingerprint, metadata, created_at', { count: 'exact' })
+    .select('id, admin_user_id, action, target_user_id, metadata, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
   if (action) query = query.ilike('action', `%${action}%`);
@@ -112,7 +105,6 @@ export async function GET(request) {
         || userById.get(log.target_user_id || log.metadata?.targetUserId)?.email
         || log.metadata?.name
         || log.target_user_id
-        || log.target_device_fingerprint
         || '--'
     }))
   });

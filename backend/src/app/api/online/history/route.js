@@ -44,6 +44,14 @@ export async function GET(request) {
   const result = url.searchParams.get('result') || 'all';
   const mode = url.searchParams.get('mode') || 'all';
   const review = url.searchParams.get('review') || 'all';
+  const dateFrom = url.searchParams.get('dateFrom') || '';
+  const dateTo = url.searchParams.get('dateTo') || '';
+  if ((dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) || (dateTo && !/^\d{4}-\d{2}-\d{2}$/.test(dateTo))) {
+    return Response.json({ ok: false, error: 'Khoảng ngày không hợp lệ.' }, { status: 400 });
+  }
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return Response.json({ ok: false, error: 'Ngày bắt đầu phải trước ngày kết thúc.' }, { status: 400 });
+  }
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -67,6 +75,8 @@ export async function GET(request) {
     .or(participantFilter(userIds));
 
   if (MODES.has(mode)) query = query.eq('mode', mode);
+  if (dateFrom) query = query.gte('finished_at', `${dateFrom}T00:00:00.000Z`);
+  if (dateTo) query = query.lte('finished_at', `${dateTo}T23:59:59.999Z`);
   const nextResultFilter = resultFilter(userIds, result);
   if (nextResultFilter) query = query.or(nextResultFilter);
   if (review === 'reviewed') query = query.in('id', reviewedGameIds);

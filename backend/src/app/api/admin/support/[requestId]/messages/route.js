@@ -149,7 +149,7 @@ export async function POST(request, { params }) {
     type: 'support_reply',
     title: 'Admin đã phản hồi ticket',
     body: ticket.subject || `Ticket #${requestId.slice(0, 8)}`,
-    actionUrl: '/support/tickets',
+    actionUrl: `/support/tickets?tab=tickets&view=list&ticket=${encodeURIComponent(requestId)}`,
     priority: 'high',
     metadata: { requestId }
   });

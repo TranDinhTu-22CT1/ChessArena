@@ -1,10 +1,10 @@
 export const SUPPORT_TERMS = [
   'ho tro', 'support', 'tro giup', 'help', 'loi', 'bug', 'ket noi', 'lag',
   'dang nhap', 'dang ky', 'otp', 'email', 'mat khau', 'tai khoan', 'profile',
-  'membership', 'premium', 'thanh toan', 'paypal', 'momo', 'hoa don', 'gia han',
+  'membership', 'premium', 'thanh toan', 'paypal', 'hoa don', 'gia han',
   'huy goi', 'refund', 'hoan tien', 'mua goi', 'mua hang', 'nang cap',
   'ban be', 'ket ban', 'loi moi ket ban', 'friend', 'online', 'matchmaking',
-  'giai dau', 'tournament', 'puzzle', 'rating', 'lich su', 'lich su dau', 'admin',
+  'puzzle', 'rating', 'lich su', 'lich su dau', 'admin',
   'bao cao', 'report', 'kiem duyet', 'chat', 'chuc nang', 'tinh nang',
   'choi voi bot', 'choi online', 'leaderboard', 'achievement', 'coach lab'
 ];

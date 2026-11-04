@@ -2,6 +2,7 @@ import { createUserNotification } from '../../../../../../lib/notifications';
 import { requireOnlineUser } from '../../../../../../lib/online';
 import { distributedRateLimit } from '../../../../../../lib/rateLimit';
 import { uploadDataAssets } from '../../../../../../lib/storage';
+import { findOwnedSupportRequest } from '../../../../../../lib/supportAccess';
 import { isMissingTableError, readJsonPayload, safeArray } from '../../../../../../lib/validation';
 
 export const runtime = 'nodejs';
@@ -33,17 +34,6 @@ function publicMessage(message) {
   };
 }
 
-async function ownedRequest(context, requestId) {
-  const { data, error } = await context.supabase
-    .from('support_requests')
-    .select('id, user_id, status, subject, message, attachments, admin_note, reviewed_at, created_at, updated_at')
-    .eq('id', requestId)
-    .eq('user_id', context.user.id)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
 function ticketFallbackMessages(ticket) {
   const messages = [{
     id: `ticket-${ticket.id}`,
@@ -70,19 +60,19 @@ export async function GET(request, { params }) {
   const context = await requireOnlineUser({ allowBanned: true });
   if (context.error) return context.error;
   const { requestId } = await params;
-  const ticket = await ownedRequest(context, requestId);
+  const ticket = await findOwnedSupportRequest(context.supabase, context.user.id, requestId);
   if (!ticket) return Response.json({ ok: false, error: 'Ticket not found.' }, { status: 404 });
 
-  const { data = [], error } = await context.supabase
-    .from('support_messages')
-    .select('*')
-    .eq('request_id', requestId)
-    .order('created_at', { ascending: true });
+  const [{ data = [], error }, { data: events = [] }] = await Promise.all([
+    context.supabase.from('support_messages').select('*').eq('request_id', requestId).order('created_at', { ascending: true }),
+    context.supabase.from('support_status_events').select('id, old_status, new_status, note, created_at').eq('request_id', requestId).order('created_at', { ascending: true })
+  ]);
   if (isMissingTableError(error, 'support_messages')) {
     return Response.json({
       ok: true,
       ticket,
       messages: ticketFallbackMessages(ticket),
+      events: safeArray(events),
       warning: 'Bảng hội thoại hỗ trợ chưa được triển khai; đang hiển thị nội dung ticket.'
     });
   }
@@ -94,7 +84,7 @@ export async function GET(request, { params }) {
     .eq('request_id', requestId)
     .is('read_by_user_at', null);
 
-  return Response.json({ ok: true, ticket, messages: safeArray(data).map(publicMessage) });
+  return Response.json({ ok: true, ticket, messages: safeArray(data).map(publicMessage), events: safeArray(events) });
 }
 
 export async function POST(request, { params }) {
@@ -103,7 +93,7 @@ export async function POST(request, { params }) {
   const context = await requireOnlineUser({ allowBanned: true });
   if (context.error) return context.error;
   const { requestId } = await params;
-  const ticket = await ownedRequest(context, requestId);
+  const ticket = await findOwnedSupportRequest(context.supabase, context.user.id, requestId);
   if (!ticket) return Response.json({ ok: false, error: 'Ticket not found.' }, { status: 404 });
   if (['resolved', 'dismissed'].includes(ticket.status)) {
     return Response.json({ ok: false, error: 'Ticket đã đóng. Hãy tạo ticket mới nếu bạn cần hỗ trợ thêm.' }, { status: 409 });
@@ -158,7 +148,7 @@ export async function POST(request, { params }) {
     type: 'support_reply',
     title: 'Người chơi vừa phản hồi ticket',
     body: ticket.subject || `Ticket #${requestId.slice(0, 8)}`,
-    actionUrl: '/admin/support',
+    actionUrl: `/admin/support?tab=tickets&ticket=${encodeURIComponent(requestId)}`,
     metadata: { requestId }
   });
   return Response.json({ ok: true, message: publicMessage(data) });

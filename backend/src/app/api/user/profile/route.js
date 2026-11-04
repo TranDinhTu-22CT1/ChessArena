@@ -1,3 +1,4 @@
+import { hasPaidAccess } from '../../../../lib/membershipPolicy';
 import { rateLimit } from '../../../../lib/rateLimit';
 import { gameParticipantUserId, relatedOnlineUserIds, requireOnlineUser } from '../../../../lib/online';
 import { uploadDataAsset } from '../../../../lib/storage';
@@ -119,7 +120,7 @@ async function profileRecord(supabase, userId) {
 export async function profilePayload(supabase, userId, { includePrivate = false, relatedUserIds = null } = {}) {
   const profile = await profileRecord(supabase, userId);
   const participantIds = Array.isArray(relatedUserIds) && relatedUserIds.length ? relatedUserIds : [userId];
-  const [ratingsResult, gamesResult, recentGamesResult, reviewsResult, refundRowsResult, puzzleResult, membershipResult] = await Promise.all([
+  const [ratingsResult, gamesResult, recentGamesResult, reviewsResult, puzzleResult, membershipResult] = await Promise.all([
     supabase
       .from('user_ratings')
       .select('user_id, mode, rating, games_played, wins, losses, draws, provisional')
@@ -145,10 +146,6 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
       .order('updated_at', { ascending: false })
       .limit(30),
     supabase
-      .from('rating_refunds')
-      .select('refund_delta')
-      .in('refunded_user_id', participantIds),
-    supabase
       .from('personal_puzzles')
       .select('id, status')
       .in('user_id', participantIds)
@@ -164,7 +161,6 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
   const games = optionalRows(gamesResult);
   const recentGames = optionalRows(recentGamesResult);
   const reviews = optionalRows(reviewsResult);
-  const refundRows = optionalRows(refundRowsResult);
   const puzzles = optionalRows(puzzleResult);
   const membership = membershipResult.error ? null : membershipResult.data;
   const record = profile || {};
@@ -193,7 +189,6 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
   const bestMoveRate = reviewedMoves
     ? Math.round((reviews.reduce((sum, review) => sum + Number(review.best_moves || 0), 0) / reviewedMoves) * 100)
     : null;
-  const totalRefundedRating = refundRows.reduce((sum, refund) => sum + Number(refund.refund_delta || 0), 0);
   const newPuzzleCount = puzzles.filter((puzzle) => puzzle.status === 'new').length;
   const achievements = profileAchievements({ summary, ratings, reviews, newPuzzleCount });
 
@@ -205,7 +200,7 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
     emailVerified: includePrivate ? Boolean(record.email_verified) : null,
     photoURL: record.photo_url,
     createdAt: record.created_at,
-    membershipTier: membership?.status === 'active' ? membership.tier : 'free',
+    membershipTier: hasPaidAccess(membership) ? membership.tier : 'free',
     ratings,
     summary,
     skillLab: {
@@ -216,7 +211,6 @@ export async function profilePayload(supabase, userId, { includePrivate = false,
       totalBlunders,
       totalMistakes,
       bestMoveRate,
-      totalRefundedRating
     },
     training: {
       personalPuzzles: puzzles.length,

@@ -5,10 +5,8 @@ import { activeMuteForUser } from '../../../../../../lib/admin';
 export const runtime = 'nodejs';
 
 const REPORT_CATEGORIES = new Set([
-  'cheating',
   'toxic',
   'stalling',
-  'sandbagging',
   'username',
   'avatar',
   'harassment',
@@ -26,8 +24,8 @@ function cleanDescription(value) {
 }
 
 function severityFor(category) {
-  if (['cheating', 'harassment', 'match_abuse'].includes(category)) return 'high';
-  if (['toxic', 'stalling', 'sandbagging'].includes(category)) return 'medium';
+  if (['harassment', 'match_abuse'].includes(category)) return 'high';
+  if (['toxic', 'stalling'].includes(category)) return 'medium';
   return 'low';
 }
 

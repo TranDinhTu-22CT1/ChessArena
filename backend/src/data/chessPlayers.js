@@ -13,6 +13,21 @@ export const CHESS_PLAYER_SOURCES = [
 
 export const CHESS_PLAYERS = [
   {
+    name: 'Anish Giri', aliases: ['anish giri', 'giri'], country: 'Hà Lan', born: 1994,
+    fideId: '24116068', gmYear: 2009, factsCheckedAt: '2026-09-21',
+    titles: ['Đại kiện tướng (GM)'], highlights: ['Hồ sơ FIDE ghi danh hiệu GM năm 2009'], style: ''
+  },
+  {
+    name: 'Alireza Firouzja', aliases: ['alireza firouzja', 'firouzja', 'alireza'], country: 'Pháp', born: 2003,
+    fideId: '12573981', gmYear: 2018, factsCheckedAt: '2026-09-21',
+    titles: ['Đại kiện tướng (GM)'], highlights: ['Hồ sơ FIDE ghi danh hiệu GM năm 2018'], style: ''
+  },
+  {
+    name: 'Wesley So', aliases: ['wesley so', 'wesley'], country: 'Hoa Kỳ', born: 1993,
+    fideId: '5202213', gmYear: 2008, factsCheckedAt: '2026-09-21',
+    titles: ['Đại kiện tướng (GM)'], highlights: ['Hồ sơ FIDE ghi danh hiệu GM năm 2008'], style: ''
+  },
+  {
     name: 'Gukesh Dommaraju',
     aliases: ['gukesh', 'dommaraju gukesh', 'd gukesh'],
     country: 'Ấn Độ',
@@ -24,6 +39,7 @@ export const CHESS_PLAYERS = [
   },
   {
     name: 'Magnus Carlsen',
+    fideId: '1503014', gmYear: 2004, factsCheckedAt: '2026-10-03', gender: 'male',
     aliases: ['magnus', 'carlsen', 'magnus carlsen'],
     country: 'Na Uy',
     born: 1990,
@@ -34,6 +50,7 @@ export const CHESS_PLAYERS = [
   },
   {
     name: 'Hikaru Nakamura',
+    fideId: '2016192', gmYear: 2003, factsCheckedAt: '2026-10-03', gender: 'male',
     aliases: ['hikaru', 'nakamura', 'hikaru nakamura'],
     country: 'Hoa Kỳ',
     born: 1987,
@@ -106,6 +123,7 @@ export const CHESS_PLAYERS = [
   },
   {
     name: 'Lê Quang Liêm',
+    fideId: '12401137', gmYear: 2006, factsCheckedAt: '2026-10-03', gender: 'male',
     aliases: ['le quang liem', 'lê quang liêm', 'quang liem'],
     country: 'Việt Nam',
     born: 1991,
@@ -134,6 +152,7 @@ export const CHESS_PLAYERS = [
   },
   {
     name: 'Hou Yifan',
+    fideId: '8602980', gmYear: 2009, factsCheckedAt: '2026-10-03', gender: 'female',
     aliases: ['hou yifan'],
     country: 'Trung Quốc',
     born: 1994,

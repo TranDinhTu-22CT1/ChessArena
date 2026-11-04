@@ -1,168 +1,130 @@
 import { ReadableStream } from 'node:stream/web';
 import { TextEncoder } from 'node:util';
-import { decorateGameRatings, publicGame, requireOnlineUser, touchPresence } from '../../../../../../lib/online';
+import { decorateGameRatings, publicGame, requireOnlineUser } from '../../../../../../lib/online';
 import { subscribeOnlineGame } from '../../../../../../lib/onlineEvents';
+import { serializedRefresh } from '../../../../../../lib/serializedRefresh';
+import { onlineActionError } from '../../../../../../lib/onlineActionResponse';
 import { corsHeaders } from '../../../../../../lib/cors';
+import { onlineGameState } from '../../../../../../lib/onlineGameState';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function streamHeaders(request) {
-  return {
-    ...corsHeaders(request),
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no'
-  };
-}
-
 async function loadPublicGame(supabase, gameId, userId) {
-  const { data: game, error } = await supabase
-    .from('online_games')
-    .select('*')
-    .eq('id', gameId)
-    .maybeSingle();
-
-  if (error || !game) return null;
-  if (![game.white_user_id, game.black_user_id].includes(userId)) return null;
-
-  const { data: moves = [] } = await supabase
-    .from('online_game_moves')
-    .select('*')
-    .eq('game_id', game.id)
-    .order('ply', { ascending: true });
-
-  return publicGame(await decorateGameRatings(supabase, game), moves, userId);
+  const { data, error } = await supabase.rpc('online_game_snapshot', { p_game: gameId, p_user: userId })
+    .abortSignal(globalThis.AbortSignal.timeout(12_000));
+  if (error) throw error;
+  if (!data) return null;
+  const decorated=await decorateGameRatings(supabase, data.game);
+  onlineGameState.remember(decorated,data.moves);
+  return publicGame(decorated, data.moves, userId);
 }
 
 export async function GET(request, { params }) {
   const context = await requireOnlineUser();
   if (context.error) return context.error;
-
   const { supabase, user } = context;
   const { gameId } = await params;
-  const initialGame = await loadPublicGame(supabase, gameId, user.id);
-  if (!initialGame) {
-    return Response.json({ ok: false, error: 'Game not found.' }, { status: 404, headers: streamHeaders(request) });
-  }
-
-  await touchPresence(supabase, user, {
-    status: initialGame.status === 'active' ? 'playing' : 'online',
-    currentGameId: initialGame.status === 'active' ? initialGame.id : null
-  });
+  let initialGame;
+  try { initialGame = await loadPublicGame(supabase, gameId, user.id); }
+  catch (error) { return onlineActionError(error); }
+  if (!initialGame) return Response.json({ ok: false, error: 'Game not found.' }, { status: 404 });
 
   const encoder = new TextEncoder();
-  let channel;
-  let heartbeat;
-  let refreshTimer;
-  let active = true;
-  let unsubscribeLocal;
-  let latestGame = initialGame;
-
+  let close = () => {};
   const stream = new ReadableStream({
     start(controller) {
-      const send = (event, payload) => {
+      let active = true;
+      let channel;
+      let heartbeat;
+      let unsubscribe;
+      let refresh;
+      let realtimeConnected = false;
+      close = () => {
         if (!active) return;
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
-      };
-
-      const pushGame = async () => {
-        const game = await loadPublicGame(supabase, gameId, user.id);
-        if (active && game) {
-          latestGame = game;
-          send('game', { ok: true, game });
-        }
-      };
-
-      const pushPublishedGame = async (payload) => {
-        if (!payload?.game || !payload?.moves) {
-          schedulePush();
-          return;
-        }
-        const game = publicGame(await decorateGameRatings(supabase, payload.game), payload.moves, user.id);
-        latestGame = game;
-        send('game', { ok: true, game });
-      };
-
-      const pushRealtimeMove = (payload) => {
-        const move = payload?.new;
-        if (!move || !latestGame || (latestGame.moves?.length || 0) >= move.ply) return;
-        const nextMove = {
-          ply: move.ply,
-          color: move.color,
-          san: move.san,
-          lan: move.lan,
-          from: move.from_square,
-          to: move.to_square,
-          promotion: move.promotion,
-          fenAfter: move.fen_after,
-          createdAt: move.created_at
-        };
-        latestGame = {
-          ...latestGame,
-          fen: move.fen_after,
-          turn: move.color === 'w' ? 'b' : 'w',
-          lastMoveAt: move.created_at,
-          updatedAt: move.created_at,
-          moves: [...(latestGame.moves || []), nextMove]
-        };
-        send('game', { ok: true, game: latestGame });
-      };
-
-      const schedulePush = () => {
-        clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(pushGame, 0);
-      };
-
-      send('game', { ok: true, game: initialGame });
-      heartbeat = setInterval(() => send('ping', { ok: true, ts: Date.now() }), 15000);
-      unsubscribeLocal = subscribeOnlineGame(gameId, pushPublishedGame);
-
-      channel = supabase
-        .channel(`online-game-${gameId}-${user.id}-${crypto.randomUUID()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` },
-          schedulePush
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'online_game_moves', filter: `game_id=eq.${gameId}` },
-          pushRealtimeMove
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') send('realtime-status', { ok: true, connected: true });
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            send('realtime-status', { ok: false, connected: false, status });
-          }
-        });
-
-      request.signal.addEventListener('abort', () => {
         active = false;
         clearInterval(heartbeat);
-        clearTimeout(refreshTimer);
-        if (unsubscribeLocal) unsubscribeLocal();
-        if (channel) supabase.removeChannel(channel);
+        refresh?.close();
+        unsubscribe?.();
+        request.signal.removeEventListener('abort', close);
+        if (channel) void supabase.removeChannel(channel).catch(() => {});
+        try { controller.close(); } catch { /* The reader may have cancelled already. */ }
+      };
+      const send = (event, payload) => {
+        if (!active) return;
         try {
-          controller.close();
-        } catch {
-          // Stream may already be closed by the runtime.
+          controller.enqueue(encoder.encode('event: ' + event + '\ndata: ' + JSON.stringify(payload) + '\n\n'));
+        } catch { close(); }
+      };
+      refresh = serializedRefresh(
+        () => loadPublicGame(supabase, gameId, user.id),
+        (game) => { send('game', { ok: true, game }); send('realtime-status', { connected: realtimeConnected }); },
+        () => send('realtime-status', { connected: false })
+      );
+      send('game', { ok: true, game: initialGame });
+      send('realtime-status', { connected: false });
+      const sendChat = (message) => {
+        if (!message?.id) return;
+        send('chat', { ok: true, message: { ...message, you: message.userId === user.id } });
+      };
+      const loadAndSendChat = async (id) => {
+        const { data } = await supabase
+          .from('online_game_chat')
+          .select('id, user_id, body, created_at, users:user_id(display_name, photo_url)')
+          .eq('id', id)
+          .eq('game_id', gameId)
+          .maybeSingle();
+        if (data) sendChat({
+          id: data.id,
+          userId: data.user_id,
+          name: data.users?.display_name || 'Player',
+          photoURL: data.users?.photo_url || null,
+          body: data.body,
+          createdAt: data.created_at
+        });
+      };
+      unsubscribe = subscribeOnlineGame(gameId, (payload) => {
+        if (payload?.type === 'chat') sendChat(payload.message);
+        else if (payload?.game?.id === gameId && Array.isArray(payload.moves)) {
+          // The move transaction already returned this snapshot. Avoid another
+          // database round trip before the opponent can see the committed move.
+          const game = publicGame(payload.game, payload.moves, user.id);
+          for (const color of ['white', 'black']) {
+            if (initialGame[color]?.id === game[color]?.id) {
+              for (const key of ['photoURL', 'pieceSet', 'membershipTier']) {
+                game[color][key] = initialGame[color][key];
+              }
+            }
+          }
+          send('game', { ok: true, game });
         }
+        else refresh.schedule();
       });
+      channel = supabase.channel('online-game-' + gameId + '-' + user.id + '-' + crypto.randomUUID())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'online_games', filter: 'id=eq.' + gameId }, refresh.schedule)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'online_game_moves', filter: 'game_id=eq.' + gameId }, refresh.schedule)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'online_game_chat', filter: 'game_id=eq.' + gameId }, (payload) => {
+          void loadAndSendChat(payload.new?.id);
+        })
+        .subscribe((status) => {
+          realtimeConnected = status === 'SUBSCRIBED';
+          send('realtime-status', { connected: realtimeConnected });
+          // Close the gap between the initial SELECT and the subscription becoming ready.
+          if (realtimeConnected) refresh.schedule();
+        });
+      heartbeat = setInterval(() => {
+        send('ping', { ok: true, ts: Date.now() });
+        refresh.schedule();
+      }, 15000);
+      request.signal.addEventListener('abort', close, { once: true });
+      if (request.signal.aborted) close();
     },
-    cancel() {
-      active = false;
-      clearInterval(heartbeat);
-      clearTimeout(refreshTimer);
-      if (unsubscribeLocal) unsubscribeLocal();
-      if (channel) supabase.removeChannel(channel);
-    }
+    cancel() { close(); }
   });
-
-  return new Response(stream, { headers: streamHeaders(request) });
+  return new Response(stream, { headers: {
+    ...corsHeaders(request), 'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no'
+  } });
 }
 
-export function OPTIONS(request) {
-  return new Response(null, { status: 204, headers: streamHeaders(request) });
-}
+export function OPTIONS() { return new Response(null, { status: 204 }); }

@@ -39,38 +39,59 @@ function publicUser(profile, presence = null) {
 }
 
 async function loadFriendRows(supabase, userId) {
-  const { data, error } = await supabase
-    .from('user_friendships')
-    .select('*')
-    .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`)
-    .order('updated_at', { ascending: false });
-  if (error) throw error;
-  return safeArray(data);
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from('user_friendships').select('*')
+      .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`)
+      .order('updated_at', { ascending: false }).order('id').range(offset, offset + 499);
+    if (error) throw error;
+    rows.push(...safeArray(data));
+    if (!data || data.length < 500) return rows;
+  }
 }
 
 async function decorateFriendRows(supabase, rows, userId) {
   const userIds = [...new Set(rows.flatMap((row) => [row.requester_id, row.receiver_id]).filter((id) => id && id !== userId))];
-  if (userIds.length === 0) {
-    return { friends: [], incoming: [], outgoing: [], blocked: [] };
-  }
-
-  const [{ data: profiles = [] }, { data: presences = [] }] = await Promise.all([
+  // Include the viewer so the browser compares the same speed-mode ratings.
+  userIds.push(userId);
+  const chunks = [];
+  for (let i = 0; i < userIds.length; i += 200) chunks.push(userIds.slice(i, i + 200));
+  const results = await Promise.all(chunks.map(async (ids) => Promise.all([
     supabase
       .from('users')
       .select('id, username, display_name, photo_url')
-      .in('id', userIds),
+      .in('id', ids),
     supabase
       .from('online_presence')
       .select('user_id, status, current_game_id, last_seen')
-      .in('user_id', userIds)
-  ]);
+      .in('user_id', ids),
+    supabase.from('user_ratings').select('user_id,mode,rating,games_played,updated_at')
+      .in('user_id', ids)
+  ])));
+  for (const group of results) for (const result of group) if (result.error) throw result.error;
+  const profiles = results.flatMap(group => group[0].data || []);
+  const presences = results.flatMap(group => group[1].data || []);
+  const ratingRows = results.flatMap(group => group[2].data || []);
+  const ratingsById = new Map();
+  for (const rating of ratingRows) {
+    if (!ratingsById.has(rating.user_id)) ratingsById.set(rating.user_id, {});
+    ratingsById.get(rating.user_id)[rating.mode] = { rating: rating.rating, gamesPlayed: rating.games_played };
+  }
   const profileById = new Map(safeArray(profiles).map((profile) => [profile.id, profile]));
   const presenceById = new Map(safeArray(presences).map((presence) => [presence.user_id, presence]));
-  const payload = { friends: [], incoming: [], outgoing: [], blocked: [] };
+  const payload = { friends: [], incoming: [], outgoing: [], blocked: [],
+    viewer: { id: userId, ratings: ratingsById.get(userId) || {} } };
 
   for (const row of rows) {
     const otherId = row.requester_id === userId ? row.receiver_id : row.requester_id;
     const other = publicUser(profileById.get(otherId), presenceById.get(otherId));
+    other.id = otherId;
+    other.ratings = ratingsById.get(otherId) || {};
+    // A completed rated game is activity even if presence was never recorded.
+    const activity = [other.presence.lastSeen, ...ratingRows
+      .filter(rating => rating.user_id === otherId && rating.games_played > 0).map(rating => rating.updated_at)]
+      .filter(value => Number.isFinite(Date.parse(value)));
+    other.lastActiveAt = activity.sort((a, b) => Date.parse(b) - Date.parse(a))[0] || null;
     const item = {
       id: row.id,
       status: relationStatus(row, userId),
@@ -118,6 +139,7 @@ export async function GET(request) {
     const lists = await decorateFriendRows(context.supabase, rows, context.user.id);
     return Response.json({
       ok: true,
+      serverNow: new Date().toISOString(),
       ...lists,
       counts: {
         friends: lists.friends.length,

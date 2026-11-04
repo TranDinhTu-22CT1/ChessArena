@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import { cookies } from 'next/headers';
 import { clearAdminSessionCookie, requireAdminCsrf, requireAdminUser, requireRootAdminIdentity, setAdminSessionCookie, writeAdminAudit } from '../../../../lib/admin';
+import { authCookieOptions } from '../../../../lib/cookies';
 import { rateLimit } from '../../../../lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -43,6 +45,10 @@ export async function POST(request) {
   }
 
   const session = await setAdminSessionCookie(context.admin);
+  // An admin login replaces any user identity on the shared origin. Keeping both
+  // cookies made ordinary API routes resolve a stale Firebase user instead.
+  const cookieStore = await cookies();
+  cookieStore.set('firebase_id_token', '', authCookieOptions(0));
   await writeAdminAudit(context.supabase, context.admin, 'admin.login');
   return Response.json({
     ok: true,

@@ -30,6 +30,7 @@ export async function paypalAccessToken() {
 
   const credentials = Buffer.from(`${clientId}:${secret}`).toString('base64');
   const response = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+    signal: globalThis.AbortSignal.timeout(15000),
     method: 'POST',
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -54,6 +55,7 @@ export async function paypalAccessToken() {
 export async function fetchPayPalSubscription(subscriptionId) {
   const token = await paypalAccessToken();
   const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    signal: globalThis.AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json'
@@ -63,15 +65,17 @@ export async function fetchPayPalSubscription(subscriptionId) {
   return response.json();
 }
 
-export async function createPayPalSubscription({ planId, customId, returnUrl, cancelUrl }) {
+export async function createPayPalSubscription({ planId, customId, returnUrl, cancelUrl, requestId }) {
   const token = await paypalAccessToken();
   const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions`, {
+    signal: globalThis.AbortSignal.timeout(15000),
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Prefer: 'return=representation'
+      Prefer: 'return=representation',
+      'PayPal-Request-Id': requestId || crypto.randomUUID()
     },
     body: JSON.stringify({
       plan_id: planId,
@@ -113,9 +117,26 @@ export async function assertPayPalPlanVisible(planId) {
   }
 }
 
+export async function cancelPayPalSubscription(subscriptionId, reason = 'Customer stopped automatic renewal') {
+  const token = await paypalAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, {
+    signal: globalThis.AbortSignal.timeout(15000),
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason.slice(0, 128) })
+  });
+  if (!response.ok) {
+    const latest = await fetchPayPalSubscription(subscriptionId);
+    if (latest?.status === 'CANCELLED' || latest?.status === 'EXPIRED') return;
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `PayPal cancellation failed (${response.status}).`);
+  }
+}
+
 export async function fetchPayPalPlan(planId) {
   const token = await paypalAccessToken();
   const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans/${encodeURIComponent(planId)}`, {
+    signal: globalThis.AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json'
@@ -136,6 +157,7 @@ export async function verifyPayPalWebhook(headers, body, event = null) {
 
   const token = await paypalAccessToken();
   const response = await fetch(`${PAYPAL_API_BASE}/v1/notifications/verify-webhook-signature`, {
+    signal: globalThis.AbortSignal.timeout(15000),
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

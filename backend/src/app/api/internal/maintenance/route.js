@@ -1,12 +1,12 @@
-import { analyzeOnlineGameForUser } from '../../../../lib/antiCheat';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { reconcileMemberships } from '../../../../lib/membershipService';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 function authorized(request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return process.env.NODE_ENV !== 'production';
+  if (!secret) return false;
   return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
@@ -45,47 +45,13 @@ export async function GET(request) {
   if (!cleanupError && criticalMatchmakingIssue) {
     await sendMatchmakingAlert(matchmakingCleanup);
   }
-  const { data: games = [] } = await supabase
-    .from('online_games')
-    .select('*')
-    .in('status', ['checkmate', 'draw', 'resigned'])
-    .not('finished_at', 'is', null)
-    .order('finished_at', { ascending: false })
-    .limit(10);
-  let scanned = 0;
-  let reportsCreated = 0;
-  for (const game of games) {
-    const { data: moves = [] } = await supabase.from('online_game_moves').select('*').eq('game_id', game.id).order('ply');
-    for (const userId of [game.white_user_id, game.black_user_id].filter(Boolean)) {
-      const { data: existing } = await supabase.from('anti_cheat_reports').select('id').eq('game_id', game.id).eq('user_id', userId).maybeSingle();
-      if (existing) continue;
-      try {
-        const analysis = await analyzeOnlineGameForUser(game, moves, userId, { movetime: 180, maxPositions: 36 });
-        scanned += 1;
-        if (analysis.riskScore < 55) continue;
-        const { error: reportError } = await supabase.from('anti_cheat_reports').insert({
-          user_id: userId,
-          game_id: game.id,
-          risk_score: analysis.riskScore,
-          engine_match_rate: analysis.engineMatchRate,
-          low_time_consistency: analysis.lowTimeConsistency,
-          suspicious_move_count: analysis.suspiciousMoveCount,
-          total_moves: analysis.totalMoves,
-          details: { ...analysis.details, source: 'scheduled_scan' }
-        });
-        if (reportError) throw reportError;
-        reportsCreated += 1;
-      } catch (error) {
-        console.error('Scheduled anti-cheat scan failed.', { gameId: game.id, userId, message: error.message });
-      }
-    }
-  }
-
   await supabase.from('api_rate_limits').delete().lt('reset_at', new Date(Date.now() - 86_400_000).toISOString());
+  const memberships = await reconcileMemberships(supabase);
+  await supabase.from('game_invitations').update({ status: 'expired', updated_at: new Date().toISOString() })
+    .eq('status', 'pending').lt('expires_at', new Date().toISOString());
   return Response.json({
     ok: true,
-    matchmakingCleanup: cleanupError ? { error: cleanupError.message } : matchmakingCleanup,
-    antiCheatScans: scanned,
-    antiCheatReports: reportsCreated
+    memberships,
+    matchmakingCleanup: cleanupError ? { error: cleanupError.message } : matchmakingCleanup
   });
 }

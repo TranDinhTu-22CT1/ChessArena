@@ -4,7 +4,9 @@ import { createFirebaseSessionCookie, verifyFirebaseToken } from '../../../../li
 import { distributedRateLimit } from '../../../../lib/rateLimit';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { readJsonPayload, validateSessionPayload } from '../../../../lib/validation';
-import { activeBanForUser, clearAdminSessionCookie, recordUserDevice } from '../../../../lib/admin';
+import { activeBanForUser, clearAdminSessionCookie } from '../../../../lib/admin';
+
+import { banNotice } from '../../../../lib/banPolicy';
 
 export const runtime = 'nodejs';
 const ONE_HOUR = 60 * 60;
@@ -65,7 +67,7 @@ export async function POST(request) {
       return Response.json({ ok: false, error: validationError }, { status: 400 });
     }
 
-    const { idToken, remember = false, deviceId = null, profile = null } = payload;
+    const { idToken, remember = false, profile = null } = payload;
 
     if (!idToken) {
       return Response.json({ ok: false, error: 'Missing Firebase ID token' }, { status: 400 });
@@ -87,12 +89,14 @@ export async function POST(request) {
     let existingProfile = null;
     let storedUserId = null;
 
+    if (!supabase) return Response.json({ ok: false, error: 'Chưa kết nối được dữ liệu tài khoản.' }, { status: 503 });
     if (supabase) {
-      const { data } = await supabase
+      const { data, error: profileError } = await supabase
         .from('users')
         .select('id, display_name, photo_url')
         .eq('firebase_uid', decoded.uid)
         .maybeSingle();
+      if (profileError) throw profileError;
       existingProfile = data;
       const { data: savedUser, error } = await supabase.from('users').upsert(
         {
@@ -109,13 +113,12 @@ export async function POST(request) {
 
       if (error) throw error;
       storedUserId = savedUser?.id || existingProfile?.id || null;
-      await recordUserDevice(supabase, storedUserId, deviceId);
-      const activeBan = await activeBanForUser(supabase, storedUserId, deviceId);
+      if (!storedUserId) throw new Error('Chưa tạo được hồ sơ tài khoản.');
+      const activeBan = await activeBanForUser(supabase, storedUserId);
       if (activeBan) {
-        return Response.json({
-          ok: false,
-          error: activeBan.reason || 'This account or device is banned.'
-        }, { status: 403 });
+        const store = await cookies();
+        store.set('firebase_id_token', '', authCookieOptions(0));
+        return Response.json(banNotice(activeBan), { status: 403 });
       }
     }
 
@@ -127,25 +130,37 @@ export async function POST(request) {
     cookieStore.set('firebase_id_token', authCookieValue, authCookieOptions(cookieMaxAge));
     await clearAdminSessionCookie();
 
+    const { error: auditError } = await supabase.from('admin_audit_logs').insert({
+      action: 'auth.user.login',
+      target_user_id: storedUserId,
+      metadata: {
+        provider: decoded?.firebase?.sign_in_provider || 'unknown',
+        remember: Boolean(remember)
+      }
+    });
+    if (auditError) console.warn('User login audit skipped:', auditError.message);
+
     return Response.json({
       ok: true,
       remember: Boolean(remember),
-      deviceId,
       expiresIn: remember ? REMEMBER_48_HOURS : ONE_HOUR,
       sessionMode,
       user: {
+        id: storedUserId,
         uid: decoded.uid,
         username,
         displayName: existingProfile?.display_name || displayName,
         email: decoded.email ?? null,
         emailVerified: Boolean(decoded.email_verified || isTrustedOauthProvider(decoded)),
-        photoURL: existingProfile?.photo_url || photoURL
+        photoURL: existingProfile?.photo_url || photoURL,
+        role: 'user',
+        isAdmin: false
       }
     });
   } catch (error) {
     return Response.json(
       { ok: false, error: error.message || 'Could not create secure session' },
-      { status: 500 }
+      { status: error.status || 500 }
     );
   }
 }

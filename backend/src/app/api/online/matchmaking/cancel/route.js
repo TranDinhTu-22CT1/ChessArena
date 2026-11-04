@@ -20,20 +20,10 @@ export async function POST(request) {
   const reason = String(payload.reason || 'user_cancelled').slice(0, 80);
   const ticketId = String(payload.ticketId || '').trim();
   const sessionId = String(payload.sessionId || '').trim().slice(0, 120);
-  let result = ticketId && sessionId
-    ? await supabase.rpc('quick_match_cancel_v2', {
-        p_user_id: user.id,
-        p_ticket_id: ticketId,
-        p_session_id: sessionId,
-        p_reason: reason
-      })
-    : { error: { code: 'PGRST202' } };
-  if (result.error?.code === 'PGRST202' || result.error?.code === 'PGRST203') {
-    result = await supabase.rpc('quick_match_cancel', {
-      p_user_id: user.id,
-      p_reason: reason
-    });
-  }
+  if (!/^[0-9a-f-]{36}$/i.test(ticketId) || !sessionId) return Response.json({ ok: false, error: 'Queue session and ticket required.' }, { status: 400 });
+  const result = await supabase.rpc('quick_match_cancel_v2', {
+    p_user_id: user.id, p_ticket_id: ticketId, p_session_id: sessionId, p_reason: reason
+  });
   const { data, error } = result;
   if (error) {
     return Response.json({ ok: false, error: error.message || 'Unable to cancel matchmaking.' }, { status: 500 });
@@ -41,6 +31,7 @@ export async function POST(request) {
   return Response.json({
     ok: true,
     status: data?.status || 'cancelled',
+    gameId: data?.game_id || null,
     queueTicketId: data?.queue_ticket_id || ticketId || null,
     ...(await onlineSummary(supabase))
   });

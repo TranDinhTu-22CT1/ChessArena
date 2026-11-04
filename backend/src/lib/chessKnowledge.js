@@ -128,7 +128,7 @@ const OPENING_ALIASES = [
   { aliases: ['vienna game', 'khai cuoc vienna'], query: 'vienna game' },
   { aliases: ['catalan', 'catalan opening'], query: 'catalan opening' },
   { aliases: ['pirc', 'pirc defense'], query: 'pirc defense' },
-  { aliases: ['alekhine defense', 'phong thu alekhine'], query: "alekhine's defense" }
+  { aliases: ['alekhine defense', "alekhine's defense", 'phong thu alekhine'], query: 'alekhine defense' }
 ];
 
 const OPENING_GUIDANCE = [
@@ -162,7 +162,7 @@ const OPENING_GUIDANCE = [
   }
 ];
 
-function normalizeKnowledgeText(value) {
+export function normalizeKnowledgeText(value) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -189,11 +189,10 @@ function resolvedOpeningQuery(question) {
     .filter((entry) => includesPhrase(text, entry.alias))
     .sort((left, right) => right.alias.length - left.alias.length)[0];
 
-  let query = text
-    .replace(/\b(khai cuoc|bien the|bien|variation|la gi|nhu the nao|cach choi|gioi thieu|cho toi biet|huong dan|tim hieu|ve)\b/g, ' ')
+  let query = (aliasMatch ? text.replace(aliasMatch.alias, aliasMatch.query) : text)
+    .replace(/\b(khai cuoc|bien the|bien|variation|la gi|nhu the nao|cach choi|lam sao choi|gioi thieu|cho toi biet|huong dan|tim hieu|giai thich|giup toi|toi muon biet|nuoc di|co ban|y tuong|ke hoach|cua|ve|la|gi|nao|nhe|nha)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (aliasMatch) query = query.replace(aliasMatch.alias, aliasMatch.query);
   return query.replace(/\s+/g, ' ').trim();
 }
 
@@ -212,12 +211,13 @@ function openingScore(opening, query) {
 }
 
 export function findOpeningKnowledge(question, limit = 5) {
+  const eco = String(question).match(/\b[A-E]\d{2}\b/i)?.[0].toUpperCase();
   const query = resolvedOpeningQuery(question);
   if (!query || query.length < 3) return [];
 
   const seen = new Set();
   return CHESS_OPENINGS
-    .map((opening) => ({ opening, score: openingScore(opening, query) }))
+    .map((opening) => ({ opening, score: eco ? (opening.eco === eco ? 1000 : 0) : openingScore(opening, query) }))
     .filter((entry) => entry.score > 0)
     .sort((left, right) => (
       right.score - left.score
@@ -265,18 +265,22 @@ export function openingKnowledgeAnswer(question) {
 }
 
 export function findChessPlayer(question) {
+  return findChessPlayers(question)[0] || null;
+}
+
+export function findChessPlayers(question) {
   const text = normalizeKnowledgeText(question);
-  if (!text) return null;
+  if (!text) return [];
 
   return CHESS_PLAYERS
     .map((player) => ({
       player,
-      aliasLength: Math.max(...player.aliases
+      aliasLength: Math.max(player.fideId && includesPhrase(text, player.fideId) ? 100 : 0, ...player.aliases
         .filter((alias) => includesPhrase(text, normalizeKnowledgeText(alias)))
         .map((alias) => alias.length), 0)
     }))
     .filter((entry) => entry.aliasLength > 0)
-    .sort((left, right) => right.aliasLength - left.aliasLength)[0]?.player || null;
+    .sort((left, right) => right.aliasLength - left.aliasLength).map(entry=>entry.player);
 }
 
 export function playerKnowledgeAnswer(question) {

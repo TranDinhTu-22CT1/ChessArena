@@ -47,9 +47,9 @@ export async function createFirebaseSessionCookie(idToken, expiresIn) {
   return firebaseAdmin.auth().createSessionCookie(idToken, { expiresIn });
 }
 
-export async function verifyFirebaseSession(sessionCookie) {
+export async function verifyFirebaseSession(sessionCookie, checkRevoked = true) {
   const firebaseAdmin = getFirebaseAdmin();
-  return firebaseAdmin.auth().verifySessionCookie(sessionCookie, true);
+  return firebaseAdmin.auth().verifySessionCookie(sessionCookie, checkRevoked);
 }
 
 export async function revokeFirebaseSessions(uid) {

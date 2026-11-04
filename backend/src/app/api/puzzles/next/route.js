@@ -1,103 +1,12 @@
 import { rateLimit } from '../../../../lib/rateLimit';
-import { withStockfishEngine } from '../../../../lib/stockfishEngine';
+import { selectPuzzle, publicPuzzle } from '../../../../lib/puzzleRules';
 import { PUZZLE_POSITIONS, PUZZLE_STAGES, PUZZLE_THEMES } from '../../../../lib/puzzlePositions';
 import { isUuid } from '../../../../lib/puzzleUtils';
 import { readJsonPayload } from '../../../../lib/validation';
-import { requireOnlineUser } from '../../../../lib/online';
+import { randomUUID } from 'node:crypto';
+import { puzzleContext, puzzleAccess, puzzleFailure } from '../../../../lib/puzzleSecurity';
 
 export const runtime = 'nodejs';
-
-function parseMove(bestMove) {
-  if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove || '')) return null;
-  return {
-    from: bestMove.slice(0, 2),
-    to: bestMove.slice(2, 4),
-    promotion: bestMove[4] || undefined,
-    lan: bestMove
-  };
-}
-
-function dayNumber(value) {
-  return [...String(value || '')].reduce((total, character) => total + character.charCodeAt(0), 0);
-}
-
-function selectCandidate(payload) {
-  const excluded = new Set(Array.isArray(payload?.excluded) ? payload.excluded.slice(0, 300) : []);
-  const theme = typeof payload?.theme === 'string' ? payload.theme : 'all';
-  const stage = typeof payload?.stage === 'string' ? payload.stage : 'all';
-  const minRating = Math.max(0, Number(payload?.minRating) || 0);
-  const maxRating = Math.min(4000, Number(payload?.maxRating) || 4000);
-  const filtered = PUZZLE_POSITIONS.filter((item) => (
-    (theme === 'all' || item.theme === theme)
-    && (stage === 'all' || item.stage === stage)
-    && item.rating >= minRating
-    && item.rating <= maxRating
-  ));
-
-  if (payload?.mode === 'daily') {
-    const preferred = filtered.find((item) => item.id === payload?.preferredId);
-    if (preferred) return preferred;
-    const unseenDaily = filtered.filter((item) => !excluded.has(item.id));
-    if (!unseenDaily.length) return null;
-    return unseenDaily[dayNumber(payload?.date) % unseenDaily.length];
-  }
-
-  const remaining = filtered
-    .filter((item) => !excluded.has(item.id))
-    .sort((first, second) => first.rating - second.rating);
-  if (!remaining.length) return null;
-
-  if (payload?.mode === 'rated' || payload?.mode === 'rush') {
-    return remaining[0];
-  }
-
-  return remaining[Math.floor(Math.random() * remaining.length)];
-}
-
-async function selectPersonalPuzzle(payload) {
-  if (payload?.mode !== 'personal') return null;
-  const context = await requireOnlineUser();
-  if (context.error) return { error: context.error };
-
-  const excluded = Array.isArray(payload?.excluded)
-    ? payload.excluded.filter(isUuid).slice(0, 300)
-    : [];
-  let query = context.supabase
-    .from('personal_puzzles')
-    .select('*')
-    .eq('user_id', context.user.id)
-    .eq('status', 'new')
-    .order('created_at', { ascending: false })
-    .limit(20);
-  if (excluded.length) query = query.not('id', 'in', `(${excluded.map((id) => `"${id}"`).join(',')})`);
-  const { data = [], error } = await query;
-  if (error) return { error: Response.json({ ok: false, error: error.message }, { status: 500 }) };
-  const puzzle = data[0];
-  if (!puzzle) {
-    return {
-      error: Response.json({
-        ok: false,
-        exhausted: true,
-        error: 'No personal puzzles yet. Review a finished online game to generate puzzles from your mistakes.'
-      }, { status: 404 })
-    };
-  }
-  return {
-    puzzle: {
-      id: puzzle.id,
-      source: 'personal',
-      fen: puzzle.fen,
-      theme: puzzle.theme || 'mistake',
-      stage: puzzle.stage || 'review',
-      rating: puzzle.rating || 1200,
-      title: 'Bai tap tu van that cua ban',
-      description: `Tim nuoc tot hon thay cho ${puzzle.san || puzzle.played_move || 'nuoc da di'}.`,
-      solution: parseMove(puzzle.solution),
-      sideToMove: puzzle.fen.split(/\s+/)[1],
-      validatedScore: null
-    }
-  };
-}
 
 export async function GET() {
   return Response.json({ ok: true, themes: PUZZLE_THEMES, stages: PUZZLE_STAGES, count: PUZZLE_POSITIONS.length });
@@ -106,55 +15,85 @@ export async function GET() {
 export async function POST(request) {
   const blocked = rateLimit(request, { scope: 'stockfish-puzzle', limit: 80, windowMs: 60_000 });
   if (blocked) return blocked;
-
   const payload = await readJsonPayload(request);
-  if (!payload) {
-    return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
-  }
-
-  const personal = await selectPersonalPuzzle(payload);
-  if (personal?.error) return personal.error;
-  if (personal?.puzzle) return Response.json({ ok: true, engine: 'saved-review', puzzle: personal.puzzle });
-
-  const candidate = selectCandidate(payload);
-
-  if (!candidate) {
-    return Response.json({
-      ok: false,
-      exhausted: true,
-      error: 'No unseen puzzles remain for these filters.'
-    }, { status: 404 });
-  }
-
+  if (!payload) return Response.json({ ok: false, error: 'Dữ liệu không hợp lệ.' }, { status: 400 });
+  const mode = payload.mode || 'rated';
+  if (!['rated','daily','rush','streak','custom','personal'].includes(mode)) return Response.json({ ok:false, error:'Chế độ không hợp lệ.' }, { status:400 });
+  const context = await puzzleContext();
+  if (context?.error) return context.error;
+  if (!context && ['rush','custom','personal'].includes(mode)) return Response.json({ ok:false,error:'Đăng nhập để sử dụng chế độ này.' }, { status:401 });
   try {
-    const result = await withStockfishEngine({ skillLevel: 20 }, async (engine) => {
-      await engine.configure({ skillLevel: 20 });
-      return engine.analyze({ fen: candidate.fen, depth: 18 });
-    });
-    const solution = parseMove(result.bestMove);
-
-    if (!solution) {
-      return Response.json({ ok: false, error: 'Stockfish could not validate this puzzle.' }, { status: 502 });
+  const limit = context ? await puzzleAccess(context, mode) : null;
+  const requestId = payload.requestId || randomUUID();
+  if (!isUuid(requestId) || (payload.runId && !isUuid(payload.runId))) return Response.json({ok:false,error:'Yêu cầu không hợp lệ.'},{status:400});
+  let candidate;
+  if (context) {
+    // Recover the same assignment before selecting from the remaining catalog.
+    // This also works when the last available exercise is still in progress.
+    let pending = context.supabase.from('puzzle_attempts').select('snapshot').eq('user_id',context.user.id);
+    const retry = await pending.eq('id',requestId).maybeSingle();
+    if (retry.error) throw retry.error;
+    candidate = retry.data?.snapshot;
+    if (!candidate && payload.runId && ['rush','streak'].includes(mode)) {
+      pending = await context.supabase.from('puzzle_attempts').select('snapshot').eq('user_id',context.user.id)
+        .eq('run_id',payload.runId).is('finished_at',null).order('created_at',{ascending:false}).limit(1).maybeSingle();
+      if (pending.error) throw pending.error;
+      candidate = pending.data?.snapshot;
     }
-
-    return Response.json({
-      ok: true,
-      engine: 'stockfish-wasm',
-      puzzle: {
-        ...candidate,
-        solution,
-        sideToMove: candidate.fen.split(/\s+/)[1],
-        validatedScore: result.score
-      }
-    });
-  } catch (error) {
-    return Response.json(
-      { ok: false, error: error.message || 'Could not generate a validated puzzle.' },
-      { status: 500 }
-    );
   }
+  if (!candidate && mode === 'personal') {
+    const excluded = Array.isArray(payload.excluded) ? payload.excluded.filter(isUuid).slice(-300) : [];
+    let query = context.supabase.from('personal_puzzles').select('*').eq('user_id', context.user.id)
+      .eq('status', 'new').order('created_at', { ascending: false }).limit(1);
+    if (excluded.length) query = query.not('id', 'in', `(${excluded.join(',')})`);
+    const { data = [], error } = await query;
+    if (error) return Response.json({ ok: false, error: 'Không đọc được bài tập cá nhân.' }, { status: 503 });
+    if (!data[0]) return Response.json({ ok: false, exhausted: true,
+      error: 'Chưa có bài tập cá nhân mới. Hãy phân tích một ván online đã kết thúc.' }, { status: 404 });
+    candidate = data[0];
+  } else if (!candidate) {
+    const options = { ...payload, mode };
+    if (context) {
+      const progress = await context.supabase.from('puzzle_progress').select('rating,seen_puzzle_ids').eq('user_id',context.user.id).maybeSingle();
+      if (progress.error) throw progress.error;
+      options.rating = progress.data?.rating || 800;
+      options.excluded = progress.data?.seen_puzzle_ids || [];
+      if (payload.runId) {
+        if (!isUuid(payload.runId)) return Response.json({ok:false,error:'Phiên không hợp lệ.'},{status:400});
+        const attempts = await context.supabase.from('puzzle_attempts').select('puzzle_id').eq('run_id',payload.runId).eq('user_id',context.user.id);
+        if (attempts.error) throw attempts.error;
+        // Runs may reuse the catalog from earlier runs, but never repeat within one run.
+        if (['rush','streak'].includes(mode)) options.excluded = (attempts.data || []).map(a=>a.puzzle_id);
+      } else if (['rush','streak'].includes(mode)) options.excluded=[];
+      if (mode!=='custom') { options.theme='all';options.stage='all';options.minRating=0;options.maxRating=4000; }
+    }
+    candidate = selectPuzzle(options);
+  }
+  if (!candidate) {
+    let run, progress;
+    if (context && payload.runId && ['rush','streak'].includes(mode)) {
+      const ended = await context.supabase.rpc('finish_puzzle_run',{p_user:context.user.id,p_run:payload.runId});
+      if (ended.error) throw ended.error;
+      run = ended.data;
+      const snapshot = await context.supabase.rpc('puzzle_progress_snapshot',{p_user:context.user.id});
+      if (snapshot.error) throw snapshot.error;
+      progress = snapshot.data;
+    }
+    return Response.json({ ok: false, exhausted: true, run, progress,
+      error: 'Bạn đã hoàn thành các câu đố trong bộ lọc này.' }, { status: 404 });
+  }
+  if (!context) return Response.json({ ok:true, engine:'verified-catalog', puzzle:{...publicPuzzle(candidate),practice:true} });
+  const {data,error} = await context.supabase.rpc('start_puzzle_attempt',{
+    p_user:context.user.id,p_request:requestId,p_mode:mode,p_puzzle:candidate,
+    p_run:['rush','streak'].includes(mode) ? payload.runId || null : null,p_limit:limit
+  });
+  if(error)throw error;
+  if(data.finished) return Response.json({ok:false,error:'Lượt chơi đã kết thúc.',run:data.run,progress:data.progress},{status:409});
+  return Response.json({ok:true,engine:mode==='personal'?'saved-review':'verified-catalog',puzzle:{
+    ...publicPuzzle(data.attempt.snapshot),attemptId:data.attempt.id,version:data.attempt.version,
+    run:{...data.run,serverNow:new Date().toISOString()},progress:data.progress,playedMoves:data.attempt.played_moves
+  }});
+  } catch(error) { return puzzleFailure(error); }
 }
 
-export function OPTIONS() {
-  return new Response(null, { status: 204 });
-}
+export function OPTIONS() { return new Response(null, { status: 204 }); }

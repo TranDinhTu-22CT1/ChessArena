@@ -1,91 +1,49 @@
 import { rateLimit } from '../../../../lib/rateLimit';
 import { withStockfishEngine } from '../../../../lib/stockfishEngine';
-import { chooseOpeningBookMove } from '../../../../lib/openingBook';
-import { engineStrength } from '../../../../lib/enginePolicy';
+import { engineStrength, chooseBeginnerMove, resolvePlayingElo } from '../../../../lib/enginePolicy';
+import { enginePosition, engineInputError } from '../../../../lib/enginePosition';
+import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { readJsonPayload } from '../../../../lib/validation';
 
 export const runtime = 'nodejs';
 
-function validFen(value) {
-  return typeof value === 'string' && value.split(/\s+/).length >= 4 && value.length < 120;
-}
-
-function parseMove(bestMove) {
-  if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove || '')) return null;
-  return {
-    from: bestMove.slice(0, 2),
-    to: bestMove.slice(2, 4),
-    promotion: bestMove[4] || undefined,
-    lan: bestMove
-  };
+async function loadBot(id) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw Object.assign(new Error('Chưa kết nối được dữ liệu bot.'), { status: 503 });
+  const { data, error } = await supabase.from('bot_personas')
+    .select('id,elo,active,starts_at,ends_at').eq('id', id).maybeSingle();
+  if (error) throw Object.assign(new Error('Không đọc được cấu hình bot. Hãy thử lại.'), { status: 503 });
+  return data;
 }
 
 export async function POST(request) {
-  const blocked = rateLimit(request, { scope: 'stockfish-move', limit: 80, windowMs: 60_000 });
+  const blocked = rateLimit(request, { scope: 'stockfish-move', limit: 160, windowMs: 60_000 });
   if (blocked) return blocked;
-
   const payload = await readJsonPayload(request);
-  if (!payload) {
-    return Response.json({ ok: false, error: 'Invalid JSON payload.' }, { status: 400 });
-  }
-
-  const fen = payload?.fen;
-
-  if (!validFen(fen)) {
-    return Response.json({ ok: false, error: 'Invalid FEN.' }, { status: 400 });
-  }
-
-  const elo = Math.max(1320, Math.min(3190, Number(payload?.elo) || 1600));
-  const fullStrength = payload?.fullStrength === true;
-  const moves = Array.isArray(payload?.moves) ? payload.moves.slice(0, 40) : [];
-  const bookMove = payload?.variant === 'standard' ? chooseOpeningBookMove(moves, fen) : null;
-  const strength = engineStrength(elo, fullStrength);
-
-  if (bookMove) {
-    return Response.json({
-      ok: true,
-      engine: 'opening-book',
-      elo,
-      strength,
-      book: true,
-      move: parseMove(bookMove)
-    });
-  }
-
+  if (!payload) return Response.json({ ok: false, error: 'Dữ liệu không hợp lệ.' }, { status: 400 });
   try {
-    const result = await withStockfishEngine({ skillLevel: strength.skillLevel }, async (engine) => {
-      await engine.configure({
-        skillLevel: strength.skillLevel,
-        elo: strength.elo
-      });
-
-      return engine.analyze({
-        fen,
-        movetime: strength.movetime
-      });
+    const board = enginePosition(payload.fen);
+    if (board.isGameOver()) throw Object.assign(new Error('Ván cờ đã kết thúc.'), { status: 409 });
+    const root = payload.initialFen || board.fen();
+    const moves = payload.initialFen ? payload.moves || [] : [];
+    if (enginePosition(root, moves).fen() !== board.fen()) throw engineInputError('Lịch sử nước đi không khớp bàn cờ.');
+    const elo = await resolvePlayingElo(payload, loadBot);
+    const fullStrength = payload.fullStrength === true;
+    const result = await withStockfishEngine({ signal: request.signal, priority: 'interactive' }, async (engine) => {
+      const range = engine.capabilities.options.UCI_Elo;
+      const strength = engineStrength(elo, fullStrength, range);
+      await engine.configure(strength);
+      const analysis = await engine.analyze({ fen: root, moves, movetime: strength.movetime, depth: strength.depth });
+      const lan = fullStrength ? analysis.bestMove : chooseBeginnerMove(board, analysis.bestMove, strength);
+      return { ...analysis, bestMove: lan, score: lan === analysis.bestMove ? analysis.score : null, strength };
     });
-    const parsedMove = parseMove(result.bestMove);
-
-    if (!parsedMove) {
-      return Response.json({ ok: false, error: 'Stockfish did not return a legal move.' }, { status: 502 });
-    }
-
-    return Response.json({
-      ok: true,
-      engine: 'stockfish-wasm',
-      elo,
-      strength,
-      move: parsedMove,
-      score: result.score
-    });
+    const lan = result.bestMove;
+    return Response.json({ ok: true, engine: result.engine, elo, strength: result.strength,
+      move: { from: lan.slice(0, 2), to: lan.slice(2, 4), promotion: lan[4] || undefined, lan },
+      score: result.score, depth: result.depth });
   } catch (error) {
-    return Response.json(
-      { ok: false, error: error.message || 'Could not choose Stockfish move.' },
-      { status: 500 }
-    );
+    return Response.json({ ok: false, error: error.message || 'Chưa lấy được nước đi.' }, { status: error.status || 500 });
   }
 }
 
-export function OPTIONS() {
-  return new Response(null, { status: 204 });
-}
+export function OPTIONS() { return new Response(null, { status: 204 }); }

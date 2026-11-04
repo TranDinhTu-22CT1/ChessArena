@@ -3,11 +3,6 @@ const DEFAULT_FRONTEND_ORIGINS = [
   'https://chess-arena-iho3.vercel.app'
 ];
 
-const DEFAULT_VERCEL_PREVIEW_PROJECTS = [
-  'chessarena2',
-  'chess-arena-iho3'
-];
-
 function commaSeparated(value) {
   return String(value || '')
     .split(',')
@@ -29,19 +24,11 @@ function configuredOrigins(env) {
   return [
     ...DEFAULT_FRONTEND_ORIGINS,
     ...commaSeparated(env.FRONTEND_URL),
-    ...commaSeparated(env.FRONTEND_URLS)
+    ...commaSeparated(env.FRONTEND_URLS),
+    ...commaSeparated(env.LOCAL_FRONTEND_ORIGINS)
   ]
     .map(normalizedOrigin)
     .filter(Boolean);
-}
-
-function configuredPreviewProjects(env) {
-  return [
-    ...DEFAULT_VERCEL_PREVIEW_PROJECTS,
-    ...commaSeparated(env.FRONTEND_VERCEL_PROJECTS)
-  ]
-    .map((value) => value.toLowerCase())
-    .filter((value) => /^[a-z0-9-]+$/.test(value));
 }
 
 function isLocalDevelopmentOrigin(url, env) {
@@ -49,21 +36,33 @@ function isLocalDevelopmentOrigin(url, env) {
   return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
 }
 
-function isProjectPreviewOrigin(url, env) {
-  if (url.protocol !== 'https:' || !url.hostname.endsWith('.vercel.app')) return false;
-  const deployment = url.hostname.slice(0, -'.vercel.app'.length);
-  return configuredPreviewProjects(env).some((project) =>
-    deployment === project || deployment.startsWith(`${project}-`)
-  );
-}
-
 export function isAllowedCorsOrigin(origin, env = process.env) {
   const normalized = normalizedOrigin(origin);
-  if (!normalized) return false;
+  if (!normalized || normalized !== origin) return false;
   if (configuredOrigins(env).includes(normalized)) return true;
 
   const url = new URL(normalized);
-  return isLocalDevelopmentOrigin(url, env) || isProjectPreviewOrigin(url, env);
+  return isLocalDevelopmentOrigin(url, env);
+}
+
+// Origin validation is the CSRF boundary for browser cookie mutations. Preview
+// domains must be listed exactly in FRONTEND_URLS; prefixes do not prove ownership.
+export function mutationGuard(request, env = process.env) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return null;
+  const url = new URL(request.url);
+  // These server-to-server endpoints authenticate a provider signature / cron
+  // secret in their handlers. No browser-cookie endpoint is exempted.
+  if (['/api/paypal/webhook', '/api/internal/maintenance'].includes(url.pathname)
+      && !request.headers.get('cookie')) return null;
+  const origin = request.headers.get('origin');
+  if (!origin || origin === 'null' || (origin !== url.origin && !isAllowedCorsOrigin(origin, env))) {
+    return Response.json({ ok: false, code: 'UNTRUSTED_ORIGIN', error: 'Nguồn yêu cầu không được phép.' }, { status: 403 });
+  }
+  const type = request.headers.get('content-type');
+  if (type && type.split(';')[0].trim().toLowerCase() !== 'application/json') {
+    return Response.json({ ok: false, error: 'Yêu cầu phải dùng application/json.' }, { status: 415 });
+  }
+  return null;
 }
 
 export function frontendReturnOrigin(origin, env = process.env) {

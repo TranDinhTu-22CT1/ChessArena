@@ -7,18 +7,20 @@ import { parseStockfishScore } from '../src/lib/stockfishEngine.js';
 test('hint analysis always uses maximum Stockfish strength', () => {
   assert.deepEqual(
     engineStrength(1320, true),
-    { skillLevel: 20, elo: null, movetime: 2400 }
+    { skillLevel: 20, elo: null, mode: 'analysis', movetime: 1800, depth: 24 }
   );
   assert.deepEqual(
     engineStrength(3190, true),
-    { skillLevel: 20, elo: null, movetime: 2400 }
+    { skillLevel: 20, elo: null, mode: 'analysis', movetime: 1800, depth: 24 }
   );
 });
 
 test('bot moves still honor configured playing strength', () => {
-  assert.equal(botStrength(1320).skillLevel, 4);
-  assert.equal(botStrength(2000).skillLevel, 14);
-  assert.equal(botStrength(3190).skillLevel, 20);
+  for (const elo of [1320, 1600, 1777, 2000, 2400, 2800, 3190]) assert.equal(botStrength(elo).elo, elo);
+  assert.equal(botStrength(250).rating, 250);
+  assert.ok(botStrength(250).oversight > botStrength(800).oversight);
+  assert.ok(botStrength(800).oversight > botStrength(1200).oversight);
+  assert.equal(botStrength(1320).oversight, 0);
 });
 
 test('personal puzzle exclusions accept UUIDs only', () => {

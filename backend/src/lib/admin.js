@@ -1,7 +1,9 @@
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import crypto from 'node:crypto';
+import { findAccountBan } from './banPolicy.js';
 import { getSupabaseAdmin } from './supabaseAdmin';
 import { authCookieOptions } from './cookies';
+import { signingSecret } from './signingSecrets.js';
 
 const ADMIN_SESSION_COOKIE = 'admin_session_token';
 const ADMIN_SESSION_MAX_AGE = 60 * 60;
@@ -18,32 +20,6 @@ function adminEmails() {
     .split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
-}
-
-function cleanDeviceFingerprint(value) {
-  return String(value || '').trim().slice(0, 160);
-}
-
-function sha256(value) {
-  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
-}
-
-function requestNetworkSignals(headerStore) {
-  const userAgent = String(headerStore.get('user-agent') || '').slice(0, 400);
-  const rawIp = String(headerStore.get('x-forwarded-for') || headerStore.get('x-real-ip') || '')
-    .split(',')[0]
-    .trim();
-  const ip = /^(\d{1,3}\.){3}\d{1,3}$/.test(rawIp) || rawIp.includes(':') ? rawIp : '';
-  const ipPrefix = ip.includes(':')
-    ? ip.split(':').slice(0, 4).join(':')
-    : ip.split('.').slice(0, 3).join('.');
-
-  return {
-    userAgent,
-    userAgentHash: userAgent ? sha256(userAgent).slice(0, 64) : '',
-    ip,
-    ipPrefix: ip ? ipPrefix : ''
-  };
 }
 
 function activeBanFilter(query) {
@@ -82,15 +58,11 @@ function testAdminIdentity() {
 }
 
 function adminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET
-    || process.env.OTP_SECRET
-    || process.env.SUPABASE_SERVICE_ROLE_KEY
-    || '';
+  return signingSecret('ADMIN_SESSION_SECRET');
 }
 
 function signAdminSession(payload) {
   const secret = adminSessionSecret();
-  if (!secret) throw new Error('ADMIN_SESSION_SECRET or OTP_SECRET is required.');
   return crypto
     .createHmac('sha256', secret)
     .update(payload)
@@ -280,7 +252,6 @@ export async function writeAdminAudit(supabase, admin, action, metadata = {}) {
     admin_user_id: admin?.id ?? null,
     action,
     target_user_id: metadata.targetUserId ?? null,
-    target_device_fingerprint: metadata.deviceFingerprint ?? null,
     metadata
   });
   if (error) {
@@ -316,83 +287,7 @@ export async function ensureAdminAppUser(supabase, admin) {
   };
 }
 
-export async function recordUserDevice(supabase, userId, deviceFingerprint) {
-  const cleanFingerprint = cleanDeviceFingerprint(deviceFingerprint);
-  if (!userId || !cleanFingerprint) return null;
-
-  const headerStore = await headers();
-  const signals = requestNetworkSignals(headerStore);
-
-  const { data } = await supabase
-    .from('user_devices')
-    .upsert({
-      user_id: userId,
-      device_fingerprint: cleanFingerprint,
-      user_agent: signals.userAgent || null,
-      user_agent_hash: signals.userAgentHash || null,
-      ip_address: signals.ip || null,
-      ip_prefix: signals.ipPrefix || null,
-      last_seen_at: new Date().toISOString()
-    }, { onConflict: 'user_id,device_fingerprint' })
-    .select('id, device_fingerprint, ip_prefix, user_agent_hash')
-    .maybeSingle();
-
-  return data;
-}
-
-export async function activeBanForUser(supabase, userId, deviceFingerprint = '') {
-  const cleanFingerprint = cleanDeviceFingerprint(deviceFingerprint);
-  const headerStore = await headers();
-  const signals = requestNetworkSignals(headerStore);
-  const checks = [];
-
-  if (userId) {
-    checks.push(activeBanFilter(
-      supabase
-        .from('user_bans')
-        .select('*')
-        .eq('user_id', userId)
-        .in('ban_type', ['account', 'account_device', 'risk'])
-        .limit(1)
-    ));
-  }
-
-  if (cleanFingerprint) {
-    checks.push(activeBanFilter(
-      supabase
-        .from('user_bans')
-        .select('*')
-        .eq('device_fingerprint', cleanFingerprint)
-        .in('ban_type', ['device', 'account_device', 'risk'])
-        .limit(1)
-    ));
-  }
-
-  if (signals.ipPrefix && signals.userAgentHash) {
-    checks.push(activeBanFilter(
-      supabase
-        .from('user_bans')
-        .select('*')
-        .eq('ip_prefix', signals.ipPrefix)
-        .eq('user_agent_hash', signals.userAgentHash)
-        .eq('ban_type', 'risk')
-        .limit(1)
-    ));
-  }
-
-  const results = await Promise.all(checks);
-  return results.flatMap((result) => result.data || [])[0] || null;
-}
-
-export function riskSignalsFromDevice(device) {
-  return {
-    deviceFingerprint: cleanDeviceFingerprint(device?.device_fingerprint),
-    ipPrefix: String(device?.ip_prefix || '').trim().slice(0, 80),
-    userAgentHash: String(device?.user_agent_hash || '').trim().slice(0, 80),
-    userAgent: String(device?.user_agent || '').slice(0, 400),
-    lastSeenAt: device?.last_seen_at || null
-  };
-}
+export const activeBanForUser = findAccountBan;
 
 export async function activeMuteForUser(supabase, userId) {
   if (!userId) return null;

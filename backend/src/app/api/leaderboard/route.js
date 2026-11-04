@@ -1,114 +1,30 @@
 import { rateLimit } from '../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../lib/online';
-import { safeArray } from '../../../lib/validation';
 
 export const runtime = 'nodejs';
-
-const VALID_MODES = new Set(['bullet', 'blitz', 'rapid', 'classical']);
-
-function cleanMode(value) {
-  return VALID_MODES.has(value) ? value : 'rapid';
-}
-
-function cleanLimit(value) {
-  const limit = Number(value);
-  return Number.isFinite(limit) ? Math.max(10, Math.min(50, Math.floor(limit))) : 20;
-}
-
-function publicPlayer(rating, profile, rank) {
-  const gamesPlayed = rating.games_played ?? 0;
-  const wins = rating.wins ?? 0;
-  return {
-    rank,
-    userId: rating.user_id,
-    username: profile?.username || 'player',
-    displayName: profile?.display_name || profile?.username || 'Player',
-    photoURL: profile?.photo_url || null,
-    mode: rating.mode,
-    rating: rating.rating,
-    deviation: rating.deviation,
-    provisional: Boolean(rating.provisional),
-    gamesPlayed,
-    wins,
-    losses: rating.losses ?? 0,
-    draws: rating.draws ?? 0,
-    winRate: gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0,
-    updatedAt: rating.updated_at
-  };
-}
+const integer = (value, fallback, min, max) => {
+  if (value === null || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
+};
 
 export async function GET(request) {
   const blocked = rateLimit(request, { scope: 'leaderboard-read', limit: 60, windowMs: 60_000 });
   if (blocked) return blocked;
-
   const context = await requireOnlineUser();
   if (context.error) return context.error;
-
-  const url = new URL(request.url);
-  const mode = cleanMode(url.searchParams.get('mode'));
-  const limit = cleanLimit(url.searchParams.get('limit'));
-  const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-  const { supabase, user } = context;
-
-  const { data: ratingRows, error, count = 0 } = await supabase
-    .from('user_ratings')
-    .select('user_id, mode, rating, deviation, games_played, wins, losses, draws, provisional, updated_at', { count: 'exact' })
-    .eq('mode', mode)
-    .gt('games_played', 0)
-    .order('rating', { ascending: false })
-    .order('games_played', { ascending: false })
-    .order('updated_at', { ascending: true })
-    .range(from, to);
-
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  const ratings = safeArray(ratingRows);
-
-  const userIds = [...new Set(ratings.map((rating) => rating.user_id).filter(Boolean))];
-  if (!userIds.includes(user.id)) userIds.push(user.id);
-
-  const { data: profileRows } = userIds.length
-    ? await supabase
-      .from('users')
-      .select('id, username, display_name, photo_url')
-      .in('id', userIds)
-    : { data: [] };
-  const profiles = safeArray(profileRows);
-  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
-
-  const entries = ratings.map((rating, index) => publicPlayer(rating, profilesById.get(rating.user_id), from + index + 1));
-
-  const { data: myRating } = await supabase
-    .from('user_ratings')
-    .select('user_id, mode, rating, deviation, games_played, wins, losses, draws, provisional, updated_at')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .maybeSingle();
-
-  let currentUser = null;
-  if (myRating && (myRating.games_played ?? 0) > 0) {
-    const { count: higherRated = 0 } = await supabase
-      .from('user_ratings')
-      .select('user_id', { count: 'exact', head: true })
-      .eq('mode', mode)
-      .gt('games_played', 0)
-      .gt('rating', myRating.rating);
-    currentUser = publicPlayer(myRating, profilesById.get(user.id), (higherRated ?? 0) + 1);
-  }
-
-  return Response.json({
-    ok: true,
-    mode,
-    page,
-    limit,
-    entries,
-    currentUser,
-    total: count || entries.length,
-    totalPages: Math.max(1, Math.ceil((count || entries.length) / limit))
+  const params = new URL(request.url).searchParams;
+  const mode = ['bullet', 'blitz', 'rapid', 'classical'].includes(params.get('mode')) ? params.get('mode') : 'rapid';
+  const period = ['week', 'month'].includes(params.get('period')) ? params.get('period') : 'all';
+  const { data, error } = await context.supabase.rpc('get_leaderboard', {
+    p_user: context.user.id, p_mode: mode, p_period: period,
+    p_offset: period === 'all' ? 0 : integer(params.get('offset'), 0, 0, 12),
+    p_page: integer(params.get('page'), 1, 1, 1000000), p_limit: integer(params.get('limit'), 20, 10, 50)
   });
+  if (error) return Response.json({ ok: false, error: ['PGRST202', '42883'].includes(error.code)
+    ? 'Cần chạy backend/supabase/LeaderboardSeasons.sql để mở bảng xếp hạng mới.'
+    : 'Chưa tải được bảng xếp hạng. Vui lòng thử lại.' }, { status: 503 });
+  return Response.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
-export function OPTIONS() {
-  return new Response(null, { status: 204 });
-}
+export function OPTIONS() { return new Response(null, { status: 204 }); }

@@ -5,7 +5,7 @@ import { uploadDataAssets } from '../../../../lib/storage';
 
 export const runtime = 'nodejs';
 
-const CATEGORIES = new Set(['account', 'billing', 'online', 'moderation', 'puzzle', 'tournament', 'technical', 'general']);
+const CATEGORIES = new Set(['account', 'billing', 'online', 'moderation', 'puzzle', 'technical', 'general']);
 const ATTACHMENT_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime']);
 const MAX_ATTACHMENTS = 4;
 const MAX_ATTACHMENT_DATA_LENGTH = 14_000_000;
@@ -28,12 +28,7 @@ function cleanContext(value) {
     mode: cleanText(source.mode, 80),
     fen: cleanText(source.fen, 160),
     latestMove: cleanText(source.latestMove, 120),
-    recentMessages: Array.isArray(source.recentMessages)
-      ? source.recentMessages.slice(-8).map((message) => ({
-        role: message?.role === 'assistant' ? 'assistant' : 'user',
-        content: cleanText(message?.content, 700)
-      })).filter((message) => message.content)
-      : []
+
   };
 }
 

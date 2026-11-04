@@ -1,5 +1,7 @@
 import { distributedRateLimit } from '../../../../lib/rateLimit';
+import { checkGameplaySchema, checkMatchmakingSchema, schemaFailure, SCHEMA_UPDATE_MESSAGE } from '../../../../lib/schemaReadiness';
 import { readJsonPayload, safeArray } from '../../../../lib/validation';
+import { POST as cancelMatchmaking } from './cancel/route';
 import {
   DEFAULT_ONLINE_RATING,
   decorateGameRatings,
@@ -39,6 +41,8 @@ function normalizeMatchmakingRegion(value) {
 }
 
 function rpcFailure(error) {
+  const schemaError = schemaFailure(error);
+  if (schemaError) return schemaError;
   const message = String(error?.message || '');
   const migrationCodes = new Set(['PGRST202', 'PGRST203', '42703', '42883', '42P01']);
   if (
@@ -60,8 +64,8 @@ function rpcFailure(error) {
       {
         ok: false,
         status: 'unavailable',
-        error: 'Matchmaking database migration is required. Apply backend/supabase/migrations/20260606_matchmaking_v2.sql.'
-      }
+        error: SCHEMA_UPDATE_MESSAGE
+      }, { status: 503 }
     );
   }
   if (error?.code === '42501') {
@@ -70,25 +74,8 @@ function rpcFailure(error) {
   return Response.json({ ok: false, error: message || 'Matchmaking failed.' }, { status: 500 });
 }
 
-function isMissingRpcSignature(error) {
-  const message = String(error?.message || '');
-  return (
-    error?.code === 'PGRST202' ||
-    error?.code === 'PGRST203' ||
-    message.includes('Could not find the function') ||
-    message.includes('quick_match_find_game')
-  );
-}
-
 async function findGameRpc(supabase, params) {
-  const v2Result = await supabase.rpc('quick_match_find_game_v2', params);
-  if (!isMissingRpcSignature(v2Result.error)) return v2Result;
-
-  const legacyResult = await supabase.rpc('quick_match_find_game', params);
-  if (!isMissingRpcSignature(legacyResult.error)) return legacyResult;
-
-  const { p_idempotency_key: _ignored, ...legacyParams } = params;
-  return supabase.rpc('quick_match_find_game', legacyParams);
+  return supabase.rpc('quick_match_find_game_v3', params);
 }
 
 async function matchedResponse(supabase, result, userId) {
@@ -103,6 +90,7 @@ async function matchedResponse(supabase, result, userId) {
     status: 'matched',
     gameId: game.id,
     queueTicketId: result.queue_ticket_id ?? null,
+    ratingLimit: result.rating_limit ?? null,
     ratingWindow: result.rating_window ?? null,
     ratingGap: result.rating_gap ?? null,
     mode: result.mode ?? game.mode,
@@ -113,6 +101,8 @@ async function matchedResponse(supabase, result, userId) {
 }
 
 export async function POST(request) {
+  const action = await request.clone().json().catch(() => ({}));
+  if (action?.action === 'cancel') return cancelMatchmaking(request);
   const startedAt = Date.now();
   const context = await requireOnlineUser();
   if (context.error) return context.error;
@@ -130,15 +120,9 @@ export async function POST(request) {
   }
 
   const { supabase, user } = context;
-  if (payload.action === 'cancel') {
-    const { error } = await supabase.rpc('quick_match_cancel', {
-      p_user_id: user.id,
-      p_reason: cleanClientValue(payload.reason, 80) || 'user_cancelled'
-    });
-    if (error) return rpcFailure(error);
-    return Response.json({ ok: true, status: 'cancelled', ...(await onlineSummary(supabase)) });
-  }
-
+  const schemaErrors = await Promise.all([checkGameplaySchema(supabase), checkMatchmakingSchema(supabase)]);
+  const schemaError = schemaErrors.find(Boolean);
+  if (schemaError) return schemaFailure(schemaError) || Response.json({ ok: false, error: 'Chưa kết nối được cơ sở dữ liệu ghép trận. Hãy thử lại.' }, { status: 503 });
   const timeControl = normalizeTimeControl(payload.timeControl);
   const mode = onlineModeFromTimeControl(timeControl);
   const clientId = cleanClientValue(payload.clientId || request.headers.get('x-client-id'), 120);
@@ -148,11 +132,11 @@ export async function POST(request) {
     payload.idempotencyKey || request.headers.get('idempotency-key') || `${sessionId || requestId}:${timeControl}`,
     120
   );
-  const region = normalizeMatchmakingRegion(payload.region);
+  const region = normalizeMatchmakingRegion(process.env.MATCHMAKING_REGION || payload.region);
   const requestedRange = Number(payload.ratingRangePreference);
   const ratingRangePreference = Number.isFinite(requestedRange)
-    ? Math.max(25, Math.min(1000, Math.trunc(requestedRange)))
-    : 500;
+    ? Math.max(50, Math.min(200, Math.trunc(requestedRange)))
+    : 200;
 
   const rpcResult = await findGameRpc(supabase, {
     p_user_id: user.id,
@@ -210,7 +194,9 @@ export async function POST(request) {
     queueTicketId: result?.queue_ticket_id ?? null,
     generation: result?.generation ?? null,
     leaseExpiresAt: result?.lease_expires_at ?? null,
+    joinedAt: result?.joined_at ?? null,
     estimatedWait: result?.estimated_wait ?? null,
+    ratingLimit: result?.rating_limit ?? null,
     ratingWindow: result?.rating_window ?? null,
     region: result?.region ?? region,
     regionLimit: result?.region_limit ?? null,

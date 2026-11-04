@@ -23,5 +23,5 @@ test('AI Coach accepts chess player biographies from different eras', () => {
 test('AI Coach accepts common ChessArena feature questions', () => {
   assert.equal(isChessArenaSupportQuestion('tôi mua hàng ở đâu'), true);
   assert.equal(isChessArenaSupportQuestion('tôi kết bạn như nào'), true);
-  assert.equal(isChessArenaSupportQuestion('giải đấu của bạn như thế nào'), true);
+  assert.equal(isChessArenaSupportQuestion('kết bạn của bạn như thế nào'), true);
 });

@@ -1,5 +1,6 @@
 import { distributedRateLimit } from '../../../../../../lib/rateLimit';
 import { requireOnlineUser } from '../../../../../../lib/online';
+import { publishOnlineGame } from '../../../../../../lib/onlineEvents';
 
 export const runtime = 'nodejs';
 
@@ -65,7 +66,9 @@ export async function POST(request, { params }) {
     .select('id, user_id, body, created_at, users:user_id(display_name, photo_url)')
     .single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  return Response.json({ ok: true, message: publicChat(data, context.user.id) });
+  const message = publicChat(data, context.user.id);
+  publishOnlineGame(gameId, { type: 'chat', message: { ...message, you: undefined } });
+  return Response.json({ ok: true, message });
 }
 
 export function OPTIONS() {

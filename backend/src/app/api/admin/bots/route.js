@@ -36,7 +36,7 @@ async function cleanBotPayload(payload, ownerUserId = null) {
   }
   return {
     name: cleanText(payload?.name, 'Event Bot', 48),
-    elo: Math.max(250, Math.min(3200, Number(payload?.elo) || 1200)),
+    elo: Math.max(250, Math.min(3200, Math.round(Number(payload?.elo) || 1200))),
     mood: cleanText(payload?.mood, 'Custom admin bot', 120),
     chat: cleanText(payload?.chat, 'Ready for a themed game.', 220),
     avatar_url: avatarUrl,

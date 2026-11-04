@@ -50,6 +50,7 @@ async function fetchPlan(planId, token) {
   if (!planId) return null;
   if (!token) return planSummary(await fetchPayPalPlan(planId), planId);
   const response = await fetch(`${paypalBaseUrl()}/v1/billing/plans/${encodeURIComponent(planId)}`, {
+    signal: globalThis.AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json'

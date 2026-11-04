@@ -1,5 +1,6 @@
 import { createHash, randomInt } from 'node:crypto';
 import { getSupabaseAdmin } from './supabaseAdmin';
+import { signingSecret } from './signingSecrets.js';
 
 const fallbackOtps = new Map();
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -16,7 +17,7 @@ function normalizeEmail(email) {
 }
 
 function otpSecret() {
-  return process.env.OTP_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.FIREBASE_PROJECT_ID || 'local-otp-secret';
+  return signingSecret('OTP_SECRET');
 }
 
 function hashOtp(email, purpose, otp) {

@@ -18,21 +18,15 @@ export async function GET(request, { params }) {
   const { supabase } = context;
   const [
     { data: user, error: userError },
-    { data: devices = [] },
     { data: bans = [] },
     { data: mutes = [] },
-    { data: reports = [] },
     { data: playerReports = [] },
-    { data: ratingRefunds = [] },
     { data: membership = null }
   ] = await Promise.all([
     supabase.from('users').select('*').eq('id', userId).maybeSingle(),
-    supabase.from('user_devices').select('*').eq('user_id', userId).order('last_seen_at', { ascending: false }),
     supabase.from('user_bans').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from('user_mutes').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-    supabase.from('anti_cheat_reports').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
     supabase.from('player_reports').select('*').or(`reporter_user_id.eq.${userId},reported_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(20),
-    supabase.from('rating_refunds').select('*').or(`offender_user_id.eq.${userId},refunded_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(20),
     supabase.from('user_memberships').select('*').eq('user_id', userId).maybeSingle()
   ]);
 
@@ -64,17 +58,13 @@ export async function GET(request, { params }) {
     return publicGame(await decorateGameRatings(supabase, game), safeArray(moves), gameParticipantUserId(game, relatedUserIds, userId));
   }));
   const safePlayerReports = safeArray(playerReports);
-  const safeRatingRefunds = safeArray(ratingRefunds);
 
   return Response.json({
     ok: true,
     user,
-    devices: safeArray(devices),
     bans: safeArray(bans),
     mutes: safeArray(mutes),
-    reports: safeArray(reports),
     playerReports: safePlayerReports,
-    ratingRefunds: safeRatingRefunds,
     membership,
     diagnostics: {
       relatedUserIds,
@@ -83,7 +73,6 @@ export async function GET(request, { params }) {
       completedGamesFound: gameRows.filter((game) => ['checkmate', 'draw', 'resigned'].includes(game.status)).length,
       activeGamesFound: gameRows.filter((game) => game.status === 'active').length,
       openPlayerReports: safePlayerReports.filter((report) => ['pending', 'in_review', 'escalated'].includes(report.status)).length,
-      refundEvents: safeRatingRefunds.length,
       membershipStatus: membership?.status || 'inactive'
     },
     games: decoratedGames
