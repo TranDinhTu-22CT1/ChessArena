@@ -16,7 +16,7 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric'
+    year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh'
   }).format(new Date(value));
 }
 
@@ -50,7 +50,7 @@ function openProfile(userId) {
   window.dispatchEvent(new window.PopStateEvent('popstate'));
 }
 
-function TopThreePodium({ entries }) {
+function TopThreePodium({ entries, seasonal }) {
   const players = [2, 1, 3]
     .map((rank) => entries.find((player) => player.rank === rank))
     .filter(Boolean);
@@ -72,8 +72,8 @@ function TopThreePodium({ entries }) {
           <PlayerAvatar player={player} />
           <strong>{player.displayName}</strong>
           {player.provisional && <small>Tạm tính</small>}
-          <b>{player.rating}</b>
-          <span>rating</span>
+          <b>{seasonal ? player.points : player.rating}</b>
+          <span>{seasonal ? 'điểm kỳ' : 'Elo'}</span>
         </button>
       ))}
     </section>
@@ -82,6 +82,11 @@ function TopThreePodium({ entries }) {
 
 export default function LeaderboardPage({ authUser, onLogin }) {
   const [mode, setMode] = React.useState('rapid');
+  const [period, setPeriod] = React.useState('all');
+  const [offset, setOffset] = React.useState(0);
+  const [season, setSeason] = React.useState(null);
+  const requestRef = React.useRef(null);
+  const seasonal = period !== 'all';
   const [page, setPage] = React.useState(() => getUrlPage('page'));
   const [totalPages, setTotalPages] = React.useState(1);
   const [entries, setEntries] = React.useState([]);
@@ -95,23 +100,42 @@ export default function LeaderboardPage({ authUser, onLogin }) {
 
   const loadLeaderboard = React.useCallback(async (nextMode = mode, nextPage = page) => {
     if (!authUser) return;
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
     setMessage('');
+    setCurrentUser(null);
+    setSeason(null);
+    setEntries([]);
     try {
-      const data = await fetchLeaderboard(nextMode, { page: nextPage, limit: 20 });
+      const data = await fetchLeaderboard(nextMode, { page: nextPage, limit: 20, period, offset, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setEntries(data.entries || []);
       setCurrentUser(data.currentUser || null);
+      setSeason(data);
+      setPage(data.page || nextPage);
       setTotalPages(data.totalPages || 1);
     } catch (error) {
-      setMessage(error.message);
+      if (!controller.signal.aborted) setMessage(error.message);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [authUser, mode, page]);
+  }, [authUser, mode, page, period, offset]);
 
   React.useEffect(() => {
     loadLeaderboard(mode, page);
+    return () => requestRef.current?.abort();
   }, [loadLeaderboard, mode, page]);
+
+  // Refresh an open current-period view after the server's boundary, even if
+  // the browser clock is wrong. Past periods do not need a reset timer.
+  React.useEffect(() => {
+    if (!season?.periodEnd || offset !== 0) return undefined;
+    const remaining = Date.parse(season.periodEnd) - Date.parse(season.serverNow);
+    const timer = window.setTimeout(() => loadLeaderboard(mode, 1), Math.max(1000, Math.min(86400000, remaining + 500)));
+    return () => window.clearTimeout(timer);
+  }, [season, offset, mode, loadLeaderboard]);
 
   const changeMode = (nextMode) => {
     setMode(nextMode);
@@ -154,7 +178,7 @@ export default function LeaderboardPage({ authUser, onLogin }) {
         <div>
           <span><Trophy size={18} /> Chess Arena Leaderboard</span>
           <h1>Bảng xếp hạng online</h1>
-          <p>Rating được tách theo Bullet, Blitz, Rapid và Classical. Người chơi dưới 20 ván vẫn được đánh dấu tạm tính.</p>
+          <p>Elo thể hiện trình độ lâu dài. Điểm tuần và tháng tạo cuộc đua mới, giữ lại kết quả các kỳ trước.</p>
         </div>
         <button onClick={() => loadLeaderboard(mode, page)} disabled={loading}>
           <RefreshCw size={17} className={loading ? 'leaderboard-spin' : ''} />
@@ -174,15 +198,37 @@ export default function LeaderboardPage({ authUser, onLogin }) {
         ))}
       </nav>
 
+      <div className="leaderboard-season-controls">
+        <label>Bảng xếp hạng
+          <select value={period} onChange={(event) => { setPeriod(event.target.value); setOffset(0); setPage(1); setUrlPage(1, 'page'); }}>
+            <option value="all">Elo tổng</option><option value="week">Theo tuần</option><option value="month">Theo tháng</option>
+          </select>
+        </label>
+        {seasonal && <label>Kỳ thi đấu
+          <select value={offset} onChange={(event) => { setOffset(Number(event.target.value)); setPage(1); setUrlPage(1, 'page'); }}>
+            <option value={0}>{period === 'week' ? 'Tuần này' : 'Tháng này'}</option>
+            {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1} {period === 'week' ? 'tuần' : 'tháng'} trước</option>)}
+          </select>
+        </label>}
+      </div>
+      {seasonal && <aside className="leaderboard-season-note">
+        <strong>{season?.periodStart ? `${formatDate(season.periodStart)} – ${formatDate(new Date(Date.parse(season.periodEnd) - 1))} · giờ Việt Nam` : 'Xếp hạng theo kỳ'}</strong>
+        <p>Thắng 3 điểm · hòa 1 điểm · thua 0 điểm. Chỉ tính trận ghép nhanh có xếp hạng đã chốt kết quả; tối đa 3 trận với cùng đối thủ mỗi ngày, tính chung mọi chế độ.</p>
+        <p>Kỳ mới bắt đầu lúc 00:00 thứ Hai hoặc ngày 1 hằng tháng. Điểm kỳ mới về 0; Elo và lịch sử vẫn giữ nguyên. Chưa có trận hợp lệ thì chưa xếp hạng.</p>
+        <small>Bằng điểm: ưu tiên số trận thắng, thời điểm hoàn thành trận tính điểm cuối sớm hơn, rồi mã người chơi để thứ tự ổn định.</small>
+        {!loading && season && <p>{season.previousUser ? `Kỳ liền trước: #${season.previousUser.rank} · ${season.previousUser.points} điểm.` : 'Bạn chưa có hạng ở kỳ liền trước.'}</p>}
+      </aside>}
+
       {currentUser && (
         <article className="leaderboard-current">
           <ShieldCheck size={20} />
           <div>
             <strong>Thứ hạng của bạn: #{currentUser.rank}</strong>
-            <span>{currentUser.rating} rating · {currentUser.gamesPlayed} ván · thắng {currentUser.winRate}%</span>
+            <span>{seasonal ? `${currentUser.points} điểm kỳ · ${currentUser.rating} Elo hiện tại` : `${currentUser.rating} Elo`} · {currentUser.gamesPlayed} ván · thắng {currentUser.winRate}%</span>
           </div>
         </article>
       )}
+      {seasonal && season && !currentUser && !loading && <p className="leaderboard-message">Bạn chưa có hạng trong kỳ đã chọn. Hoàn thành một trận hợp lệ để tham gia.</p>}
 
       {message && <p className="leaderboard-message">{message}</p>}
 
@@ -194,13 +240,13 @@ export default function LeaderboardPage({ authUser, onLogin }) {
         <p className="leaderboard-empty">Chưa có người chơi nào hoàn thành ván trong chế độ này.</p>
       ) : (
         <>
-          {page === 1 && <TopThreePodium entries={entries} />}
+          {page === 1 && <TopThreePodium entries={entries} seasonal={seasonal} />}
           {visibleEntries.length > 0 && (
             <div className="leaderboard-table" role="table" aria-label="Bảng xếp hạng Chess Arena">
               <div className="leaderboard-head" role="row">
                 <span>Hạng</span>
                 <span>Người chơi</span>
-                <span>Rating</span>
+                <span>{seasonal ? 'Điểm kỳ' : 'Elo'}</span>
                 <span>Ván</span>
                 <span>Thắng/Thua/Hòa</span>
                 <span>Cập nhật</span>
@@ -215,7 +261,7 @@ export default function LeaderboardPage({ authUser, onLogin }) {
                     {player.provisional && <small>Tạm tính</small>}
                   </span>
                   </button>
-                  <strong className="leaderboard-rating">{player.rating}</strong>
+                  <strong className="leaderboard-rating">{seasonal ? player.points : player.rating}</strong>
                   <span className="leaderboard-games">{player.gamesPlayed}</span>
                   <span className="leaderboard-record">{player.wins}/{player.losses}/{player.draws}</span>
                   <span className="leaderboard-actions">

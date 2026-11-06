@@ -1,14 +1,11 @@
 import React from 'react';
-import { ArrowLeft, CheckCircle2, CreditCard, Crown, Gem, Loader2, LogIn, ShieldCheck, Sparkles } from 'lucide-react';
-import { activateMembership, fetchMembership } from '../../api/membership';
-import {
-  confirmMomoMembershipPayment,
-  createMomoMembershipPayment,
-  queryMomoMembershipPayment
-} from '../../api/momo';
-import { createPayPalSubscriptionCheckout, fetchPayPalPlan, fetchPayPalPlanPrices } from '../../api/paypalPlans';
+import { ArrowLeft, CalendarDays, CheckCircle2, CreditCard, Crown, Gem, Loader2, LogIn, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { activateMembership, cancelMembership } from '../../api/membership';
+
+import { cancelPendingPayPalCheckout, createPayPalSubscriptionCheckout, fetchPayPalPlan, fetchPayPalPlanPrices } from '../../api/paypalPlans';
 import { notify } from '../../components/ToastHost';
 import { activeTier, MEMBERSHIP_TIERS, PAID_TIERS } from '../../membership/plans';
+import '../../styles/membership.css';
 
 const PAYPAL_CURRENCY = import.meta.env.VITE_PAYPAL_CURRENCY || 'USD';
 const PAYPAL_PLAN_IDS = {
@@ -62,19 +59,6 @@ const FREE_LIMITS = [
   'Không được hỗ trợ giải thích nước đi (Explain Pro)'
 ];
 
-const MOMO_PRICES = {
-  plus: { monthly: 125000, yearly: 1250000 },
-  pro: { monthly: 250000, yearly: 2500000 },
-  master: { monthly: 500000, yearly: 5000000 }
-};
-const PENDING_MOMO_ORDER_KEY = 'chessarena:pending-momo-order';
-const MOMO_STATUS_POLL_INTERVAL_MS = 2000;
-const MOMO_STATUS_POLL_ATTEMPTS = 90;
-
-function wait(ms) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
 function currency(price) {
   if (!price?.value || !price?.currency) return 'Đang cập nhật...';
   const value = Number(price?.value ?? 0);
@@ -85,14 +69,6 @@ function currency(price) {
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2
   }).format(value);
-}
-
-function vnd(value) {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-    maximumFractionDigits: 0
-  }).format(Number(value || 0));
 }
 
 function planIdFor(tier, cycle) {
@@ -131,10 +107,16 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
   const [prices, setPrices] = React.useState(EMPTY_PRICES);
   const [planHealth, setPlanHealth] = React.useState(null);
   const [checkoutLoading, setCheckoutLoading] = React.useState(false);
-  const [momoLoading, setMomoLoading] = React.useState(false);
-  const [paymentMethod, setPaymentMethod] = React.useState('momo-atm');
-  const momoReturnHandledRef = React.useRef('');
+  const [cancelLoading, setCancelLoading] = React.useState(false);
+  const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const approvedSubscription = React.useRef('');
+
   const currentTier = activeTier(membership);
+  const renewing = Boolean(membership?.autoRenew && !membership?.cancelAtPeriodEnd && !membership?.cancelledAt);
+  const periodEnd = membership?.currentPeriodEnd ? new Date(membership.currentPeriodEnd) : null;
+  const periodLabel = periodEnd && Number.isFinite(periodEnd.getTime())
+    ? periodEnd.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : 'Đang cập nhật';
 
   React.useEffect(() => {
     let ignore = false;
@@ -154,88 +136,39 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
     const params = new URLSearchParams(window.location.search);
     if (params.get('paypal') === 'cancelled') {
       setMessage('Bạn đã hủy giao dịch thanh toán PayPal.');
+      cancelPendingPayPalCheckout().catch((error) => setMessage(error.message));
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
-    if (params.get('momo') === 'return') {
-      const callbackPayload = new URLSearchParams(params);
-      const callbackKey = callbackPayload.get('orderId') || callbackPayload.toString();
-      if (!callbackKey || momoReturnHandledRef.current === callbackKey) return;
-      momoReturnHandledRef.current = callbackKey;
-      window.history.replaceState({}, '', window.location.pathname);
-      setMessage('Đang đối chiếu kết quả giao dịch MoMo...');
-      confirmMomoMembershipPayment(params)
-        .then(() => {
-          notify('Gói Premium (MoMo) đã được kích hoạt thành công!', 'success');
-          return fetchMembership();
-        })
-        .then((nextMembership) => {
-          window.localStorage.removeItem(PENDING_MOMO_ORDER_KEY);
-          onMembershipUpdated(nextMembership);
-          setMessage('Thanh toán MoMo đã được xác nhận và gói đã được cập nhật.');
-        })
-        .catch(async (error) => {
-          const orderId = callbackPayload.get('orderId')
-            || window.localStorage.getItem(PENDING_MOMO_ORDER_KEY);
-          if (orderId) {
-            try {
-              await queryMomoMembershipPayment(orderId);
-              const nextMembership = await fetchMembership();
-              window.localStorage.removeItem(PENDING_MOMO_ORDER_KEY);
-              onMembershipUpdated(nextMembership);
-              setMessage('Thanh toán MoMo đã được đối soát và gói đã được cập nhật.');
-              return;
-            } catch {
-              // Preserve the provider error below when reconciliation is not complete.
-            }
-          }
-          setMessage(error.pending
-            ? `${error.message} Hệ thống sẽ tiếp tục đối soát với MoMo, bạn không cần thanh toán lại ngay.`
-            : error.message);
-        });
-      return;
-    }
+
     if (params.get('paypal') !== 'approved') return;
 
     const subscriptionId = params.get('subscription_id') || params.get('subscriptionID') || '';
     const approvedTier = params.get('tier') || '';
     const approvedCycle = params.get('cycle') || 'monthly';
     const planId = planIdFor(approvedTier, approvedCycle);
-    if (!subscriptionId || !planId) {
+    if (!subscriptionId) {
       setMessage('Giao dịch PayPal đã được duyệt nhưng thiếu dữ liệu. Hệ thống sẽ tự đồng bộ sau.');
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
 
+    if (approvedSubscription.current === subscriptionId) return;
+    approvedSubscription.current = subscriptionId;
     activateMembership({ tier: approvedTier, billingCycle: approvedCycle, planId, subscriptionId })
       .then((data) => {
         onMembershipUpdated(data);
-        notify('Gói Premium (PayPal) đã được kích hoạt thành công!', 'success');
+        const active = data?.status === 'active';
+        setMessage(active ? 'Thanh toán đã được xác nhận.' : 'PayPal đang xác nhận thanh toán. Quyền lợi sẽ được cập nhật sau khi thanh toán thành công.');
+        notify(active ? 'Gói Premium đã được kích hoạt!' : 'Đang chờ PayPal xác nhận thanh toán.', active ? 'success' : 'info');
       })
       .catch((error) => setMessage(error.message))
       .finally(() => window.history.replaceState({}, '', window.location.pathname));
   }, [onMembershipUpdated]);
 
-  React.useEffect(() => {
-    const orderId = window.localStorage.getItem(PENDING_MOMO_ORDER_KEY);
-    if (!orderId || new URLSearchParams(window.location.search).get('momo') === 'return') return;
-    queryMomoMembershipPayment(orderId)
-      .then(() => fetchMembership())
-      .then((nextMembership) => {
-        window.localStorage.removeItem(PENDING_MOMO_ORDER_KEY);
-        onMembershipUpdated(nextMembership);
-        setMessage('Giao dịch MoMo đã được đối soát thành công.');
-      })
-      .catch((error) => {
-        if (!error.pending && error.resultCode !== 1000) {
-          window.localStorage.removeItem(PENDING_MOMO_ORDER_KEY);
-        }
-      });
-  }, [onMembershipUpdated]);
-
   const checkoutPlan = checkoutTier ? PLAN_COPY[checkoutTier] : null;
   const checkoutPrice = checkoutTier ? prices[checkoutTier][cycle] : null;
-  const checkoutMomoPrice = checkoutTier ? MOMO_PRICES[checkoutTier]?.[cycle] : 0;
+
   const checkoutPlanId = checkoutTier ? planIdFor(checkoutTier, cycle) : '';
   const planHealthNote = checkoutTier ? planHealthMessage(checkoutPlanId, planHealth, checkoutPrice?.currency || PAYPAL_CURRENCY) : '';
   const checkoutBlocked = !checkoutPlanId
@@ -255,65 +188,22 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
       window.location.assign(data.approveUrl);
     } catch (error) {
       const text = error.message || 'Lỗi khởi tạo giao dịch PayPal Sandbox.';
-      setMessage(`${text} ID: ${checkoutPlanId}, Tiền tệ: ${checkoutPrice?.currency || PAYPAL_CURRENCY}.`);
+      setMessage(text);
       notify(text, 'error');
     } finally {
       setCheckoutLoading(false);
     }
   };
 
-  const startMomoCheckout = async () => {
-    const paymentWindow = window.open('', 'chessarena-momo-atm', 'popup,width=1100,height=760');
-    if (!paymentWindow) {
-      const text = 'Trình duyệt đang chặn cửa sổ thanh toán. Hãy cho phép popup cho ChessArena rồi thử lại.';
-      setMessage(text);
-      notify(text, 'error');
-      return;
-    }
-
-    paymentWindow.document.title = 'Đang mở cổng thanh toán MoMo...';
-    paymentWindow.document.body.innerHTML = '<p style="font:16px system-ui;padding:24px">Đang kết nối cổng thanh toán ATM...</p>';
-    setMomoLoading(true);
-    setMessage('');
+  const stopRenewal = async () => {
+    setCancelLoading(true);
     try {
-      const data = await createMomoMembershipPayment({
-        tier: checkoutTier,
-        billingCycle: cycle,
-        paymentMethod: 'atm'
-      });
-      if (data.requestType !== 'payWithATM') {
-        throw new Error('Kênh thanh toán MoMo được tạo không đúng. Vui lòng khởi động lại backend và thử lại.');
-      }
-      window.localStorage.setItem(PENDING_MOMO_ORDER_KEY, data.orderId);
-      paymentWindow.location.replace(data.payUrl);
-      setMessage('Cổng ATM đã mở ở cửa sổ riêng. ChessArena đang tự động đối soát giao dịch...');
-
-      for (let attempt = 0; attempt < MOMO_STATUS_POLL_ATTEMPTS; attempt += 1) {
-        await wait(MOMO_STATUS_POLL_INTERVAL_MS);
-        try {
-          await queryMomoMembershipPayment(data.orderId);
-          const nextMembership = await fetchMembership();
-          window.localStorage.removeItem(PENDING_MOMO_ORDER_KEY);
-          onMembershipUpdated(nextMembership);
-          if (!paymentWindow.closed) paymentWindow.close();
-          setMessage('Thanh toán ATM thành công. Gói Premium đã được kích hoạt.');
-          notify('Thanh toán ATM thành công!', 'success');
-          return;
-        } catch (statusError) {
-          if (statusError.pending || statusError.resultCode === 1000) continue;
-          throw statusError;
-        }
-      }
-
-      setMessage('Giao dịch vẫn đang được xử lý. ChessArena sẽ tiếp tục đối soát khi bạn mở lại trang Premium.');
-    } catch (error) {
-      if (!paymentWindow.closed) paymentWindow.close();
-      const text = error.message || 'Lỗi khởi tạo giao dịch MoMo Sandbox.';
-      setMessage(text);
-      notify(text, 'error');
-    } finally {
-      setMomoLoading(false);
-    }
+      const next = await cancelMembership();
+      onMembershipUpdated(next);
+      setConfirmCancel(false);
+      setMessage('Đã tắt gia hạn. Bạn vẫn sử dụng đầy đủ quyền lợi đến hết kỳ đã thanh toán.');
+    } catch (error) { setMessage(error.message); }
+    finally { setCancelLoading(false); }
   };
 
   React.useEffect(() => {
@@ -373,7 +263,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
             <h1><Icon size={32} /> Gói {checkoutPlan.title}</h1>
             <p>{checkoutPlan.tag}</p>
             <strong className="checkout-price-display">
-              {paymentMethod.startsWith('momo-') ? vnd(checkoutMomoPrice) : currency(checkoutPrice)}
+              {currency(checkoutPrice)}
               <small>/{cycle === 'monthly' ? 'tháng' : 'năm'}</small>
             </strong>
             <ul className="checkout-benefits">
@@ -384,46 +274,19 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           </div>
 
           <div className="checkout-payment">
-            <h2>Chọn phương thức thanh toán</h2>
-            <p>Hệ thống hiện đang sử dụng môi trường thử nghiệm (Sandbox) để đảm bảo an toàn cho mọi giao dịch.</p>
+            <h2>Đăng ký qua PayPal</h2>
+            <p>Gói tự động gia hạn theo tháng hoặc năm. Bạn có thể tắt gia hạn bất cứ lúc nào và vẫn dùng đến hết kỳ đã thanh toán.</p>
 
-            <div className="payment-methods">
-              <button className={paymentMethod === 'momo-atm' ? 'active' : ''} type="button" onClick={() => setPaymentMethod('momo-atm')}>Thẻ ATM</button>
-              <button className={paymentMethod === 'paypal' ? 'active' : ''} type="button" onClick={() => setPaymentMethod('paypal')}>PayPal</button>
-            </div>
-
-            {paymentMethod === 'paypal' && (
+            {(
               <button className="pay-btn paypal" onClick={startServerCheckout} disabled={checkoutLoading || checkoutBlocked}>
                 {checkoutLoading ? <Loader2 className="animate-spin" size={20} /> : <CreditCard size={20} />}
                 {checkoutLoading ? 'Đang kết nối PayPal...' : 'Thanh toán qua PayPal'}
               </button>
             )}
 
-            {paymentMethod.startsWith('momo-') && (
-              <>
-                <div className="momo-channel-summary">
-                  <strong>Thanh toán bằng thẻ ATM nội địa</strong>
-                  <span>MoMo sẽ mở form để bạn nhập số thẻ, ngày phát hành, tên chủ thẻ và số điện thoại.</span>
-                </div>
-                <button className="pay-btn momo" onClick={startMomoCheckout} disabled={momoLoading}>
-                  {momoLoading ? <Loader2 className="animate-spin" size={20} /> : <CreditCard size={20} />}
-                  {momoLoading
-                    ? 'Đang mở form thẻ ATM...'
-                    : `Thanh toán bằng thẻ ATM · ${vnd(checkoutMomoPrice)}`}
-                </button>
-              </>
-            )}
-
-            <div className="checkout-technical-note">
-              <strong>Thông tin kỹ thuật</strong>
-              <div>Plan ID: {checkoutPlanId || 'Chưa cấu hình'}</div>
-              <div>Trạng thái PayPal: {planHealth?.plan?.status || checkoutPrice?.status || 'Đang kiểm tra...'}</div>
-              <div>Hỗ trợ MoMo: Tự động kích hoạt khi resultCode=0</div>
-              <div>MoMo Sandbox: cổng ATM mở ở cửa sổ riêng; ChessArena tự đối soát kết quả và không làm mất phiên đăng nhập.</div>
-            </div>
-
             {planHealthNote && <div className="sys-note">{planHealthNote}</div>}
-            {!checkoutPrice?.value && paymentMethod === 'paypal' && <div className="sys-note">Cảnh báo: Không tìm thấy giá trị của gói từ PayPal. Tính năng thanh toán tạm khóa để tránh lỗi hệ thống.</div>}
+            {!checkoutPrice?.value && <div className="sys-note">Giá gói đang được cập nhật. Vui lòng thử lại sau.</div>}
+            {currentTier !== 'free' && <p>Nâng cấp bắt đầu một kỳ thanh toán mới với giá gói cao hơn. Gia hạn của gói cũ sẽ được tắt sau khi thanh toán thành công; không hoàn phần kỳ cũ còn lại.</p>}
             {message && <div className="sys-note info">{message}</div>}
           </div>
         </div>
@@ -438,9 +301,50 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
         <div className="pm-hero-badge"><Crown size={16} /> Dành Cho Kỳ Thủ Đam Mê</div>
         <h1>Nâng Tầm Kỹ Năng Cờ Vua Của Bạn</h1>
         <p>Trải nghiệm miễn phí là bước khởi đầu. Nâng cấp Premium để mở khóa hệ thống phân tích chuyên sâu, thư viện bài tập khổng lồ và huấn luyện viên AI độc quyền giúp bạn bứt phá Elo.</p>
-        <div className="pm-current-status">
-          Gói hiện tại của bạn: <strong>{MEMBERSHIP_TIERS[currentTier].name}</strong>
+      </div>
+
+      <section className={`membership-account-card ${renewing ? 'is-renewing' : ''}`} aria-label="Gói hiện tại của bạn">
+        <div className="membership-account-head">
+          <div className="membership-plan-identity">
+            <span className="membership-plan-emblem"><Crown size={26} /></span>
+            <div><span>Gói hiện tại của bạn</span><h2>{MEMBERSHIP_TIERS[currentTier].name}</h2></div>
+          </div>
+          <span className={`membership-status-pill ${renewing ? 'active' : ''}`}>
+            {renewing ? <RefreshCw size={14} /> : <ShieldCheck size={14} />}
+            {currentTier === 'free' ? 'Miễn phí' : renewing ? 'Tự động gia hạn' : 'Gia hạn đã tắt'}
+          </span>
         </div>
+        {currentTier !== 'free' ? <>
+          <dl className="membership-account-facts">
+            <div><dt><CalendarDays size={16} /> {renewing ? 'Lần gia hạn tiếp theo' : 'Quyền lợi được giữ đến'}</dt><dd>{periodLabel}</dd></div>
+            <div><dt>Chu kỳ đăng ký</dt><dd>{membership?.billingCycle === 'yearly' ? 'Hàng năm' : 'Hàng tháng'}</dd></div>
+            <div><dt>Thanh toán qua</dt><dd>{membership?.provider === 'paypal' ? 'PayPal' : 'Hệ thống'}</dd></div>
+          </dl>
+          <div className="membership-account-footer">
+            <p><ShieldCheck size={18} /> {renewing ? 'Bạn có thể tắt gia hạn bất cứ lúc nào. Quyền lợi luôn được giữ đến hết kỳ đã thanh toán.' : 'Bạn vẫn sử dụng đầy đủ quyền lợi đến ngày trên. Gói này sẽ không tự thu tiền cho kỳ tiếp theo.'}</p>
+            {membership?.provider === 'paypal' && renewing && !confirmCancel &&
+              <button type="button" className="membership-manage-button" onClick={() => setConfirmCancel(true)}>Hủy gia hạn</button>}
+          </div>
+          {confirmCancel && renewing && <div className="membership-cancel-confirm" role="group" aria-label="Xác nhận tắt gia hạn">
+            <div><strong>Tắt gia hạn cho kỳ tiếp theo?</strong><p>Bạn vẫn dùng gói {MEMBERSHIP_TIERS[currentTier].name} đến {periodLabel}.</p></div>
+            <div className="membership-confirm-actions">
+              <button type="button" disabled={cancelLoading} onClick={() => setConfirmCancel(false)}>Giữ đăng ký</button>
+              <button type="button" className="confirm-stop" disabled={cancelLoading} onClick={stopRenewal}>
+                {cancelLoading ? <Loader2 size={16} className="animate-spin" /> : null}{cancelLoading ? 'Đang tắt gia hạn...' : 'Xác nhận hủy gia hạn'}
+              </button>
+            </div>
+          </div>}
+        </> : <p className="membership-free-note">Bắt đầu luyện tập miễn phí, nâng cấp khi bạn cần thêm công cụ phân tích.</p>}
+        {message && <p className="sys-note info" role="status">{message}</p>}
+      </section>
+      <div className="membership-checkout-help">
+        <span>Còn giao dịch PayPal đang chờ?</span>
+        <button type="button" disabled={checkoutLoading} onClick={async () => {
+          setCheckoutLoading(true);
+          try { await cancelPendingPayPalCheckout(); setMessage('Đã đóng giao dịch PayPal đang chờ. Bạn có thể chọn gói mới.'); }
+          catch (error) { setMessage(error.message); }
+          finally { setCheckoutLoading(false); }
+        }}>Hủy giao dịch chưa hoàn tất</button>
       </div>
 
       <div className="pm-toggle-wrapper">
@@ -457,6 +361,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
           const plan = PLAN_COPY[tier];
           const Icon = plan.icon;
           const isActive = currentTier === tier;
+          const isLower = PAID_TIERS.indexOf(tier) < PAID_TIERS.indexOf(currentTier);
           const isPopular = tier === 'pro';
 
           return (
@@ -476,7 +381,7 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
                   {currency(prices[tier][cycle])}
                   <small>{prices[tier][cycle]?.value ? `/${cycle === 'monthly' ? 'tháng' : 'năm'}` : ''}</small>
                 </strong>
-                <span className="pm-momo-price">Hoặc thanh toán ví MoMo: {vnd(MOMO_PRICES[tier]?.[cycle])}</span>
+
               </div>
 
               <ul className="pm-benefits">
@@ -487,14 +392,14 @@ export default function MembershipPage({ authUser, membership, onLogin, onMember
 
               <button
                 className={`pm-btn ${isPopular && !isActive ? 'primary' : 'secondary'}`}
-                disabled={isActive}
+                disabled={isActive || isLower}
                 onClick={() => {
                   setCheckoutTier(tier);
                   setMessage('');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
               >
-                {isActive ? 'Đang sử dụng' : 'Nâng cấp ngay'}
+                {isActive ? 'Đang sử dụng' : isLower ? 'Đã có gói cao hơn' : 'Nâng cấp ngay'}
               </button>
             </div>
           );

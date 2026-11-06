@@ -1,3 +1,4 @@
+import { apiFetch } from './request';
 import { apiUrl } from './config';
 
 async function readJson(response) {
@@ -78,7 +79,7 @@ function clearQueueAttemptContext() {
 }
 
 export async function sendOnlineHeartbeat(queueing = false, gameId = null, options = {}) {
-  const response = await fetch(apiUrl('/api/online/heartbeat'), {
+  const response = await apiFetch(apiUrl('/api/online/heartbeat'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -97,7 +98,7 @@ export async function sendOnlineHeartbeat(queueing = false, gameId = null, optio
 }
 
 export async function joinOnlineQueue(timeControl) {
-  const response = await fetch(apiUrl('/api/online/matchmaking/find'), {
+  const response = await apiFetch(apiUrl('/api/online/matchmaking/find'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -110,7 +111,7 @@ export async function joinOnlineQueue(timeControl) {
 }
 
 export async function cancelOnlineQueue() {
-  const response = await fetch(apiUrl('/api/online/matchmaking/cancel'), {
+  const response = await apiFetch(apiUrl('/api/online/matchmaking/cancel'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -121,41 +122,27 @@ export async function cancelOnlineQueue() {
     })
   });
   const data = await readJson(response);
-  if (data.status === 'cancelled') clearQueueAttemptContext();
+  if (['cancelled', 'matched', 'ignored'].includes(data.status)) clearQueueAttemptContext();
   return data;
 }
 
-export async function createFriendGame(timeControl, side = 'random', targetUserId = '') {
-  const response = await fetch(apiUrl('/api/online/friend'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'create', timeControl, side, targetUserId })
-  });
-  return readJson(response);
-}
 
-export async function joinFriendGame(code) {
-  const response = await fetch(apiUrl('/api/online/friend'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'join', code })
-  });
-  return readJson(response);
-}
+
+
 
 export async function fetchOnlineGame(gameId) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}`), {
     credentials: 'include'
   });
   return readJson(response);
 }
 
-export async function fetchOnlineHistory({ page = 1, limit = 10, result = 'all', mode = 'all', review = 'all' } = {}) {
+export async function fetchOnlineHistory({ page = 1, limit = 10, result = 'all', mode = 'all', review = 'all', dateFrom = '', dateTo = '', signal } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit), result, mode, review });
-  const response = await fetch(apiUrl(`/api/online/history?${params.toString()}`), {
-    credentials: 'include'
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
+  const response = await apiFetch(apiUrl(`/api/online/history?${params.toString()}`), {
+    signal, credentials: 'include'
   });
   return readJson(response);
 }
@@ -165,7 +152,7 @@ export function onlineGameEventsUrl(gameId) {
 }
 
 export async function sendOnlineMove(gameId, move) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/move`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/move`), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -175,7 +162,7 @@ export async function sendOnlineMove(gameId, move) {
 }
 
 export async function resignOnlineGame(gameId) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/resign`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/resign`), {
     method: 'POST',
     credentials: 'include'
   });
@@ -183,7 +170,7 @@ export async function resignOnlineGame(gameId) {
 }
 
 export async function reportOnlineGame(gameId, payload) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/report`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/report`), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -193,7 +180,7 @@ export async function reportOnlineGame(gameId, payload) {
 }
 
 export async function sendOnlineRematch(gameId, action) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/rematch`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/rematch`), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -203,7 +190,7 @@ export async function sendOnlineRematch(gameId, action) {
 }
 
 export async function sendOnlineDrawAction(gameId, action) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/draw`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/draw`), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -213,14 +200,14 @@ export async function sendOnlineDrawAction(gameId, action) {
 }
 
 export async function fetchOnlineChat(gameId) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/chat`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/chat`), {
     credentials: 'include'
   });
   return readJson(response);
 }
 
 export async function sendOnlineChat(gameId, body) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/chat`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/chat`), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -230,7 +217,7 @@ export async function sendOnlineChat(gameId, body) {
 }
 
 export async function joinOnlineSpectators(gameId) {
-  const response = await fetch(apiUrl(`/api/online/games/${gameId}/spectate`), {
+  const response = await apiFetch(apiUrl(`/api/online/games/${gameId}/spectate`), {
     method: 'POST',
     credentials: 'include'
   });

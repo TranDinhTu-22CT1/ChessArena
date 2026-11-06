@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
 const vendorChunks = {
   react: ['react', 'react-dom'],
@@ -8,16 +8,19 @@ const vendorChunks = {
   icons: ['lucide-react']
 };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
+  const target = env.VITE_PROXY_API_URL || 'http://127.0.0.1:3000';
+  const proxy = { '/api': { target, changeOrigin: true, timeout: 0, proxyTimeout: 0 } };
+  return {
   plugins: [react()],
   server: {
-    proxy: {
-      '/api': {
-        target: process.env.VITE_PROXY_API_URL || 'http://localhost:3000',
-        changeOrigin: true
-      }
-    }
+    host: '0.0.0.0',
+    strictPort: true,
+    allowedHosts: (env.VITE_ALLOWED_HOSTS || '').split(',').map((host) => host.trim()).filter(Boolean),
+    proxy
   },
+  preview: { host: '0.0.0.0', strictPort: true, proxy },
   build: {
     rollupOptions: {
       output: {
@@ -33,4 +36,5 @@ export default defineConfig({
       }
     }
   }
+  };
 });

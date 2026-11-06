@@ -3,25 +3,34 @@ import { apiUrl } from '../api/config';
 import { BOARD_PRESETS, DARK_THEME, DEFAULT_PIECE_SET, DEFAULT_THEME, LIGHT_THEME, normalizePieceSet } from '../game/constants';
 
 function loadStoredTheme() {
-  return DEFAULT_THEME;
+  return {};
 }
 
-export function useThemeSettings(authUser) {
+export function useThemeSettings(authUser, websiteSettings) {
   const [theme, setTheme] = React.useState(() => loadStoredTheme());
   const [systemDark, setSystemDark] = React.useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [pieceSet, setPieceSetState] = React.useState(DEFAULT_PIECE_SET);
-  const [preferencesReady, setPreferencesReady] = React.useState(false);
-  const themeSaveTimerRef = React.useRef(null);
+  const [preferencesOwner, setPreferencesOwner] = React.useState('');
+  const preferenceSession = React.useRef(null);
+  const identity = authUser?.uid || authUser?.id || authUser?.email || '';
 
-  const appearance = ['system', 'dark', 'light', 'custom'].includes(theme.appearance) ? theme.appearance : 'custom';
+  const defaultAppearance = websiteSettings?.defaultAppearance || DEFAULT_THEME.appearance;
+  const appearance = ['system', 'dark', 'light', 'custom'].includes(theme.appearance) ? theme.appearance : defaultAppearance;
   const colorScheme = appearance === 'system' ? (systemDark ? 'dark' : 'light') : appearance === 'light' ? 'light' : 'dark';
   const palette = appearance === 'custom'
     ? theme
     : colorScheme === 'dark'
       ? DARK_THEME
       : LIGHT_THEME;
-  const resolvedTheme = { ...theme, ...palette, appearance };
+  const boardPreset = BOARD_PRESETS.find(item => item.id === websiteSettings?.defaultBoardTheme);
+  const resolvedTheme = {
+    ...DEFAULT_THEME, ...palette,
+    accent: theme.accent || websiteSettings?.accentColor || palette.accent || DEFAULT_THEME.accent,
+    lightSquare: theme.lightSquare || boardPreset?.lightSquare || palette.lightSquare || DEFAULT_THEME.lightSquare,
+    darkSquare: theme.darkSquare || boardPreset?.darkSquare || palette.darkSquare || DEFAULT_THEME.darkSquare,
+    appearance
+  };
   const themeStyle = {
     '--accent': resolvedTheme.accent,
     '--light-square': resolvedTheme.lightSquare,
@@ -50,63 +59,65 @@ export function useThemeSettings(authUser) {
   }, [colorScheme, resolvedTheme.accent, resolvedTheme.darkSquare, resolvedTheme.lightSquare, resolvedTheme.page, resolvedTheme.surface]);
 
   React.useEffect(() => {
-    if (!authUser || !preferencesReady) return;
-
-    if (themeSaveTimerRef.current) {
-      window.clearTimeout(themeSaveTimerRef.current);
-    }
-
-    themeSaveTimerRef.current = window.setTimeout(() => {
-      fetch(apiUrl('/api/user/preferences'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: { ...theme, pieceSet } })
-      }).catch(() => {});
-    }, 180);
-  }, [authUser, preferencesReady, theme, pieceSet]);
+    const session = preferenceSession.current;
+    if (!identity || preferencesOwner !== identity || session?.id !== identity) return undefined;
+    session.desired = JSON.stringify({ theme: { ...theme, pieceSet } });
+    if (session.saved === session.desired) return undefined;
+    const timer = window.setTimeout(async () => {
+      if (session.saving || session.controller.signal.aborted) return;
+      session.saving = true;
+      try {
+        // Serialize saves so a slow older request cannot overwrite the latest choice.
+        while (session.desired !== session.saved && !session.controller.signal.aborted) {
+          const body = session.desired;
+          const response = await fetch(apiUrl('/api/user/preferences'), {
+            method: 'POST', credentials: 'include', signal: session.controller.signal,
+            headers: { 'Content-Type': 'application/json' }, body
+          });
+          if (!response.ok) break;
+          session.saved = body;
+        }
+      } catch { /* Retry on the next user change, never loop on failed writes. */ }
+      finally { session.saving = false; }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [identity, preferencesOwner, theme, pieceSet]);
 
   React.useEffect(() => {
-    if (!authUser) {
-      setPreferencesReady(false);
-      return;
-    }
-
-    setPreferencesReady(false);
-
-    fetch(apiUrl('/api/user/preferences'), { credentials: 'include' })
+    setPreferencesOwner('');
+    preferenceSession.current = null;
+    setTheme({});
+    setPieceSetState(DEFAULT_PIECE_SET);
+    if (!identity) return undefined;
+    const controller = new AbortController();
+    fetch(apiUrl('/api/user/preferences'), { credentials: 'include', signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (data?.preferences?.theme) {
-          const { pieceSet: storedPieceSet, ...storedTheme } = data.preferences.theme;
-          setTheme({
-            ...DEFAULT_THEME,
-            ...storedTheme,
-            appearance: storedTheme.appearance || 'custom'
-          });
-          setPieceSetState(normalizePieceSet(storedPieceSet));
-        }
+        if (!data || controller.signal.aborted) return;
+        const stored = data.preferences?.theme;
+        const { pieceSet: storedPieceSet, ...storedTheme } = stored || {};
+        const nextTheme = storedTheme;
+        const nextPieceSet = normalizePieceSet(storedPieceSet);
+        const saved = JSON.stringify({ theme: { ...nextTheme, pieceSet: nextPieceSet } });
+        preferenceSession.current = { id: identity, controller, saved, desired: saved, saving: false };
+        setTheme(nextTheme);
+        setPieceSetState(nextPieceSet);
+        setPreferencesOwner(identity);
       })
-      .catch(() => {})
-      .finally(() => setPreferencesReady(true));
-  }, [authUser]);
-
-  React.useEffect(() => () => {
-    if (themeSaveTimerRef.current) {
-      window.clearTimeout(themeSaveTimerRef.current);
-    }
-  }, []);
+      .catch(() => {});
+    return () => controller.abort();
+  }, [identity]);
 
   const updateTheme = (key, value) => {
     setTheme((currentTheme) => ({
-      ...currentTheme,
+      ...resolvedTheme, ...currentTheme,
       appearance: 'custom',
       [key]: value
     }));
   };
 
   const resetTheme = () => {
-    setTheme(DEFAULT_THEME);
+    setTheme({});
     setPieceSetState(DEFAULT_PIECE_SET);
   };
 
@@ -124,7 +135,6 @@ export function useThemeSettings(authUser) {
     if (!preset) return;
     setTheme((currentTheme) => ({
       ...currentTheme,
-      appearance: 'custom',
       lightSquare: preset.lightSquare,
       darkSquare: preset.darkSquare
     }));

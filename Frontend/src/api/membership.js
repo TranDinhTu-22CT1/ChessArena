@@ -25,3 +25,8 @@ export async function activateMembership(payload) {
   });
   return readMembershipResponse(response);
 }
+
+export async function cancelMembership() {
+  const response = await fetch(apiUrl('/api/user/membership'), { method: 'DELETE', credentials: 'include' });
+  return readMembershipResponse(response);
+}

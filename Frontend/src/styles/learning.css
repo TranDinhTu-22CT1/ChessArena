@@ -1,7 +1,4 @@
-/* Single source of truth for BeginnerGuidePage and TournamentsPage. */
-.beginner-guide-page,
-.tournaments-page,
-.tournaments-auth-required {
+.beginner-guide-page {
   --learn-ink: #173d2b;
   --learn-muted: #5d7465;
   --learn-green: #168b56;
@@ -16,8 +13,7 @@
   color: var(--learn-ink);
 }
 
-.beginner-guide-page,
-.tournaments-page {
+.beginner-guide-page {
   display: grid;
   width: min(100%, 1180px);
   gap: 16px;
@@ -29,8 +25,7 @@
   width: min(100%, 1320px);
 }
 
-.beginner-guide-hero,
-.tournaments-hero {
+.beginner-guide-hero {
   position: relative;
   isolation: isolate;
   display: grid;
@@ -49,8 +44,7 @@
   animation: learningCardIn 420ms ease both;
 }
 
-.beginner-guide-hero::after,
-.tournaments-hero::after {
+.beginner-guide-hero::after {
   position: absolute;
   z-index: -1;
   right: -45px;
@@ -67,13 +61,11 @@
   transform: rotate(10deg);
 }
 
-.beginner-guide-hero > div,
-.tournaments-hero > div {
+.beginner-guide-hero > div {
   min-width: 0;
 }
 
 .beginner-guide-hero > div > span,
-.tournaments-hero > div > span,
 .guide-video-copy > span {
   display: inline-flex;
   gap: 7px;
@@ -85,8 +77,7 @@
   text-transform: uppercase;
 }
 
-.beginner-guide-hero h1,
-.tournaments-hero h1 {
+.beginner-guide-hero h1 {
   max-width: 720px;
   margin: 8px 0 10px;
   color: var(--learn-ink) !important;
@@ -95,8 +86,7 @@
   line-height: 0.98;
 }
 
-.beginner-guide-hero p,
-.tournaments-hero p {
+.beginner-guide-hero p {
   max-width: 700px;
   margin: 0;
   color: var(--learn-muted) !important;
@@ -139,9 +129,7 @@
 }
 
 .beginner-guide-hero button,
-.tournaments-hero-action,
-.guide-video-copy button,
-.tournaments-auth-required button {
+.guide-video-copy button {
   display: inline-flex;
   min-height: 43px;
   padding: 0 17px;
@@ -161,9 +149,7 @@
 }
 
 .beginner-guide-hero button:hover,
-.tournaments-hero-action:hover,
-.guide-video-copy button:hover,
-.tournaments-auth-required button:hover {
+.guide-video-copy button:hover {
   background: var(--learn-green-dark) !important;
   box-shadow: 0 13px 25px rgba(22, 139, 86, 0.24);
   transform: translateY(-2px);
@@ -174,11 +160,7 @@
 .guide-live-panel,
 .guide-standard-board-wrap,
 .guide-rules-section,
-.guide-learning-path,
-.modern-t-card,
-.modern-detail-card,
-.tournament-toolbar,
-.t-inline-loading {
+.guide-learning-path {
   color: var(--learn-ink);
   background: var(--learn-card);
   border: 1px solid var(--learn-white-line);
@@ -744,568 +726,6 @@
   border: 0;
 }
 
-/* Tournaments */
-.tournaments-hero {
-  min-height: 205px;
-}
-
-.tournaments-hero-action {
-  position: relative;
-  z-index: 1;
-  flex: 0 0 auto;
-  padding-inline: 21px;
-}
-
-.tournament-toolbar {
-  display: flex;
-  gap: 9px;
-  padding: 11px;
-  align-items: center;
-  flex-wrap: wrap;
-  border-radius: 17px;
-  animation: learningCardIn 440ms ease both;
-}
-
-.tournament-toolbar select {
-  min-width: 220px;
-  min-height: 43px;
-  padding: 0 38px 0 14px;
-  color: #476252 !important;
-  background: #f0f4ef !important;
-  border: 1px solid rgba(255, 255, 255, 0.78) !important;
-  border-radius: 12px;
-  outline: 0;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.tournament-toolbar select:focus {
-  border-color: rgba(22, 139, 86, 0.35) !important;
-  box-shadow: 0 0 0 3px rgba(22, 139, 86, 0.08);
-}
-
-.modern-refresh-btn,
-.t-btn,
-.modern-detail-card .back-btn {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-  justify-content: center;
-  font: inherit;
-  font-size: 0.71rem;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.modern-refresh-btn {
-  min-height: 43px;
-  padding: 0 15px;
-  color: #41604d !important;
-  background: #edf2ec !important;
-  border: 1px solid rgba(255, 255, 255, 0.78) !important;
-  border-radius: 999px;
-  transition: color 170ms ease, background 170ms ease, transform 170ms ease;
-}
-
-.modern-refresh-btn:hover:not(:disabled) {
-  color: #fff !important;
-  background: var(--learn-green) !important;
-  transform: translateY(-1px);
-}
-
-.modern-refresh-btn:disabled,
-.t-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
-}
-
-.tournament-message {
-  margin: 0;
-  padding: 13px 16px;
-  color: #2d684a !important;
-  background: rgba(232, 239, 231, 0.96);
-  border: 1px solid rgba(38, 103, 62, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 9px 20px rgba(39, 83, 50, 0.06);
-  font-size: 0.77rem;
-  font-weight: 750;
-}
-
-.modern-tournament-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
-  gap: 13px;
-}
-
-.modern-t-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 294px;
-  gap: 14px;
-  padding: 20px;
-  border-radius: 19px;
-  animation: learningCardIn 420ms ease both;
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-}
-
-.modern-t-card:hover {
-  border-color: rgba(71, 140, 76, 0.2);
-  box-shadow: 0 19px 37px rgba(36, 79, 48, 0.13);
-  transform: translateY(-3px);
-}
-
-.tournament-card-head {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.tournament-card-copy,
-.tournament-detail-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.t-badge {
-  display: inline-flex;
-  max-width: 100%;
-  min-height: 25px;
-  padding: 0 9px;
-  align-items: center;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 0.59rem;
-  font-weight: 900;
-  letter-spacing: 0.055em;
-  line-height: 1.25;
-  text-transform: uppercase;
-}
-
-.t-badge.running {
-  color: #176239;
-  background: #dcefe2;
-  border-color: #b8dec6;
-}
-
-.t-badge.open {
-  color: #285f85;
-  background: #e0edf7;
-  border-color: #bdd5e6;
-}
-
-.t-badge.finished {
-  color: #58665d;
-  background: #e4e9e4;
-  border-color: #d0d9d1;
-}
-
-.t-badge.cancelled {
-  color: #8a3f38;
-  background: #f3dfdc;
-  border-color: #e7c8c5;
-}
-
-.t-badge.scheduled {
-  color: #82631c;
-  background: #f4ead0;
-  border-color: #ead9aa;
-}
-
-.t-title {
-  margin: 8px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--learn-ink) !important;
-  font-size: 1.03rem;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-}
-
-.t-time-control {
-  max-width: 42%;
-  flex: 0 0 auto;
-  padding: 7px 9px;
-  overflow: hidden;
-  color: var(--learn-green-dark);
-  background: #eef3ed;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 10px;
-  font-size: 0.65rem;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.t-meta {
-  display: grid;
-  gap: 7px;
-  color: var(--learn-muted) !important;
-  font-size: 0.69rem;
-  font-weight: 720;
-}
-
-.t-meta span {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-}
-
-.t-meta svg {
-  color: var(--learn-green);
-}
-
-.t-podium {
-  display: grid;
-  gap: 6px;
-  padding: 11px;
-  color: var(--learn-ink);
-  background: #f0f4ef;
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 13px;
-}
-
-.t-podium span {
-  display: flex;
-  min-width: 0;
-  gap: 7px;
-  align-items: center;
-  color: #476252 !important;
-  font-size: 0.68rem;
-  font-weight: 780;
-}
-
-.t-podium span:nth-child(1) svg {
-  color: #b88a17;
-}
-
-.t-podium span:nth-child(2) svg {
-  color: #84928b;
-}
-
-.t-podium span:nth-child(3) svg {
-  color: #a46331;
-}
-
-.t-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: auto;
-}
-
-.t-btn {
-  min-height: 40px;
-  padding: 0 13px;
-  border-radius: 999px;
-  transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease;
-}
-
-.t-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.t-btn.primary {
-  color: #fff !important;
-  background: var(--learn-green) !important;
-  border: 0 !important;
-  box-shadow: 0 8px 18px rgba(22, 139, 86, 0.17);
-}
-
-.t-btn.primary:hover:not(:disabled) {
-  background: var(--learn-green-dark) !important;
-}
-
-.t-btn.secondary {
-  color: #41604d !important;
-  background: #edf2ec !important;
-  border: 1px solid rgba(255, 255, 255, 0.78) !important;
-}
-
-.t-btn.secondary:hover:not(:disabled) {
-  color: #fff !important;
-  background: #607967 !important;
-}
-
-.t-btn.danger {
-  color: #91483e !important;
-  background: #f2e3df !important;
-  border: 1px solid rgba(177, 87, 72, 0.12) !important;
-}
-
-.t-btn.danger:hover:not(:disabled) {
-  color: #fff !important;
-  background: #a85447 !important;
-}
-
-.modern-detail-card {
-  padding: clamp(21px, 3vw, 31px);
-  border-radius: 22px;
-  animation: learningCardIn 420ms ease both;
-}
-
-.modern-detail-card .back-btn {
-  padding: 0;
-  color: var(--learn-muted) !important;
-  background: transparent !important;
-  border: 0 !important;
-}
-
-.modern-detail-card .back-btn:hover {
-  color: var(--learn-green) !important;
-}
-
-.detail-header {
-  display: flex;
-  gap: 22px;
-  margin: 22px 0 18px;
-  padding-bottom: 20px;
-  align-items: flex-end;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--learn-line);
-}
-
-.detail-header h2 {
-  margin: 9px 0 6px;
-  overflow-wrap: anywhere;
-  color: var(--learn-ink) !important;
-  font-size: clamp(1.6rem, 4vw, 2.35rem);
-  letter-spacing: -0.045em;
-  line-height: 1.05;
-}
-
-.detail-header p {
-  margin: 0;
-  color: var(--learn-muted) !important;
-  font-size: 0.72rem;
-  line-height: 1.55;
-}
-
-.detail-stats-box {
-  width: 145px;
-  flex: 0 0 145px;
-  padding: 16px;
-  text-align: center;
-  background: #eff4ee;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 15px;
-}
-
-.detail-stats-box strong {
-  display: block;
-  color: var(--learn-green);
-  font-size: 1.8rem;
-  line-height: 1;
-}
-
-.detail-stats-box span {
-  color: var(--learn-muted) !important;
-  font-size: 0.56rem;
-  font-weight: 850;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.detail-my-standing {
-  display: flex;
-  gap: 13px;
-  margin-bottom: 15px;
-  padding: 13px 15px;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--learn-ink);
-  background: #edf5e8;
-  border: 1px solid rgba(63, 132, 68, 0.14);
-  border-radius: 13px;
-}
-
-.detail-my-standing b {
-  font-size: 0.77rem;
-}
-
-.detail-my-standing span {
-  color: var(--learn-green-dark) !important;
-  font-size: 0.68rem;
-  font-weight: 800;
-}
-
-.tournament-detail-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 22px;
-  flex-wrap: wrap;
-}
-
-.tournament-detail-actions .t-btn {
-  min-width: 145px;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.detail-grid > section {
-  min-width: 0;
-  padding: 17px;
-  color: var(--learn-ink);
-  background: #f0f4ef;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 16px;
-}
-
-.detail-grid h3 {
-  margin: 0 0 12px;
-  color: var(--learn-ink) !important;
-  font-size: 0.86rem;
-}
-
-.t-standings,
-.t-games-list {
-  display: grid;
-  gap: 7px;
-}
-
-.t-standings-item,
-.t-games-list button {
-  color: var(--learn-ink);
-  background: rgba(253, 254, 252, 0.92) !important;
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  border-radius: 11px;
-}
-
-.t-standings-item {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto auto;
-  gap: 9px;
-  min-width: 0;
-  padding: 10px 11px;
-  align-items: center;
-}
-
-.t-standings-item > span {
-  color: var(--learn-muted) !important;
-  font-size: 0.66rem;
-  font-weight: 900;
-}
-
-.t-standings-item b {
-  overflow: hidden;
-  color: var(--learn-ink);
-  font-size: 0.7rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.t-standings-item small {
-  color: var(--learn-muted) !important;
-  font-size: 0.58rem;
-}
-
-.t-standings-item strong {
-  color: var(--learn-green);
-  font-size: 0.78rem;
-}
-
-.t-games-list button {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  gap: 12px;
-  padding: 11px;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  transition: border-color 170ms ease, transform 170ms ease;
-}
-
-.t-games-list button:hover {
-  border-color: rgba(22, 139, 86, 0.3) !important;
-  transform: translateX(2px);
-}
-
-.t-games-list b {
-  overflow: hidden;
-  color: var(--learn-ink);
-  font-size: 0.68rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.t-games-list span,
-.tournament-empty-copy {
-  color: var(--learn-muted) !important;
-  font-size: 0.61rem;
-}
-
-.tournament-empty-copy {
-  margin: 0;
-  padding: 17px;
-  text-align: center;
-}
-
-.t-inline-loading {
-  display: grid;
-  min-height: 180px;
-  gap: 10px;
-  padding: 28px;
-  place-content: center;
-  justify-items: center;
-  color: var(--learn-muted);
-  text-align: center;
-  border-radius: 19px;
-}
-
-.t-inline-loading span {
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.t-loading-spinner {
-  color: var(--learn-green);
-  animation: tournamentSpin 850ms linear infinite;
-}
-
-.tournaments-auth-required {
-  display: grid;
-  width: min(100%, 560px);
-  min-height: 350px;
-  gap: 12px;
-  margin: 56px auto;
-  padding: 32px;
-  place-content: center;
-  justify-items: center;
-  text-align: center;
-  background: var(--learn-card);
-  border: 1px solid var(--learn-white-line);
-  border-radius: 26px;
-  box-shadow: var(--learn-shadow);
-}
-
-.tournaments-auth-required > svg {
-  color: var(--learn-green);
-}
-
-.tournaments-auth-required h1,
-.tournaments-auth-required p {
-  margin: 0;
-}
-
-.tournaments-auth-required h1 {
-  color: var(--learn-ink);
-}
-
-.tournaments-auth-required p {
-  max-width: 500px;
-  color: var(--learn-muted);
-  font-size: 0.8rem;
-  line-height: 1.6;
-}
-
 @keyframes learningCardIn {
   from {
     opacity: 0;
@@ -1330,12 +750,6 @@
   }
 }
 
-@keyframes tournamentSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (max-width: 980px) {
   .beginner-guide-hero {
     grid-template-columns: 1fr;
@@ -1346,7 +760,7 @@
   }
 
   .guide-walkthrough-layout,
-  .guide-live-layout {
+.guide-live-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1360,32 +774,27 @@
 }
 
 @media (max-width: 760px) {
-  .beginner-guide-page,
-  .tournaments-page {
+  .beginner-guide-page {
     gap: 13px;
     padding: 10px 0 34px;
   }
 
-  .beginner-guide-hero,
-  .tournaments-hero {
+  .beginner-guide-hero {
     grid-template-columns: 1fr;
     min-height: 0;
     padding: 27px 21px;
     border-radius: 23px;
   }
 
-  .beginner-guide-hero h1,
-  .tournaments-hero h1 {
+  .beginner-guide-hero h1 {
     font-size: clamp(2rem, 10vw, 2.75rem);
   }
 
-  .beginner-guide-hero-aside,
-  .tournaments-hero-action {
+  .beginner-guide-hero-aside {
     width: 100%;
   }
 
-  .beginner-guide-hero button,
-  .tournaments-hero-action {
+  .beginner-guide-hero button {
     width: 100%;
   }
 
@@ -1394,8 +803,7 @@
   }
 
   .guide-rules-grid,
-  .guide-special-grid,
-  .detail-grid {
+.guide-special-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1409,20 +817,6 @@
   .guide-step-list button {
     flex: 0 0 100px;
   }
-
-  .tournament-toolbar > * {
-    flex: 1 1 210px;
-  }
-
-  .detail-header,
-  .detail-my-standing {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .detail-stats-box {
-    width: 100%;
-  }
 }
 
 @media (max-width: 500px) {
@@ -1435,18 +829,16 @@
   }
 
   .guide-video-section,
-  .guide-walkthrough-section,
-  .guide-live-panel,
-  .guide-rules-section,
-  .guide-learning-path,
-  .modern-detail-card {
+.guide-walkthrough-section,
+.guide-live-panel,
+.guide-rules-section,
+.guide-learning-path {
     padding: 16px;
     border-radius: 17px;
   }
 
   .guide-walkthrough-controls,
-  .guide-action-row,
-  .t-actions {
+.guide-action-row {
     grid-template-columns: 1fr;
   }
 
@@ -1458,41 +850,10 @@
   .beginner-guide-page .guide-standard-board {
     border-width: 5px;
   }
-
-  .modern-t-card {
-    min-height: 0;
-    padding: 17px;
-  }
-
-  .tournament-card-head {
-    flex-direction: column;
-  }
-
-  .t-time-control {
-    max-width: 100%;
-  }
-
-  .tournament-detail-actions .t-btn {
-    width: 100%;
-  }
-
-  .t-standings-item {
-    grid-template-columns: 29px minmax(0, 1fr) auto;
-  }
-
-  .t-standings-item small {
-    display: none;
-  }
-
-  .t-games-list button {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .beginner-guide-page *,
-  .tournaments-page * {
+  .beginner-guide-page * {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

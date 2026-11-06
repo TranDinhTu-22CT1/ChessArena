@@ -55,20 +55,7 @@ const content = {
           { label: 'Kiểm tra trạng thái gói.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
         ]
       },
-      {
-        id: 'momo',
-        icon: Wallet,
-        title: 'MoMo Sandbox',
-        subtitle: 'Kiểm thử mua gói bằng thẻ ATM qua MoMo Sandbox.',
-        accountTitle: 'Thông tin thẻ ATM Sandbox',
-        steps: [
-          { label: 'Chọn gói thành viên.', image: '/Chọn gói prenium.png' },
-          { label: 'Chọn thanh toán MoMo.', image: '/Thanh toán bằng momo.png' },
-          { label: 'Nhập thông tin thẻ ATM.', image: '/Nhập thông tin thẻ ATM.png' },
-          { label: 'Nhập mã OTP thử nghiệm.', image: '/Nhập OTP.png' },
-          { label: 'Kiểm tra trạng thái gói.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
-        ]
-      }
+
     ],
     testOnly: 'Chỉ dùng trong môi trường Sandbox',
     email: 'Email người mua',
@@ -117,20 +104,7 @@ const content = {
           { label: 'Verify the membership status.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
         ]
       },
-      {
-        id: 'momo',
-        icon: Wallet,
-        title: 'MoMo Sandbox',
-        subtitle: 'Test membership purchase by ATM card through MoMo Sandbox.',
-        accountTitle: 'ATM Sandbox card details',
-        steps: [
-          { label: 'Choose a membership plan.', image: '/Chọn gói prenium.png' },
-          { label: 'Select MoMo payment.', image: '/Thanh toán bằng momo.png' },
-          { label: 'Enter the ATM card details.', image: '/Nhập thông tin thẻ ATM.png' },
-          { label: 'Enter the test OTP.', image: '/Nhập OTP.png' },
-          { label: 'Verify the membership status.', image: '/Sau khi thanh toán hiển thị trạng thái gói.png' }
-        ]
-      }
+
     ],
     testOnly: 'Sandbox environment only',
     email: 'Buyer email',
@@ -152,12 +126,7 @@ const sandboxCredentials = {
     { id: 'paypal-email', type: 'email', value: 'sb-go9aa51399356@personal.example.com' },
     { id: 'paypal-password', type: 'password', value: 'L$U!*w@0' }
   ],
-  momo: [
-    { id: 'momo-card', type: 'cardNumber', value: '9704 0000 0000 0018' },
-    { id: 'momo-holder', type: 'cardHolder', value: 'NGUYEN VAN A' },
-    { id: 'momo-date', type: 'issueDate', value: '03/07' },
-    { id: 'momo-phone', type: 'phone', value: '0816931074' }
-  ]
+
 };
 
 export default function AcademicNoticePage({ onNavigate }) {

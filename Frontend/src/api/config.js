@@ -1,33 +1,16 @@
-const DEPLOYED_API_FALLBACK = 'https://chess-arena-seven.vercel.app';
-function isLocalHostname(hostname) {
-  return ['localhost', '127.0.0.1', '::1'].includes(hostname);
-}
-
-function isLocalApiUrl(url) {
-  try {
-    return isLocalHostname(new URL(url).hostname);
-  } catch {
-    return false;
-  }
-}
-
-function resolveApiBaseUrl() {
-  const configured = import.meta.env.VITE_API_URL || '';
-  if (typeof window === 'undefined') return configured || '';
-
-  const runningOnLocalhost = isLocalHostname(window.location.hostname);
-  if (!runningOnLocalhost && (!configured || isLocalApiUrl(configured))) {
-    return DEPLOYED_API_FALLBACK;
-  }
-
-  return configured || '';
-}
-
+// An empty API URL always uses this frontend's /api proxy, including LAN and private VPN hosts.
 export function apiUrl(path) {
-  const baseUrl = resolveApiBaseUrl();
+  const baseUrl = import.meta.env?.VITE_API_URL || '';
   return `${baseUrl.replace(/\/$/, '')}${path}`;
 }
-
+export function reportAccountBan(data) {
+  if(data?.code==='ACCOUNT_BANNED' && data.ban && data.appealToken && typeof window!=='undefined') {
+    window.dispatchEvent(new window.CustomEvent('chessarena:account-banned',{detail:data}));
+    return true;
+  }
+  return false;
+}
 export function handleApiSession(response) {
+  if(response.status===403) response.clone().json().then(reportAccountBan).catch(()=>{});
   return response;
 }

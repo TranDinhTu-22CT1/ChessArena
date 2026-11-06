@@ -1,3 +1,4 @@
+import { apiFetch } from './request';
 import { apiUrl, handleApiSession } from './config';
 
 async function readJson(response) {
@@ -9,20 +10,20 @@ async function readJson(response) {
   return data;
 }
 
-export async function fetchNotifications({ page = 1, limit = 12, unread = false } = {}) {
+export async function fetchNotifications({ page = 1, limit = 12, unread = false, signal } = {}) {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit)
   });
   if (unread) params.set('unread', '1');
-  const response = await fetch(apiUrl(`/api/notifications?${params.toString()}`), {
-    credentials: 'include'
+  const response = await apiFetch(apiUrl(`/api/notifications?${params.toString()}`), {
+    signal, credentials: 'include'
   });
   return readJson(response);
 }
 
 export async function markNotificationRead(notificationId) {
-  const response = await fetch(apiUrl('/api/notifications'), {
+  const response = await apiFetch(apiUrl('/api/notifications'), {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -32,7 +33,7 @@ export async function markNotificationRead(notificationId) {
 }
 
 export async function markAllNotificationsRead() {
-  const response = await fetch(apiUrl('/api/notifications'), {
+  const response = await apiFetch(apiUrl('/api/notifications'), {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

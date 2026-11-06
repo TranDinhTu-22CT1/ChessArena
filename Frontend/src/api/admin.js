@@ -85,23 +85,17 @@ export async function adminUserAction(payload) {
   return readJson(response);
 }
 
-export async function fetchAntiCheatReports({ page = 1, limit = 10, status = 'all', minRisk = 0, search = '' } = {}) {
-  const params = new URLSearchParams({
-    page: String(page),
-    limit: String(limit),
-    status,
-    minRisk: String(minRisk)
-  });
-  if (search) params.set('search', search);
-  const response = await fetch(apiUrl(`/api/admin/anti-cheat?${params.toString()}`), { credentials: 'include' });
-  return readJson(response);
-}
 
-export async function fetchModerationReports({ page = 1, limit = 10, status = '' } = {}) {
+
+export async function fetchModerationReports({ page = 1, limit = 10, status = '', search = '', category = '', dateFrom = '', dateTo = '' } = {}) {
   const params = new URLSearchParams();
   params.set('page', String(page));
   params.set('limit', String(limit));
   if (status) params.set('status', status);
+  if (search) params.set('search', search);
+  if (category) params.set('category', category);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
   const response = await fetch(apiUrl(`/api/admin/moderation?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
@@ -116,22 +110,19 @@ export async function updateModerationReport(reportId, status, resolutionNote = 
   return readJson(response);
 }
 
-export async function fetchAdminMatches({ page = 1, limit = 10, status = '' } = {}) {
+export async function fetchAdminMatches({ page = 1, limit = 10, status = '', search = '', matchType = '', rated = '', dateFrom = '', dateTo = '' } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (status) params.set('status', status);
+  if (search) params.set('search', search);
+  if (matchType) params.set('matchType', matchType);
+  if (rated) params.set('rated', rated);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
   const response = await fetch(apiUrl(`/api/admin/matches?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 
-export async function createAdminMatch(payload) {
-  const response = await fetch(apiUrl('/api/admin/matches'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: adminWriteHeaders(),
-    body: JSON.stringify(payload)
-  });
-  return readJson(response);
-}
+
 
 export async function updateAdminMatchStatus(gameId, status) {
   const response = await fetch(apiUrl('/api/admin/matches'), {
@@ -143,41 +134,25 @@ export async function updateAdminMatchStatus(gameId, status) {
   return readJson(response);
 }
 
-export async function fetchAdminTournaments({ page = 1, limit = 10 } = {}) {
+export async function fetchAdminPayments({ page = 1, limit = 10, search = '', status = '', provider = '', tier = '', dateFrom = '', dateTo = '' } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-  const response = await fetch(apiUrl(`/api/admin/tournaments?${params.toString()}`), { credentials: 'include' });
-  return readJson(response);
-}
-
-export async function createAdminTournament(payload) {
-  const response = await fetch(apiUrl('/api/admin/tournaments'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: adminWriteHeaders(),
-    body: JSON.stringify(payload)
-  });
-  return readJson(response);
-}
-
-export async function updateAdminTournamentStatus(tournamentId, status) {
-  const response = await fetch(apiUrl('/api/admin/tournaments'), {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: adminWriteHeaders(),
-    body: JSON.stringify({ tournamentId, status })
-  });
-  return readJson(response);
-}
-
-export async function fetchAdminPayments({ page = 1, limit = 10 } = {}) {
-  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search) params.set('search', search);
+  if (status) params.set('status', status);
+  if (provider) params.set('provider', provider);
+  if (tier) params.set('tier', tier);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
   const response = await fetch(apiUrl(`/api/admin/payments?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
 
-export async function fetchAdminSupportRequests({ page = 1, limit = 10, status = '' } = {}) {
+export async function fetchAdminSupportRequests({ page = 1, limit = 10, status = '', search = '', category = '', dateFrom = '', dateTo = '' } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (status) params.set('status', status);
+  if (search) params.set('search', search);
+  if (category) params.set('category', category);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
   const response = await fetch(apiUrl(`/api/admin/support?${params.toString()}`), { credentials: 'include' });
   return readJson(response);
 }
@@ -187,7 +162,7 @@ export async function updateAdminSupportRequest(requestId, status, adminNote = '
     method: 'PATCH',
     credentials: 'include',
     headers: adminWriteHeaders(),
-    body: JSON.stringify({ requestId, status, adminNote })
+    body: JSON.stringify({ requestId, status, adminNote, appealDecision: ['approved','rejected'].includes(status) ? status : undefined })
   });
   return readJson(response);
 }
@@ -221,6 +196,16 @@ export async function fetchAdminConfig() {
   return readJson(response);
 }
 
+export async function updateAdminConfig(settings) {
+  const response = await fetch(apiUrl('/api/admin/config'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: adminWriteHeaders(),
+    body: JSON.stringify({ settings })
+  });
+  return readJson(response);
+}
+
 export async function updateTestAdminAccess(granted = true) {
   const response = await fetch(apiUrl('/api/admin/test-access'), {
     method: 'POST',
@@ -246,25 +231,9 @@ export async function testPayPalSubscription(tier = 'master', cycle = 'monthly')
   return readJson(response);
 }
 
-export async function scanUserAntiCheat(userId) {
-  const response = await fetch(apiUrl('/api/admin/anti-cheat/scan'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: adminWriteHeaders(),
-    body: JSON.stringify({ userId, limit: 6 })
-  });
-  return readJson(response);
-}
 
-export async function updateAntiCheatReport(reportId, status) {
-  const response = await fetch(apiUrl('/api/admin/anti-cheat'), {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: adminWriteHeaders(),
-    body: JSON.stringify({ reportId, status })
-  });
-  return readJson(response);
-}
+
+
 
 export async function fetchAdminBots({ page = 1, limit = 10 } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });

@@ -28,8 +28,8 @@ export function setUrlPage(page, param = 'page') {
 }
 
 export default function Pagination({ page, totalPages, onPageChange, label = 'Phân trang' }) {
-  const safeTotalPages = Number.isFinite(totalPages) ? totalPages : 1;
-  const safePage = Math.max(1, Math.min(safeTotalPages, page));
+  const safeTotalPages = Number.isFinite(totalPages) ? Math.max(1, Math.floor(totalPages)) : 1;
+  const safePage = Math.max(1, Math.min(safeTotalPages, Number.isFinite(page) ? Math.floor(page) : 1));
   const go = (nextPage) => onPageChange(Math.max(1, Math.min(safeTotalPages, nextPage)));
   const [jumpPage, setJumpPage] = React.useState(String(safePage));
 
@@ -53,7 +53,7 @@ export default function Pagination({ page, totalPages, onPageChange, label = 'Ph
 
   return (
     <nav className="pagination" aria-label={label}>
-      <button disabled={safePage === 1} onClick={() => go(1)} type="button" aria-label="Trang đầu">
+      <button className="pagination-edge" disabled={safePage === 1} onClick={() => go(1)} type="button" aria-label="Trang đầu">
         <ChevronsLeft size={16} />
       </button>
       <button disabled={safePage === 1} onClick={() => go(safePage - 1)} type="button" aria-label="Trang trước">
@@ -61,22 +61,24 @@ export default function Pagination({ page, totalPages, onPageChange, label = 'Ph
       </button>
       {pageItems(safePage, safeTotalPages).map((item) => (
         typeof item === 'number' ? (
-          <button className={item === safePage ? 'active' : ''} key={item} onClick={() => go(item)} type="button">
+          <button className={`pagination-number ${item === safePage ? 'active' : ''}`} aria-label={`Trang ${item}`} aria-current={item === safePage ? 'page' : undefined} key={item} onClick={() => go(item)} type="button">
             {item}
           </button>
         ) : (
-          <span key={item}>...</span>
+          <span className="pagination-gap" key={item}>…</span>
         )
       ))}
       <button disabled={safePage === safeTotalPages} onClick={() => go(safePage + 1)} type="button" aria-label="Trang sau">
         <ChevronRight size={16} />
       </button>
-      <button disabled={safePage === safeTotalPages} onClick={() => go(safeTotalPages)} type="button" aria-label="Trang cuối">
+      <button className="pagination-edge" disabled={safePage === safeTotalPages} onClick={() => go(safeTotalPages)} type="button" aria-label="Trang cuối">
         <ChevronsRight size={16} />
       </button>
+      <span className="pagination-summary">Trang {safePage} / {safeTotalPages}</span>
       <form className="pagination-jump" onSubmit={submitJump}>
         <span>Đến trang</span>
         <input
+          aria-label="Đến trang"
           min="1"
           max={safeTotalPages}
           type="number"

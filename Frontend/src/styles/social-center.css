@@ -771,3 +771,30 @@
     transition-duration: 0.01ms !important;
   }
 }
+.friends-discovery {
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--social-card, #eff3ef);
+  border: 1px solid var(--social-line, #d0dfd2);
+}
+.friends-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+}
+.friends-filter-grid label { display: grid; gap: 6px; min-width: 0; font-weight: 700; }
+.friends-filter-grid input, .friends-filter-grid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #b7cebc;
+  border-radius: 10px;
+  color: #173d2b;
+  background: #fff;
+}
+.friends-discovery p { margin: 12px 0 6px; }
+.friends-discovery small { display: block; line-height: 1.6; color: #526d5a; }
+.friends-list .friend-main { min-width: 0; }
+.friends-list .friend-main > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.friends-list .friend-main small { display: block; }

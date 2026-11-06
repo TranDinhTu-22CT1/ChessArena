@@ -27,3 +27,29 @@ export async function saveProfile(profile) {
   });
   return readProfileResponse(response);
 }
+
+async function readReportResponse(response) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.error || 'Không thể gửi báo cáo.');
+  return data;
+}
+
+export async function fetchReportOptions(reportedUserId) {
+  const response = await fetch(apiUrl(`/api/reports?reportedUserId=${encodeURIComponent(reportedUserId)}`), { credentials: 'include' });
+  return readReportResponse(response);
+}
+
+export async function fetchMyReports() {
+  const response = await fetch(apiUrl('/api/reports'), { credentials: 'include' });
+  return readReportResponse(response);
+}
+
+export async function createPlayerReport(payload) {
+  const response = await fetch(apiUrl('/api/reports'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return readReportResponse(response);
+}

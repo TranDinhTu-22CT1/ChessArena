@@ -2,14 +2,25 @@ export const NAV_ITEMS = [
   { id: 'overview', label: 'Tổng quan', iconName: 'LayoutDashboard' },
   { id: 'players', label: 'Người chơi', iconName: 'Users' },
   { id: 'matches', label: 'Trận đấu', iconName: 'Swords' },
-  { id: 'tournaments', label: 'Giải đấu', iconName: 'Trophy' },
-  { id: 'fairplay', label: 'Chống gian lận', iconName: 'ShieldAlert' },
-  { id: 'support', label: 'Hỗ trợ', iconName: 'MessageSquare' },
+  { id: 'support', label: 'Ticket hỗ trợ', iconName: 'MessageSquare' },
+  { id: 'moderation', label: 'Báo cáo người chơi', iconName: 'ShieldAlert' },
   { id: 'payments', label: 'Thanh toán', iconName: 'CreditCard' },
   { id: 'bots', label: 'Bot & thẻ', iconName: 'Bot' },
   { id: 'audit', label: 'Nhật ký', iconName: 'FileText' },
-  { id: 'config', label: 'Cấu hình', iconName: 'Settings' }
+  { id: 'config', label: 'Website Settings', iconName: 'Settings' }
 ];
+
+export const SECTION_DESCRIPTIONS = {
+  overview: 'Theo dõi hoạt động và những việc cần xử lý trong hôm nay.',
+  players: 'Tra cứu tài khoản, xem hồ sơ và quản lý quyền truy cập.',
+  matches: 'Theo dõi ván cờ và xử lý các trận cần hỗ trợ.',
+  support: 'Tiếp nhận yêu cầu và trao đổi với người chơi.',
+  moderation: 'Kiểm tra bằng chứng, phản hồi và xử lý báo cáo người chơi.',
+  payments: 'Kiểm tra gói đăng ký, kỳ gia hạn và giao dịch PayPal.',
+  bots: 'Điều chỉnh bot luyện tập và nội dung thử thách.',
+  audit: 'Tra cứu thao tác quản trị và các thay đổi trên hệ thống.',
+  config: 'Điều chỉnh giao diện, thông báo và thông tin công khai của website.'
+};
 
 export function pct(value) {
   return `${Math.round(Number(value || 0) * 100)}%`;
@@ -101,7 +112,7 @@ export function tierLabel(tier) {
 }
 
 export function auditFallback(log) {
-  const target = log.targetLabel || log.target_user_id || log.target_device_fingerprint || '--';
+  const target = log.targetLabel || log.target_user_id || '--';
   return `Đối tượng: ${target}`;
 }
 
@@ -112,8 +123,6 @@ export function adminActionLabel(action) {
     'admin.logout': 'Admin đăng xuất',
     'admin.test_access.grant': 'Admin cấp quyền tài khoản test',
     'admin.test_access.revoke': 'Admin thu hồi quyền tài khoản test',
-    'anti_cheat.scan': 'Admin quét gian lận',
-    'anti_cheat.report_status': 'Admin đổi trạng thái báo cáo gian lận',
     'user.ban': 'Admin cấm người chơi',
     'user.unban': 'Admin gỡ cấm người chơi',
     'user.mute': 'Admin chặn chat người chơi',
@@ -125,8 +134,6 @@ export function adminActionLabel(action) {
     'event.update': 'Admin cập nhật sự kiện',
     'match.create': 'Admin tạo trận đấu',
     'match.update_status': 'Admin cập nhật trạng thái trận',
-    'tournament.create': 'Admin tạo giải đấu',
-    'tournament.update_status': 'Admin cập nhật trạng thái giải',
     'paypal.diagnostics': 'Admin kiểm tra PayPal',
     'paypal.test_subscription': 'Admin tạo thử đăng ký PayPal'
   };

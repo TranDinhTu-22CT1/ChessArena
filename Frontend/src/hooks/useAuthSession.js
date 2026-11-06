@@ -1,5 +1,6 @@
 import React from 'react';
-import { apiUrl } from '../api/config';
+import { apiUrl, reportAccountBan } from '../api/config';
+import { registerSessionRecovery } from '../api/sessionRecovery.js';
 import {
   auth,
   authPersistenceReady,
@@ -15,7 +16,6 @@ import {
   signInWithPopup,
   signOut
 } from '../firebase';
-import { getDeviceFingerprint } from '../security/deviceFingerprint';
 
 function displayNameFromUser(user, fallback = 'Player') {
   const rawName = String(user?.displayName || user?.githubLogin || user?.githubName || '').trim();
@@ -64,9 +64,8 @@ function rememberSessionUid(uid) {
   }
 }
 
-async function requestBackendSession(firebaseUser, { remember = false, profile = {} } = {}) {
-  const token = await firebaseUser.getIdToken();
-  const deviceId = await getDeviceFingerprint().catch(() => null);
+async function requestBackendSession(firebaseUser, { remember = false, profile = {}, forceRefresh = false } = {}) {
+  const token = await firebaseUser.getIdToken(forceRefresh);
   const response = await fetch(apiUrl('/api/auth/session'), {
     method: 'POST',
     credentials: 'include',
@@ -74,7 +73,6 @@ async function requestBackendSession(firebaseUser, { remember = false, profile =
     body: JSON.stringify({
       idToken: token,
       remember: Boolean(remember),
-      deviceId,
       profile: {
         displayName: profile.displayName || firebaseUser.displayName || '',
         githubLogin: profile.githubLogin || '',
@@ -98,6 +96,7 @@ async function requestBackendSession(firebaseUser, { remember = false, profile =
   }
 
   if (!response.ok) {
+    reportAccountBan(data);
     throw new Error(data.error || 'Không thể tạo phiên đăng nhập.');
   }
   return data.user;
@@ -107,6 +106,7 @@ export function useAuthSession() {
   const [userName, setUserName] = React.useState('Player');
   const [authMode, setAuthMode] = React.useState(null);
   const [authUser, setAuthUser] = React.useState(null);
+  const [banNotice, setBanNotice] = React.useState(null);
   const [authReady, setAuthReady] = React.useState(false);
   const [otpState, setOtpState] = React.useState(null);
   const [otpNow, setOtpNow] = React.useState(Date.now());
@@ -121,6 +121,8 @@ export function useAuthSession() {
   const [authMessage, setAuthMessage] = React.useState('');
   const [authMessageTone, setAuthMessageTone] = React.useState('error');
   const [authBusy, setAuthBusy] = React.useState(false);
+  const authUserRef = React.useRef(authUser);
+  authUserRef.current = authUser;
 
   const otpSecondsLeft = otpState?.expiresAt
     ? Math.max(0, Math.ceil((new Date(otpState.expiresAt).getTime() - otpNow) / 1000))
@@ -142,6 +144,22 @@ export function useAuthSession() {
   }, []);
 
   React.useEffect(() => {
+    const blocked = ({detail}) => {
+      setBanNotice(detail);
+      setAuthUser(null);
+      setAuthMode('login');
+      setUserName('Player');
+      setOtpState(null);
+      rememberSessionUid('');
+      setAuthForm(form=>({...form,password:'',newPassword:'',otp:''}));
+      signOut(auth).catch(()=>{});
+      fetch(apiUrl('/api/auth/logout'),{method:'POST',credentials:'include'}).catch(()=>{});
+    };
+    window.addEventListener('chessarena:account-banned',blocked);
+    return ()=>window.removeEventListener('chessarena:account-banned',blocked);
+  },[]);
+
+  React.useEffect(() => {
     let cancelled = false;
     const adminView = new URLSearchParams(window.location.search).get('adminView') === '1';
 
@@ -149,7 +167,12 @@ export function useAuthSession() {
       authPersistenceReady.then(() => auth.authStateReady())
     ])
       .then(() => fetch(apiUrl(`/api/auth/me${adminView ? '?adminView=1' : ''}`), { credentials: 'include' }))
-      .then((response) => (response.ok ? response.json() : null))
+      .then(async response => {
+        const data = await response.json().catch(()=>null);
+        if (reportAccountBan(data)) throw new Error(data.error);
+        if (!response.ok) throw new Error(data?.error || 'Chưa kiểm tra được phiên đăng nhập.');
+        return data;
+      })
       .then(async (data) => {
         if (cancelled) return;
         if (!data?.user) {
@@ -160,7 +183,7 @@ export function useAuthSession() {
             const restoredUser = await requestBackendSession(auth.currentUser);
             if (cancelled) return;
             rememberSessionUid(restoredUser.uid);
-            setAuthUser(restoredUser);
+            setAuthUser(current => JSON.stringify(current) === JSON.stringify(restoredUser) ? current : restoredUser);
             setUserName(displayNameFromUser(restoredUser));
             setAuthMode(null);
             return;
@@ -169,8 +192,13 @@ export function useAuthSession() {
           return;
         }
         if (cancelled) return;
-        rememberSessionUid(data.user.uid);
-        setAuthUser(data.user);
+        if (data.user.isAdmin) {
+          rememberSessionUid('');
+          await signOut(auth).catch(() => {});
+        } else {
+          rememberSessionUid(data.user.uid);
+        }
+        setAuthUser(current => JSON.stringify(current) === JSON.stringify(data.user) ? current : data.user);
         setUserName(displayNameFromUser(data.user));
         setAuthMode(null);
       })
@@ -186,6 +214,50 @@ export function useAuthSession() {
     };
   }, []);
 
+  const revalidateSession = React.useCallback(async ({ recover = true } = {}) => {
+    const response = await fetch(apiUrl('/api/auth/me'), {
+      credentials: 'include',
+      cache: 'no-store'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok && data?.user) {
+      if (data.user.isAdmin) {
+        rememberSessionUid('');
+        await signOut(auth).catch(() => {});
+      } else {
+        rememberSessionUid(data.user.uid);
+      }
+      setAuthUser(current => JSON.stringify(current) === JSON.stringify(data.user) ? current : data.user);
+      setUserName(displayNameFromUser(data.user));
+      setAuthMode(null);
+      return true;
+    }
+
+    if (recover && auth.currentUser) {
+      const restoredUser = await requestBackendSession(auth.currentUser, { forceRefresh: true });
+      rememberSessionUid(restoredUser.uid);
+      setAuthUser(current => JSON.stringify(current) === JSON.stringify(restoredUser) ? current : restoredUser);
+      setUserName(displayNameFromUser(restoredUser));
+      setAuthMode(null);
+      return true;
+    }
+    return false;
+  }, []);
+
+  React.useEffect(() => registerSessionRecovery(async () => {
+    const recovered = await revalidateSession({ recover: true });
+    if (!recovered && authUserRef.current) {
+      setAuthUser(null);
+      setUserName('Player');
+      setAuthMode('login');
+      rememberSessionUid('');
+    }
+    return recovered;
+  }), [revalidateSession]);
+
+  // Requests recover expired credentials through registerSessionRecovery. Merely
+  // focusing a tab must not replace account state or restart active workflows.
+
   React.useEffect(() => {
     if (!otpState) return undefined;
 
@@ -194,43 +266,9 @@ export function useAuthSession() {
   }, [otpState]);
 
   const createBackendSession = async (firebaseUser, providerProfile = {}) => {
-    const token = await firebaseUser.getIdToken();
-    const deviceId = await getDeviceFingerprint().catch(() => null);
-    const response = await fetch(apiUrl('/api/auth/session'), {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        idToken: token,
-        remember: Boolean(authForm.remember),
-        deviceId,
-        profile: {
-          displayName: providerProfile.displayName || firebaseUser.displayName || '',
-          githubLogin: providerProfile.githubLogin || '',
-          githubName: providerProfile.githubName || '',
-          photoURL: providerProfile.photoURL || firebaseUser.photoURL || ''
-        }
-      })
-    });
-    const responseText = await response.text();
-    let data = {};
-
-    try {
-      data = responseText ? JSON.parse(responseText) : {};
-    } catch {
-      const plainText = responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      data = {
-        error: plainText.includes('TurbopackInternalError')
-          ? 'Backend auth server đang lỗi dev cache/Turbopack. Hãy restart backend rồi thử lại.'
-          : plainText.slice(0, 220) || 'Backend did not return JSON.'
-      };
-    }
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Không thể tạo phiên đăng nhập.');
-    }
-
-    setAuthUser(data.user);
+    const data = {user: await requestBackendSession(firebaseUser, {remember:authForm.remember,profile:providerProfile})};
+    setBanNotice(null);
+    setAuthUser(current => JSON.stringify(current) === JSON.stringify(data.user) ? current : data.user);
     rememberSessionUid(data.user.uid);
     setUserName(displayNameFromUser(data.user));
     setAuthMode(null);
@@ -503,7 +541,8 @@ export function useAuthSession() {
       credentials: 'include',
       cache: 'no-store'
     }).catch(() => {});
-    window.location.replace('/login');
+    window.history.replaceState(null, '', '/login');
+    window.dispatchEvent(new window.PopStateEvent('popstate'));
   }, [clearAuthMessage]);
 
   const updateSessionProfile = React.useCallback((profile) => {
@@ -518,6 +557,8 @@ export function useAuthSession() {
     setAuthMode,
     authUser,
     authReady,
+    banNotice,
+    dismissBanNotice: () => setBanNotice(null),
     otpState,
     setOtpState,
     otpSecondsLeft,

@@ -378,6 +378,7 @@ export default function BotsSection({
         <label>
           <Search size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm bot hoặc tên thẻ..." />
+          {query && <button type="button" className="admin-search-clear" onClick={() => setQuery('')} aria-label="Xóa tìm kiếm"><X size={15} /></button>}
         </label>
         <div>
           <button type="button" className={status === 'all' ? 'active' : ''} onClick={() => setStatus('all')}>Tất cả</button>

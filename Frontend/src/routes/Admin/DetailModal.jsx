@@ -5,7 +5,7 @@ function DetailContent({ selectedDetail, onClose }) {
   if (!selectedDetail) {
     return (
       <section className="admin-panel admin-detail-panel">
-        <p>Chọn một người chơi ở mục Người chơi để xem thiết bị, lệnh cấm và replay gần đây.</p>
+        <p>Chọn một người chơi ở mục Người chơi để xem thông tin, lệnh cấm và replay gần đây.</p>
       </section>
     );
   }
@@ -38,21 +38,11 @@ function DetailContent({ selectedDetail, onClose }) {
           ))}
         </div>
         <div>
-          <strong>Bảo mật / rủi ro</strong>
-          <p>
-            Thiết bị mới nhất: {selectedDetail.devices[0]?.device_fingerprint?.slice(0, 24) || '--'}
-            <br />
-            <small>IP prefix: {selectedDetail.devices[0]?.ip_prefix || '--'} | UA signature: {selectedDetail.devices[0]?.user_agent_hash?.slice(0, 18) || '--'}</small>
-          </p>
-          <p>
-            Báo cáo: {selectedDetail.reports.length}
-            <br />
-            <small>Rủi ro cao nhất: {Math.max(0, ...selectedDetail.reports.map((report) => Number(report.risk_score || 0)))}/100</small>
-          </p>
+          <strong>Tài khoản và báo cáo</strong>
           <p>
             Báo cáo người chơi: {selectedDetail.playerReports?.length || 0}
             <br />
-            <small>Đang chờ xử lý: {selectedDetail.diagnostics?.openPlayerReports || 0} | Hoàn điểm: {selectedDetail.diagnostics?.refundEvents || 0}</small>
+            <small>Đang chờ xử lý: {selectedDetail.diagnostics?.openPlayerReports || 0}</small>
           </p>
           <p>
             Gói thành viên: {selectedDetail.membership?.tier || 'free'}
@@ -61,17 +51,10 @@ function DetailContent({ selectedDetail, onClose }) {
           </p>
         </div>
         <div>
-          <strong>Lịch sử thiết bị/IP</strong>
-          {selectedDetail.devices.length === 0 && <p>Chưa có fingerprint.</p>}
-          {selectedDetail.devices.map((device) => (
-            <p key={device.id}>{device.device_fingerprint}<br /><small>IP {device.ip_prefix || '--'} | UA {device.user_agent_hash?.slice(0, 18) || '--'} | {time(device.last_seen_at)}</small><br /><small>{device.user_agent || 'không rõ'}</small></p>
-          ))}
-        </div>
-        <div>
           <strong>Lịch sử cấm</strong>
           {selectedDetail.bans.length === 0 && <p>Chưa có lệnh cấm.</p>}
           {selectedDetail.bans.map((ban) => (
-            <p key={ban.id}>{ban.status} | {ban.ban_type}<br /><small>{ban.reason}</small>{ban.ip_prefix && <><br /><small>Risk: IP {ban.ip_prefix} | UA {ban.user_agent_hash?.slice(0, 18) || '--'}</small></>}</p>
+            <p key={ban.id}>{ban.status} | {ban.ban_type}<br /><small>{ban.reason}</small></p>
           ))}
         </div>
         <div>
@@ -81,13 +64,7 @@ function DetailContent({ selectedDetail, onClose }) {
             <p key={report.id}>{report.category} | {report.severity} | {report.status}<br /><small>{report.description || 'Không có mô tả'} | {time(report.created_at)}</small></p>
           ))}
         </div>
-        <div>
-          <strong>Hoàn điểm fair play</strong>
-          {(selectedDetail.ratingRefunds || []).length === 0 && <p>Chưa có hoàn điểm.</p>}
-          {(selectedDetail.ratingRefunds || []).slice(0, 6).map((refund) => (
-            <p key={refund.id}>+{refund.refund_delta} Elo | {refund.mode}<br /><small>{refund.reason} | {time(refund.created_at)}</small></p>
-          ))}
-        </div>
+
       </div>
       <div className="admin-game-replay-list">
         <strong>Replay gần đây</strong>

@@ -3,6 +3,7 @@ import {
   ArrowUpRight,
   BarChart3,
   Brain,
+  CalendarDays,
   CheckCircle2,
   Filter,
   History,
@@ -44,6 +45,12 @@ function getUrlFilter(name, allowed, fallback = 'all') {
   return allowed.has(value) ? value : fallback;
 }
 
+function getUrlDate(name) {
+  if (typeof window === 'undefined') return '';
+  const value = new URLSearchParams(window.location.search).get(name) || '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
 function setUrlFilters(next) {
   if (typeof window === 'undefined') return;
   const params = new URLSearchParams(window.location.search);
@@ -81,27 +88,38 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
   const [filters, setFilters] = React.useState(() => ({
     result: getUrlFilter('result', RESULT_FILTERS),
     mode: getUrlFilter('mode', MODE_FILTERS),
-    review: getUrlFilter('review', REVIEW_FILTERS)
+    review: getUrlFilter('review', REVIEW_FILTERS),
+    dateFrom: getUrlDate('dateFrom'),
+    dateTo: getUrlDate('dateTo')
   }));
 
+  const activeRequest = React.useRef(null);
+
   const loadHistory = React.useCallback(async (nextPage = page, nextFilters = filters) => {
+    activeRequest.current?.abort();
     if (!authUser) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true);
     setMessage('');
     try {
-      const data = await fetchOnlineHistory({ page: nextPage, limit: 10, ...nextFilters });
+      const data = await fetchOnlineHistory({ page: nextPage, limit: 10, ...nextFilters, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setGames(data.games || []);
       setTotal(data.total ?? (data.games || []).length);
-      setTotalPages(data.totalPages || 1);
+      const lastPage = Math.max(1, data.totalPages || 1);
+      if (nextPage > lastPage) { setPage(lastPage); setUrlPage(lastPage, 'page'); }
+      setTotalPages(lastPage);
     } catch (error) {
-      setMessage(error.message);
+      if (!controller.signal.aborted) setMessage(error.message);
     } finally {
-      setLoading(false);
+      if (activeRequest.current === controller && !controller.signal.aborted) setLoading(false);
     }
   }, [authUser, filters, page]);
 
   React.useEffect(() => {
     loadHistory(page, filters);
+    return () => activeRequest.current?.abort();
   }, [filters, loadHistory, page]);
 
   const changePage = React.useCallback((nextPage) => {
@@ -130,7 +148,7 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
 
   const summary = pageSummary(games);
   const averageMoves = games.length ? Math.round(summary.moves / games.length) : 0;
-  const activeFilters = Object.values(filters).filter((value) => value !== 'all').length;
+  const activeFilters = Object.values(filters).filter((value) => value && value !== 'all').length;
 
   return (
     <section className="history-dashboard">
@@ -205,6 +223,14 @@ export default function HistoryPage({ authUser, onLogin, onOpenReview }) {
               <option value="reviewed">Đã review</option>
               <option value="unreviewed">Chưa review</option>
             </select>
+          </label>
+          <label className="history-date-filter">
+            <span>Từ ngày</span>
+            <span className="history-date-control"><CalendarDays size={16} /><input aria-label="Từ ngày" type="date" value={filters.dateFrom} max={filters.dateTo || undefined} onChange={(event) => updateFilters({ dateFrom: event.target.value })} /></span>
+          </label>
+          <label className="history-date-filter">
+            <span>Đến ngày</span>
+            <span className="history-date-control"><CalendarDays size={16} /><input aria-label="Đến ngày" type="date" value={filters.dateTo} min={filters.dateFrom || undefined} onChange={(event) => updateFilters({ dateTo: event.target.value })} /></span>
           </label>
         </div>
 

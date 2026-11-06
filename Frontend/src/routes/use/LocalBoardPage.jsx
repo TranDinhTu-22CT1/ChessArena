@@ -1,3 +1,5 @@
+import PlayPageHeader from '../../components/PlayPageHeader';
+import PromotionPicker from '../../components/PromotionPicker';
 import React from 'react';
 import { Chess } from 'chess.js';
 import { ChevronLeft, ChevronRight, Flag, History, Play, RotateCcw, Sparkles, Timer, Trophy, X } from 'lucide-react';
@@ -5,11 +7,11 @@ import { apiUrl } from '../../api/config';
 import MembershipBadge from '../../components/MembershipBadge';
 import { getPieceImage } from '../../game/pieces';
 import { chessSoundEvent, chessSoundProfile, playChessSound, preloadChessSounds } from '../../game/chessAudio';
-import { FILES, PROMOTION_PIECES, TIME_CONTROLS } from '../../game/constants';
+import { FILES, TIME_CONTROLS } from '../../game/constants';
 import { formatClock } from '../../game/gameView';
+import { loadLocalGame, saveLocalGame } from '../../game/gamePersistence';
 import { hasPremium, membershipPlan } from '../../membership/plans';
 
-const SAVED_GAME_KEY = 'chessarena-pass-and-play-last-game';
 const LOCAL_STANDARD_PIECE_SET = 'neo';
 
 function squareName(row, column, flipped) {
@@ -54,24 +56,37 @@ function reviewPositions(moves) {
 }
 
 export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGame }) {
-  const [game, setGame] = React.useState(() => new Chess());
-  const [moves, setMoves] = React.useState([]);
+  const restoredGame = React.useMemo(() => loadLocalGame(window.localStorage), []);
+  const restoredBoard = React.useMemo(() => {
+    const chess = new Chess();
+    for (const move of restoredGame?.moves || []) chess.move({ ...move, promotion: move.promotion || 'q' });
+    return chess;
+  }, [restoredGame]);
+  const restoredMoves = React.useMemo(() => restoredBoard.history({ verbose: true }), [restoredBoard]);
+  const [game, setGame] = React.useState(restoredBoard);
+  const [moves, setMoves] = React.useState(restoredMoves);
   const [selected, setSelected] = React.useState(null);
   const [targets, setTargets] = React.useState([]);
-  const [lastMove, setLastMove] = React.useState(null);
-  const [started, setStarted] = React.useState(false);
-  const [flipped, setFlipped] = React.useState(false);
-  const [timeControlId, setTimeControlId] = React.useState('600+0');
-  const [clocks, setClocks] = React.useState({ w: 600, b: 600 });
-  const [timeWinner, setTimeWinner] = React.useState(null);
-  const [resignedColor, setResignedColor] = React.useState(null);
-  const [names, setNames] = React.useState({ w: 'Người chơi Trắng', b: 'Người chơi Đen' });
+  const [lastMove, setLastMove] = React.useState(() => restoredMoves.at(-1) || null);
+  const [started, setStarted] = React.useState(() => restoredGame?.started === true);
+  const [flipped, setFlipped] = React.useState(() => restoredGame?.flipped === true);
+  const [timeControlId, setTimeControlId] = React.useState(() => restoredGame?.timeControlId || '600+0');
+  const [clocks, setClocks] = React.useState(() => restoredGame?.clocks || { w: 600, b: 600 });
+  const [timeWinner, setTimeWinner] = React.useState(() => restoredGame?.timeWinner || null);
+  const [resignedColor, setResignedColor] = React.useState(() => restoredGame?.resignedColor || null);
+  const [names, setNames] = React.useState(() => restoredGame?.names || { w: 'Người chơi Trắng', b: 'Người chơi Đen' });
   const [promotion, setPromotion] = React.useState(null);
   const [review, setReview] = React.useState([]);
   const [reviewBusy, setReviewBusy] = React.useState(false);
   const [reviewMessage, setReviewMessage] = React.useState('');
   const [showResultPopup, setShowResultPopup] = React.useState(false);
   const audioRef = React.useRef(null);
+  const reviewTask = React.useRef(null);
+  const persistenceRef = React.useRef(null);
+  React.useEffect(() => {
+    reviewTask.current?.abort(); reviewTask.current=null; setReviewBusy(false);
+    return () => reviewTask.current?.abort();
+  }, [moves]);
 
   const activeControl = TIME_CONTROLS.find((item) => item.id === timeControlId) || TIME_CONTROLS[3];
   const plan = membershipPlan(membership);
@@ -109,17 +124,28 @@ export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGa
     return () => window.clearInterval(timer);
   }, [finished, game, started]);
 
+  persistenceRef.current = {
+    started,
+    moves,
+    clocks,
+    names,
+    timeControlId,
+    flipped,
+    timeWinner,
+    resignedColor
+  };
   React.useEffect(() => {
-    if (moves.length === 0) return;
-    window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify({
-      pgn: game.pgn(),
-      fen: game.fen(),
-      moves: moves.map((move) => move.san),
-      names,
-      timeControl: timeControlId,
-      savedAt: new Date().toISOString()
-    }));
-  }, [game, moves, names, timeControlId]);
+    if (!started) return undefined;
+    const persist = () => saveLocalGame(window.localStorage, persistenceRef.current);
+    persist();
+    const timer = window.setInterval(persist, 1000);
+    window.addEventListener('pagehide', persist);
+    return () => {
+      persist();
+      window.clearInterval(timer);
+      window.removeEventListener('pagehide', persist);
+    };
+  }, [started]);
 
   const clearSelection = () => {
     setSelected(null);
@@ -198,50 +224,48 @@ export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGa
   };
 
   const runReview = async () => {
-    if (!canReview || moves.length === 0 || reviewBusy) return;
+    if (!canReview || moves.length === 0 || reviewTask.current) return;
+    const task=new AbortController();reviewTask.current=task;
+    const timeout=window.setTimeout(()=>task.abort(),30000);
     setReviewBusy(true);
     setReviewMessage('Stockfish đang đánh giá các nước cờ...');
     try {
       const positions = reviewPositions(moves);
       const results = [];
-      for (let index = 0; index < positions.length; index += 24) {
+      for (let index = 0; index < positions.length; index += 3) {
         const response = await fetch(apiUrl('/api/analysis/review'), {
           method: 'POST',
           credentials: 'include',
+          signal:task.signal,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ positions: positions.slice(index, index + 24), movetime: 150 })
+          body: JSON.stringify({ positions: positions.slice(index, index + 3), quality: 'quick' })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Không thể đánh giá ván đấu.');
+        if(task.signal.aborted)return;
+        if(positions.slice(index,index+3).some(position=>!data.results?.some(item=>item.ply===position.ply&&item.tone)))throw new Error('Chưa nhận đủ kết quả đánh giá. Hãy thử lại.');
         results.push(...(data.results || []));
+        setReview([...results]);
+        setReviewMessage(`Đã đánh giá ${results.length}/${positions.length} nước cờ.`);
       }
       setReview(results.sort((first, second) => first.ply - second.ply));
       setReviewMessage(`Đã đánh giá ${results.length} nước cờ.`);
     } catch (error) {
-      setReviewMessage(error.message || 'Stockfish hiện không khả dụng.');
+      if(reviewTask.current===task)setReviewMessage(task.signal.aborted?'Đánh giá quá thời gian. Hãy thử lại.':error.message || 'Stockfish hiện không khả dụng.');
     } finally {
-      setReviewBusy(false);
+      window.clearTimeout(timeout);
+      if(reviewTask.current===task){reviewTask.current=null;setReviewBusy(false);}
     }
   };
 
   return (
     <>
       <section className="local-board-page">
-        <header className="local-board-hero">
-          <div>
-            <span><Sparkles size={16} /> PASS & PLAY</span>
-            <h1>Chơi cờ 2 người</h1>
-            <p>Hai người chơi trên một thiết bị. Bàn cờ chuẩn quốc tế, đồng hồ chạy ngay khi bấm Bắt đầu.</p>
-          </div>
-          <div className="local-plan-chip">
-            <MembershipBadge membership={membership} />
-            <small>{canReview ? `Đánh giá ván đấu đã mở với gói ${plan.name}` : 'Nâng cấp bất kỳ gói nào để đánh giá ván đấu'}</small>
-          </div>
-        </header>
+<PlayPageHeader mode="local" status={finished ? 'Đã kết thúc' : started ? 'Đang chơi' : 'Sẵn sàng'} />
 
         <div className="local-board-layout">
           <section className="local-board-column">
-            <LocalPlayerBar name={names.b} color="b" clock={clocks.b} active={started && !finished && game.turn() === 'b'} />
+            <LocalPlayerBar name={flipped ? names.w : names.b} color={flipped ? 'w' : 'b'} clock={flipped ? clocks.w : clocks.b} active={started && !finished && game.turn() === (flipped ? 'w' : 'b')} />
             <div className="local-board-shell">
               {!started && (
                 <div className="local-board-cover">
@@ -262,6 +286,7 @@ export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGa
                         type="button"
                         className={`local-square ${isDarkSquare(square) ? 'dark' : 'light'} ${selected === square ? 'selected' : ''} ${target ? 'target' : ''} ${piece ? 'has-piece' : ''} ${recent ? 'last-move' : ''}`}
                         key={square}
+                        aria-label={square}
                         onClick={() => chooseSquare(square)}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={(event) => handleDrop(event, square)}
@@ -283,21 +308,15 @@ export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGa
                     );
                   })
                 )}
-                {promotion && (
-                  <div className="local-promotion-picker">
-                    {PROMOTION_PIECES.map((piece) => (
-                      <button type="button" key={piece} onClick={() => commitMove(promotion.from, promotion.to, piece)}>
-                        <img src={getPieceImage(LOCAL_STANDARD_PIECE_SET, `${promotion.color}${piece}`)} alt={piece} />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <PromotionPicker request={promotion} pieceSet={LOCAL_STANDARD_PIECE_SET} flipped={flipped}
+                  onClose={() => setPromotion(null)} onChoose={(piece) => commitMove(promotion.from, promotion.to, piece)} />
               </div>
             </div>
-            <LocalPlayerBar name={names.w} color="w" clock={clocks.w} active={started && !finished && game.turn() === 'w'} />
+            <LocalPlayerBar name={flipped ? names.b : names.w} color={flipped ? 'b' : 'w'} clock={flipped ? clocks.b : clocks.w} active={started && !finished && game.turn() === (flipped ? 'b' : 'w')} />
           </section>
 
           <aside className="local-board-panel">
+            <div className="play-local-membership"><MembershipBadge membership={membership} /><small>{canReview ? 'Đánh giá ván đấu với gói ' + plan.name : 'Chơi cùng bạn trên một thiết bị'}</small></div>
             <section className="local-setup-card">
               <div className="local-card-title"><Timer size={18} /><strong>Thiết lập ván đấu</strong></div>
               <label>Người chơi Trắng<input value={names.w} disabled={started && !finished} onChange={(event) => setNames((current) => ({ ...current, w: event.target.value }))} /></label>
@@ -316,7 +335,7 @@ export default function LocalBoardPage({ pieceSet, theme, membership, onReviewGa
             </section>
 
             <section className="local-history-card">
-              <div className="local-card-title"><History size={18} /><strong>Biên bản nước cờ</strong><span>{moves.length} ply</span></div>
+              <div className="local-card-title"><History size={18} /><strong>Biên bản nước cờ</strong><span>{moves.length} nước</span></div>
               <div className="local-move-list">
                 {moves.length === 0 && <p>Chưa có nước cờ nào.</p>}
                 {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, index) => {

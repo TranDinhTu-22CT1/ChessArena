@@ -617,3 +617,32 @@
     animation-iteration-count: 1 !important;
   }
 }
+.leaderboard-season-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.leaderboard-season-controls label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: 0;
+  font-weight: 700;
+}
+.leaderboard-season-controls select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #b7cebc;
+  border-radius: 12px;
+  color: #173d2b;
+  background: #fff;
+}
+.leaderboard-season-note {
+  padding: 18px;
+  border-radius: 18px;
+  background: #edf5e7;
+  color: #244a33;
+  overflow-wrap: anywhere;
+}
+.leaderboard-season-note p { margin: 8px 0; line-height: 1.6; }

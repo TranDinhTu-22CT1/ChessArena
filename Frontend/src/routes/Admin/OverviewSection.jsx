@@ -1,182 +1,83 @@
 import React from 'react';
-import { Activity, Bot, CreditCard, Database, FileText, Gauge, MessageSquare, RefreshCw, Shield, ShieldAlert, Swords, Users } from 'lucide-react';
+import { Activity, ArrowUpRight, Bot, CheckCircle2, CreditCard, Database, Gauge, MessageSquare, ShieldAlert, Swords, Users } from 'lucide-react';
 import { LoadingBlock } from '../../components/LoadingSpinner';
 import StatCard from './StatCard';
-
-function quotaLabel(value, suffix, fallback = 'Chưa đặt giới hạn') {
-  return value ? `${value.toLocaleString('vi-VN')} ${suffix}` : fallback;
-}
+import { time } from './adminUtils';
 
 function waitLabel(value) {
-  const ms = Math.round(Number(value || 0));
-  if (!ms) return '0 ms';
-  if (ms >= 1000) return `${(ms / 1000).toFixed(ms >= 10_000 ? 1 : 2)} giây`;
-  return `${ms} ms`;
+  if (value == null) return '—';
+  const ms = Math.round(Number(value));
+  return ms >= 1000 ? `${(ms / 1000).toFixed(ms >= 10_000 ? 1 : 2)} giây` : `${ms} ms`;
 }
+function quotaLabel(value, suffix) { return value ? `${value.toLocaleString('vi-VN')} ${suffix}` : 'Chưa đặt giới hạn'; }
 
-export default function OverviewSection({ summary, admin, loading, onLoad, onSectionChange }) {
-  const chatLimits = summary?.chatRateLimits;
+export default function OverviewSection({ summary, admin, loading, onSectionChange }) {
   const matchmaking = summary?.matchmakingHealth;
+  const chatLimits = summary?.chatRateLimits;
   const gateway = chatLimits?.gateway;
-  const gatewayUsage = gateway?.requestsPerMinute
-    ? Math.min(100, Math.round(((gateway.peakClientUsage || 0) / gateway.requestsPerMinute) * 100))
-    : 0;
+  const gatewayUsage = gateway?.requestsPerMinute ? Math.min(100, Math.round(((gateway.peakClientUsage || 0) / gateway.requestsPerMinute) * 100)) : 0;
+  const attention = [
+    { id: 'moderation', icon: ShieldAlert, label: 'Báo cáo vi phạm', count: summary?.openPlayerReports ?? summary?.openReports, hint: 'Đang chờ xem xét' },
+    { id: 'support', icon: MessageSquare, label: 'Yêu cầu hỗ trợ', count: summary?.openSupportRequests, hint: 'Cần phản hồi người chơi' },
+    { id: 'matches', icon: Swords, label: 'Trận cần kiểm tra', count: summary?.staleActiveGames, hint: 'Có dấu hiệu mất kết nối' },
+    { id: 'payments', icon: CreditCard, label: 'Thanh toán lỗi', count: summary?.failedPayments, hint: 'Kiểm tra giao dịch PayPal' }
+  ];
+  const services = [['Cơ sở dữ liệu', summary?.supabaseStatus], ['Xác thực tài khoản', summary?.firebaseStatus], ['PayPal webhook', summary ? (summary.webhookConfigured ? 'Sẵn sàng' : 'Chưa cấu hình') : null]];
 
-  return (
-    <>
-      {loading && !summary && (
-        <section className="admin-panel">
-          <LoadingBlock label="Đang tải tổng quan admin" />
-        </section>
-      )}
-
-      <section className="admin-stats admin-stats-wide">
-        <StatCard icon={Users} label="Tổng người chơi" value={summary?.users} />
-        <StatCard icon={Activity} label="Đang online" value={summary?.onlineUsers} />
-        <StatCard icon={Swords} label="Trận đang chơi" value={summary?.onlineGames} />
-        <StatCard icon={Swords} label="Trận có dấu hiệu treo" value={summary?.staleActiveGames} tone={summary?.staleActiveGames ? 'danger' : ''} />
-        <StatCard icon={RefreshCw} label="Hàng đợi ghép trận" value={summary?.queueCount} />
-        <StatCard icon={Swords} label="Trận hôm nay" value={summary?.todayGames} />
-        <StatCard icon={Activity} label="Giải đang mở" value={summary?.openTournaments} />
-        <StatCard icon={Activity} label="Giải sắp diễn ra" value={summary?.scheduledTournaments} />
-        <StatCard icon={ShieldAlert} label="Báo cáo chờ xử lý" value={summary?.openReports} tone="danger" />
-        <StatCard icon={Shield} label="Báo cáo người chơi" value={summary?.openPlayerReports} tone={summary?.openPlayerReports ? 'danger' : ''} />
-        <StatCard icon={MessageSquare} label="Yêu cầu hỗ trợ" value={summary?.openSupportRequests} tone={summary?.openSupportRequests ? 'danger' : ''} />
-        <StatCard icon={Shield} label="Người chơi rủi ro cao" value={summary?.suspectedUsers} tone="danger" />
-        <StatCard icon={CreditCard} label="Gói đang hoạt động" value={summary?.activeSubscriptions} />
-        <StatCard icon={CreditCard} label="Thanh toán lỗi" value={summary?.failedPayments} tone="danger" />
-        <StatCard icon={Database} label="Webhook" value={summary?.webhookConfigured ? 'Sẵn sàng' : 'Thiếu'} />
-        <StatCard icon={Database} label="Supabase" value={summary?.supabaseStatus || '--'} />
-        <StatCard icon={Database} label="Firebase" value={summary?.firebaseStatus || '--'} />
-        <StatCard icon={Gauge} label="Ghép trận P95" value={waitLabel(matchmaking?.latestP95Ms)} tone={(matchmaking?.latestP95Ms || 0) > 10_000 ? 'danger' : ''} />
-        <StatCard icon={Gauge} label="Ghép trận P99" value={waitLabel(matchmaking?.latestP99Ms)} tone={(matchmaking?.latestP99Ms || 0) > 15_000 ? 'danger' : ''} />
-        <StatCard icon={ShieldAlert} label="Match integrity" value={matchmaking?.integrityIssues || 0} tone={matchmaking?.integrityIssues ? 'danger' : ''} />
-        <StatCard icon={Database} label="Outbox pending" value={matchmaking?.pendingOutboxEvents || 0} tone={(matchmaking?.pendingOutboxEvents || 0) > 100 ? 'danger' : ''} />
+  if (loading && !summary) return <section className="admin-panel"><LoadingBlock label="Đang tải tổng quan quản trị" /></section>;
+  return <>
+    <section className="admin-stats admin-headline-stats" aria-label="Số liệu chính">
+      <StatCard icon={Users} label="Tổng người chơi" value={summary?.users} />
+      <StatCard icon={Activity} label="Đang trực tuyến" value={summary?.onlineUsers} />
+      <StatCard icon={Swords} label="Trận hôm nay" value={summary?.todayGames} />
+      <StatCard icon={CreditCard} label="Gói đang hoạt động" value={summary?.activeSubscriptions} />
+    </section>
+    <div className="admin-overview-columns">
+      <section className="admin-panel">
+        <div className="admin-panel-head"><div><span>Công việc</span><h2>Cần chú ý</h2></div><span className="admin-section-tag">Hiện tại</span></div>
+        <div className="admin-attention-list">{attention.map(({ id, icon: Icon, label, count, hint }) => <button key={id} className="admin-attention-row" onClick={() => onSectionChange(id)}>
+          <span className={`admin-attention-icon ${count > 0 ? 'needs-action' : ''}`}><Icon size={19} /></span>
+          <span className="admin-attention-copy"><strong>{label}</strong><small>{hint}</small></span>
+          <b className={count > 0 ? 'needs-action' : ''}>{count ?? '—'}</b><ArrowUpRight size={16} />
+        </button>)}</div>
       </section>
       <section className="admin-panel">
-        <div className="admin-panel-head">
-          <div>
-            <span>Matchmaking production</span>
-            <h2>Độ trễ và tính toàn vẹn</h2>
-          </div>
-        </div>
-        <div className="admin-session-grid">
-          <div><strong>Tỷ lệ ghép</strong><span>{matchmaking?.successRate ?? 100}%</span></div>
-          <div><strong>Thời gian ghép P50</strong><span>{waitLabel(matchmaking?.latestP50Ms)}</span></div>
-          <div><strong>Rating gap</strong><span>{matchmaking?.latestAverageRatingGap || 0} Elo</span></div>
-          <div><strong>Matched events</strong><span>{matchmaking?.matchedPlayers || 0}</span></div>
-          <div><strong>Waiting events</strong><span>{matchmaking?.waitingEvents || 0}</span></div>
-          <div><strong>Trạng thái</strong><span>{matchmaking?.available === false ? 'Cần migration v2' : matchmaking?.integrityIssues ? 'Cần xử lý' : 'Ổn định'}</span></div>
-        </div>
-        <p className="admin-metric-note">
-          Đây là thời gian chờ ghép trận, không phải ping mạng. P95 nghĩa là khoảng 95% lượt ghép trong bucket mới nhất chờ không quá mốc này.
-        </p>
+        <div className="admin-panel-head"><div><span>Hoạt động online</span><h2>Ghép trận & kết nối</h2></div><Activity size={20} /></div>
+        <div className="admin-live-counts"><div><strong>{summary?.onlineGames ?? '—'}</strong><span>trận đang chơi</span></div><div><strong>{summary?.queueCount ?? '—'}</strong><span>người đang tìm trận</span></div></div>
+        <div className="admin-services">{services.map(([label, status]) => <div key={label}><span><Database size={15} /> {label}</span><strong>{status || 'Chưa có dữ liệu'}</strong></div>)}</div>
       </section>
-      <section className="admin-panel admin-chat-limit-panel">
-        <div className="admin-panel-head">
-          <div>
-            <span>AI Coach</span>
-            <h2>Giới hạn model chat</h2>
-          </div>
-          <div className="admin-chat-limit-mode">
-            <Bot size={17} />
-            <span>{chatLimits?.providerMode || 'multi'}</span>
-          </div>
-        </div>
-
+    </div>
+    <section className="admin-panel">
+      <div className="admin-panel-head"><div><span>Chất lượng trải nghiệm</span><h2>Hiệu quả ghép trận</h2></div><span className={`admin-section-tag ${matchmaking?.integrityIssues ? 'warning' : ''}`}><CheckCircle2 size={14} />{!matchmaking || matchmaking.available === false ? 'Chưa có dữ liệu' : matchmaking.integrityIssues ? 'Cần kiểm tra' : 'Ổn định'}</span></div>
+      <dl className="admin-metric-grid">
+        <div><dt>Tỷ lệ ghép thành công</dt><dd>{matchmaking?.successRate == null ? '—' : `${matchmaking.successRate}%`}</dd></div>
+        <div><dt>Thời gian chờ P50</dt><dd>{waitLabel(matchmaking?.latestP50Ms)}</dd></div>
+        <div><dt>Thời gian chờ P95</dt><dd>{waitLabel(matchmaking?.latestP95Ms)}</dd></div>
+        <div><dt>Chênh lệch Elo trung bình</dt><dd>{matchmaking?.latestAverageRatingGap ?? '—'}</dd></div>
+      </dl>
+      <p className="admin-metric-note">P95 là mốc thời gian mà 95% lượt ghép gần nhất không phải chờ quá. Số liệu này đo thời gian tìm đối thủ.</p>
+      <details className="admin-inline-details"><summary><Gauge size={16} /> Xem chỉ số chi tiết</summary><dl className="admin-metric-grid compact">
+        <div><dt>Thời gian chờ P99</dt><dd>{waitLabel(matchmaking?.latestP99Ms)}</dd></div>
+        <div><dt>Lượt đã ghép / đang chờ</dt><dd>{matchmaking?.matchedPlayers ?? '—'} / {matchmaking?.waitingEvents ?? '—'}</dd></div>
+        <div><dt>Lỗi toàn vẹn trận đấu</dt><dd>{matchmaking?.integrityIssues ?? '—'}</dd></div>
+        <div><dt>Sự kiện chờ gửi</dt><dd>{matchmaking?.pendingOutboxEvents ?? '—'}</dd></div>
+      </dl></details>
+    </section>
+    <details className="admin-panel admin-system-details">
+      <summary><span className="admin-details-icon"><Bot size={21} /></span><span><strong>AI Coach & giới hạn sử dụng</strong><small>Theo dõi lưu lượng và cấu hình model</small></span></summary>
+      <div className="admin-details-body">
         <div className="admin-chat-gateway">
-          <div className="admin-chat-gateway-copy">
-            <Gauge size={20} />
-            <div>
-              <strong>{gateway?.requestsPerMinute || 20} yêu cầu/phút/người dùng</strong>
-              <span>
-                {gateway?.trackingAvailable === false
-                  ? 'Chưa có dữ liệu sử dụng từ Supabase'
-                  : `${gateway?.requestsInWindow || 0} yêu cầu trong cửa sổ hiện tại · ${gateway?.activeClients || 0} người dùng`}
-              </span>
-            </div>
-          </div>
-          <div className="admin-chat-limit-progress" aria-label={`Mức sử dụng cao nhất ${gatewayUsage}%`}>
-            <span style={{ width: `${gatewayUsage}%` }} />
-          </div>
-          <small>Mức dùng cao nhất của một người dùng: {gateway?.peakClientUsage || 0}/{gateway?.requestsPerMinute || 20}</small>
+          <div className="admin-chat-gateway-copy"><Gauge size={20} /><div><strong>{gateway?.requestsPerMinute ?? '—'} yêu cầu/phút/người dùng</strong><span>{gateway?.trackingAvailable === false ? 'Chưa có dữ liệu sử dụng' : `${gateway?.requestsInWindow || 0} yêu cầu · ${gateway?.activeClients || 0} người dùng trong cửa sổ hiện tại`}</span></div></div>
+          <div className="admin-chat-limit-progress" role="progressbar" aria-label="Mức sử dụng cao nhất" aria-valuenow={gatewayUsage} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${gatewayUsage}%` }} /></div>
+          <small>Mức dùng cao nhất: {gateway?.peakClientUsage || 0}/{gateway?.requestsPerMinute ?? '—'} · Chế độ {chatLimits?.providerMode || '—'}</small>
         </div>
-
-        <div className="admin-chat-model-grid">
-          {(chatLimits?.models || []).map((item) => (
-            <article className="admin-chat-model-card" key={`${item.provider}:${item.model}`}>
-              <div>
-                <span>{item.provider}</span>
-                <strong className={item.configured ? 'configured' : 'missing'}>
-                  {item.configured ? 'Đã cấu hình' : 'Thiếu API key'}
-                </strong>
-              </div>
-              <h3>{item.model}</h3>
-              <dl>
-                <div>
-                  <dt>Hiệu lực</dt>
-                  <dd>{quotaLabel(item.effectiveRequestsPerMinute, 'RPM')}</dd>
-                </div>
-                <div>
-                  <dt>Ứng dụng</dt>
-                  <dd>{quotaLabel(item.applicationRequestsPerMinute, 'RPM')}</dd>
-                </div>
-                <div>
-                  <dt>Provider/phút</dt>
-                  <dd>{quotaLabel(item.requestsPerMinute, 'RPM', 'Chưa khai báo')}</dd>
-                </div>
-                <div>
-                  <dt>Provider/ngày</dt>
-                  <dd>{quotaLabel(item.requestsPerDay, 'RPD', 'Chưa khai báo')}</dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-        </div>
-        <p className="admin-chat-limit-note">
-          Thứ tự chuyển dự phòng: {(chatLimits?.providerOrder || []).join(' → ') || 'Chưa cấu hình'}.
-          Hạn mức hiệu lực lấy số thấp hơn giữa giới hạn ứng dụng và quota provider đã khai báo.
-        </p>
-      </section>
-      <section className="admin-panel">
-        <div className="admin-panel-head">
-          <div>
-            <span>Phiên quản trị</span>
-            <h2>{admin?.email || 'Admin'}</h2>
-          </div>
-        </div>
-        <div className="admin-session-grid">
-          <div>
-            <strong>Vai trò</strong>
-            <span>Chủ hệ thống</span>
-          </div>
-          <div>
-            <strong>Đăng nhập lúc</strong>
-            <span>{admin?.expiresAt ? new Date(admin.expiresAt).toLocaleString('vi-VN') : '--'}</span>
-          </div>
-          <div>
-            <strong>Quyền đang có</strong>
-            <span>Toàn quyền quản trị</span>
-          </div>
-        </div>
-      </section>
-      <section className="admin-panel">
-        <div className="admin-panel-head">
-          <div>
-            <span>Quản lý nhanh</span>
-            <h2>Các việc admin hay dùng</h2>
-          </div>
-        </div>
-        <div className="admin-ops-grid">
-          <button onClick={() => onSectionChange('players')}><Users size={18} /> Quản lý người chơi</button>
-          <button onClick={() => onSectionChange('matches')}><Swords size={18} /> Trận đấu & giải đấu</button>
-          <button onClick={() => onSectionChange('fairplay')}><ShieldAlert size={18} /> Chống gian lận</button>
-          <button onClick={() => onSectionChange('support')}><MessageSquare size={18} /> Hỗ trợ người chơi</button>
-          <button onClick={() => onSectionChange('payments')}><CreditCard size={18} /> Thanh toán</button>
-          <button onClick={() => onSectionChange('audit')}><FileText size={18} /> Nhật ký</button>
-          <button onClick={onLoad} disabled={loading}><RefreshCw size={18} /> Tải lại dữ liệu</button>
-        </div>
-      </section>
-    </>
-  );
+        <div className="admin-chat-model-grid">{(chatLimits?.models || []).map((item) => <article className="admin-chat-model-card" key={`${item.provider}:${item.model}`}>
+          <div><span>{item.provider}</span><strong className={item.configured ? 'configured' : 'missing'}>{item.configured ? 'Đã cấu hình' : 'Thiếu API key'}</strong></div><h3>{item.model}</h3>
+          <dl><div><dt>Hiệu lực</dt><dd>{quotaLabel(item.effectiveRequestsPerMinute, 'RPM')}</dd></div><div><dt>Ứng dụng</dt><dd>{quotaLabel(item.applicationRequestsPerMinute, 'RPM')}</dd></div><div><dt>Nhà cung cấp/phút</dt><dd>{quotaLabel(item.requestsPerMinute, 'RPM')}</dd></div><div><dt>Nhà cung cấp/ngày</dt><dd>{quotaLabel(item.requestsPerDay, 'RPD')}</dd></div></dl>
+        </article>)}</div>
+        <p className="admin-metric-note">Thứ tự dự phòng: {(chatLimits?.providerOrder || []).join(' → ') || 'Chưa cấu hình'}. Hạn mức hiệu lực lấy số thấp hơn giữa ứng dụng và nhà cung cấp đã khai báo.</p>
+      </div>
+    </details>
+    <p className="admin-session-note">Phiên của <strong>{admin?.email || 'quản trị viên'}</strong> · Vai trò: {admin?.role || '—'} · Hết hạn: {time(admin?.expiresAt)}</p>
+  </>;
 }

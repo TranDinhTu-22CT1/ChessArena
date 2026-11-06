@@ -1,9 +1,9 @@
 import React from 'react';
 import PlayerCard from './PlayerCard';
 import { getPieceImage } from '../game/pieces';
-import { PIECE_NAMES, PROMOTION_PIECES } from '../game/constants';
+import PromotionPicker from './PromotionPicker';
 import { squareName } from '../game/chessLogic';
-import { REVIEW_LEGEND, reviewIcon } from '../data/review';
+import { REVIEW_LEGEND, reviewIcon, reviewLabel } from '../data/review';
 
 export default function GameBoard({
   blackName,
@@ -50,41 +50,42 @@ export default function GameBoard({
   threatArrowTo,
   premoveArrows,
   formatClock,
-  promotionPopoverStyle,
+  untimed = false,
   onSelectSquare,
   onHandleDrop,
   onHandleDragStart,
   onCancelPromotion,
   onPlayMove
 }) {
+  const playerCard = (color) => <PlayerCard
+    tone={color === 'w' ? 'white' : 'black'}
+    name={color === 'w' ? whiteName : blackName}
+    avatarURL={color === 'w' ? whiteAvatarURL : blackAvatarURL}
+    membership={color === 'w' ? whiteMembership : blackMembership}
+    label={color === playerColor ? 'Bạn' : 'Đối thủ'}
+    clock={untimed ? '∞' : formatClock(clocks[color])}
+    captures={color === 'w' ? capturedWhite : capturedBlack}
+    materialLead={Math.max(0, color === 'w' ? whiteCapturePoints - blackCapturePoints : blackCapturePoints - whiteCapturePoints)}
+    active={game.turn() === color}
+  />;
   return (
     <section className="game-stage">
-      <PlayerCard
-        tone="black"
-        name={blackName}
-        avatarURL={blackAvatarURL}
-        membership={blackMembership}
-        label={playerColor === 'b' ? 'You' : 'Opponent'}
-        clock={formatClock(clocks.b)}
-        captures={capturedBlack}
-        materialLead={Math.max(0, blackCapturePoints - whiteCapturePoints)}
-        active={game.turn() === 'b'}
-      />
+      {playerCard(flipped ? 'w' : 'b')}
 
       {reviewMode && (
-        <div className="review-legend" aria-label="Move review legend">
+        <div className="review-legend" aria-label="Chú giải đánh giá nước đi">
           {REVIEW_LEGEND.map((item) => (
             <span className={`legend-item ${item.tone}`} key={item.tone} title={item.detail}>
               <b>{reviewIcon(item.tone)}</b>
-              {item.label}
+              {reviewLabel(item.tone)}
             </span>
           ))}
         </div>
       )}
 
-      <section className={`board-wrap ${botOptions.evaluationBar ? '' : 'no-eval'}`} aria-label="Chess board">
+      <section className={`board-wrap ${botOptions.evaluationBar ? '' : 'no-eval'}`} aria-label="Bàn cờ">
         {botOptions.evaluationBar && (
-          <aside className="advantage-bar" aria-label="Material advantage">
+          <aside className="advantage-bar" aria-label="Thanh đánh giá">
             <span>{blackCapturePoints > whiteCapturePoints ? `+${blackCapturePoints - whiteCapturePoints}` : ''}</span>
             <div>
               <i style={{ height: `${advantagePercent}%` }} />
@@ -131,12 +132,12 @@ export default function GameBoard({
                     />
                   )}
                   {reviewMode && reviewBadge && activeLastMove?.to === square && (
-                    <span className={`move-badge ${reviewBadge.tone}`} title={reviewBadge.label}>
+                    <span className={`move-badge ${reviewBadge.tone}`} title={reviewLabel(reviewBadge.tone)}>
                       {reviewIcon(reviewBadge.tone)}
                     </span>
                   )}
                   {!reviewMode && liveCoachBadge && liveCoachMove?.to === square && (
-                    <span className={`move-badge live ${liveCoachBadge.tone}`} title={liveCoachBadge.label}>
+                    <span className={`move-badge live ${liveCoachBadge.tone}`} title={reviewLabel(liveCoachBadge.tone)}>
                       {reviewIcon(liveCoachBadge.tone)}
                     </span>
                   )}
@@ -145,40 +146,8 @@ export default function GameBoard({
               );
             })
           )}
-          {promotionRequest && (
-            <div
-              className={`promotion-board-popover ${promotionRequest.color === 'b' ? 'above' : 'below'}`}
-              style={promotionPopoverStyle(promotionRequest.to, promotionRequest.color, flipped)}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button className="promotion-close" onClick={onCancelPromotion} aria-label="Cancel promotion">
-                x
-              </button>
-              {PROMOTION_PIECES.map((pieceType) => (
-                <button
-                  key={pieceType}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onPlayMove({ ...promotionRequest, promotion: pieceType });
-                  }}
-                  aria-label={`Promote to ${PIECE_NAMES[pieceType]}`}
-                >
-                  <img
-                    className={`piece-set-${pieceSet}`}
-                    src={getPieceImage(pieceSet, `${promotionRequest.color}${pieceType}`)}
-                    alt={PIECE_NAMES[pieceType]}
-                    draggable="false"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
+          <PromotionPicker request={promotionRequest} pieceSet={pieceSet} flipped={flipped}
+            onClose={onCancelPromotion} onChoose={(promotion) => onPlayMove({ ...promotionRequest, promotion })} />
           {reviewMode && reviewArrowFrom && reviewArrowTo && <BoardArrow markerId="best-arrow-head" from={reviewArrowFrom} to={reviewArrowTo} />}
           {!reviewMode && hintArrowFrom && hintArrowTo && <BoardArrow className="hint-arrow" markerId="hint-arrow-head" from={hintArrowFrom} to={hintArrowTo} />}
           {!reviewMode && threatArrowFrom && threatArrowTo && <BoardArrow className="threat-arrow" markerId="threat-arrow-head" from={threatArrowFrom} to={threatArrowTo} />}
@@ -204,17 +173,7 @@ export default function GameBoard({
         </div>
       </section>
 
-      <PlayerCard
-        tone="white"
-        name={whiteName}
-        avatarURL={whiteAvatarURL}
-        membership={whiteMembership}
-        label={playerColor === 'w' ? 'You' : 'Opponent'}
-        clock={formatClock(clocks.w)}
-        captures={capturedWhite}
-        materialLead={Math.max(0, whiteCapturePoints - blackCapturePoints)}
-        active={game.turn() === 'w'}
-      />
+      {playerCard(flipped ? 'b' : 'w')}
     </section>
   );
 }

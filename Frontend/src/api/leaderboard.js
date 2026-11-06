@@ -14,14 +14,14 @@ async function readJson(response) {
   return data;
 }
 
-export async function fetchLeaderboard(mode = 'rapid', { page = 1, limit = 20 } = {}) {
+export async function fetchLeaderboard(mode = 'rapid', { page = 1, limit = 20, period = 'all', offset = 0, signal } = {}) {
   const params = new URLSearchParams({
     mode: cleanMode(mode),
     page: String(page),
-    limit: String(limit)
+    limit: String(limit), period, offset: String(offset)
   });
   const response = await fetch(apiUrl(`/api/leaderboard?${params.toString()}`), {
-    credentials: 'include'
+    credentials: 'include', signal
   });
   return readJson(response);
 }

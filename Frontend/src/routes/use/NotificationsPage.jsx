@@ -30,30 +30,44 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
   const [unreadOnly, setUnreadOnly] = React.useState(false);
   const [loading, setLoading] = React.useState(Boolean(authUser));
   const [message, setMessage] = React.useState('');
+  const [writing, setWriting] = React.useState(false);
+  const writeInFlight = React.useRef(false);
   const [browserPermission, setBrowserPermission] = React.useState(
     typeof window.Notification === 'undefined' ? 'unsupported' : window.Notification.permission
   );
 
+  const activeRequest = React.useRef(null);
+
   const load = React.useCallback(async (nextPage = page, nextUnreadOnly = unreadOnly) => {
+    activeRequest.current?.abort();
     if (!authUser) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true);
     setMessage('');
     try {
-      const data = await fetchNotifications({ page: nextPage, limit: 12, unread: nextUnreadOnly });
+      const data = await fetchNotifications({ page: nextPage, limit: 12, unread: nextUnreadOnly, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setItems(data.notifications || []);
-      setTotalPages(data.totalPages || 1);
+      const lastPage = Math.max(1, data.totalPages || 1);
+      if (nextPage > lastPage) { setPage(lastPage); setUrlPage(lastPage, 'page'); }
+      setTotalPages(lastPage);
       setUnreadCount(data.unreadCount || 0);
       onUnreadChange?.(data.unreadCount || 0);
     } catch (error) {
-      setMessage(error.message);
+      if (!controller.signal.aborted) setMessage(error.message);
     } finally {
-      setLoading(false);
+      if (activeRequest.current === controller && !controller.signal.aborted) setLoading(false);
     }
   }, [authUser, onUnreadChange, page, unreadOnly]);
 
   React.useEffect(() => {
     load(page, unreadOnly);
+    return () => activeRequest.current?.abort();
   }, [load, page, unreadOnly]);
+
+  const reload = React.useRef(load);
+  reload.current = load;
 
   const changePage = (nextPage) => {
     setPage(nextPage);
@@ -67,26 +81,35 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
   };
 
   const markRead = async (notification) => {
-    if (!notification.readAt) {
-      await markNotificationRead(notification.id).catch((error) => setMessage(error.message));
-      await load(page, unreadOnly);
-    }
-    if (notification.actionUrl) {
-      window.history.pushState(null, '', notification.actionUrl);
-      window.dispatchEvent(new window.PopStateEvent('popstate'));
-      onNavigate?.();
-    }
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
+    setWriting(true);
+    setMessage('');
+    try {
+      if (!notification.readAt) {
+        await markNotificationRead(notification.id);
+        await reload.current();
+      }
+      if (notification.actionUrl?.startsWith('/') && !notification.actionUrl.startsWith('//')) {
+        window.history.pushState(null, '', notification.actionUrl);
+        window.dispatchEvent(new window.PopStateEvent('popstate'));
+        onNavigate?.();
+      }
+    } catch (error) { setMessage(error.message); }
+    finally { writeInFlight.current = false; setWriting(false); }
   };
 
   const markAll = async () => {
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
+    setWriting(true);
+    setMessage('');
     try {
       await markAllNotificationsRead();
-      await load(1, unreadOnly);
-      setPage(1);
-      setUrlPage(1, 'page');
+      await reload.current();
     } catch (error) {
       setMessage(error.message);
-    }
+    } finally { writeInFlight.current = false; setWriting(false); }
   };
 
   const enableBrowserNotifications = async () => {
@@ -115,7 +138,7 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
             <span><Bell size={17} /> Trung tâm thông báo</span>
             <h1>Thông báo của bạn</h1>
             <p>
-              Có <strong>{unreadCount}</strong> thông báo chưa đọc. Các sự kiện quan trọng như <strong>kết bạn</strong>, <strong>fair play</strong> và <strong>tài khoản</strong> sẽ nằm ở đây.
+              Có <strong>{unreadCount}</strong> thông báo chưa đọc. Các sự kiện quan trọng như <strong>kết bạn</strong>, <strong>chính sách cộng đồng</strong> và <strong>tài khoản</strong> sẽ nằm ở đây.
             </p>
           </div>
 
@@ -132,7 +155,7 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
               <span>{unreadOnly ? 'Hiện tất cả' : 'Chưa đọc'}</span>
             </button>
 
-            <button onClick={markAll} disabled={loading || unreadCount === 0}>
+            <button onClick={markAll} disabled={loading || writing || unreadCount === 0}>
               <CheckCheck size={18} strokeWidth={2} />
               <span>Đánh dấu đã đọc</span>
             </button>
@@ -153,7 +176,7 @@ export default function NotificationsPage({ authUser, onLogin, onNavigate, onUnr
         <>
           <div className="notifications-list">
             {items.map((item) => (
-              <button className={`notification-card ${item.readAt ? '' : 'unread'} ${item.priority}`} key={item.id} onClick={() => markRead(item)}>
+              <button className={`notification-card ${item.readAt ? '' : 'unread'} ${item.priority}`} key={item.id} disabled={writing} onClick={() => markRead(item)}>
                 <span className="notification-type">{typeLabel(item.type)}</span>
                 <span>
                   <strong>{item.title}</strong>

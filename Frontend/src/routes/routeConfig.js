@@ -11,10 +11,9 @@ export const ROUTES = {
   friends: '/friends',
   notifications: '/notifications',
   history: '/history',
-  onlineReview: '/history/review',
+  onlineReview: '/review',
   leaderboard: '/leaderboard',
   achievements: '/achievements',
-  tournaments: '/tournaments',
   support: '/support',
   supportTickets: '/support/tickets',
   coachLab: '/training/coach',
@@ -54,10 +53,9 @@ export function routeFromPath(pathname) {
   if (pathname === '/friends') return 'friends';
   if (pathname === '/notifications') return 'notifications';
   if (pathname === '/history') return 'history';
-  if (pathname.startsWith('/history/review/')) return 'onlineReview';
+  if (pathname.startsWith('/review/')) return 'onlineReview';
   if (pathname === '/leaderboard') return 'leaderboard';
   if (pathname === '/achievements') return 'achievements';
-  if (pathname === '/tournaments') return 'tournaments';
   if (pathname === '/support/tickets' || pathname === '/tickets') return 'supportTickets';
   if (pathname === '/support' || pathname === '/help' || pathname === '/contact') return 'support';
   if (pathname === '/training/coach' || pathname === '/coach-lab') return 'coachLab';

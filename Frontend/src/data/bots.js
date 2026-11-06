@@ -26,7 +26,7 @@ export const BOT_PERSONAS = [
   { elo: 2000, avatar: animalAvatar('\u2656', '#dbc7ff'), name: 'Bunny Aya', mood: 'Nhanh nhẹn, tấn công sắc bén', chat: 'Aya nhảy vào trung tâm đây. Đừng để tớ nhảy luôn vào hậu nhé.' },
   { elo: 2400, avatar: animalAvatar('\u2655', '#d8ddff'), name: 'Stockfish Master', mood: 'Sức mạnh UCI_Elo 2400', chat: 'Stockfish đang tính theo chuẩn master.' },
   { elo: 2800, avatar: animalAvatar('\u2654', '#d8ddff'), name: 'Stockfish Elite', mood: 'Sức mạnh UCI_Elo 2800', chat: 'Stockfish elite không bỏ qua sai lầm chiến thuật.' },
-  { elo: 3190, avatar: animalAvatar('\u265A', '#bfe7ff'), name: 'Stockfish Max', mood: 'Không giới hạn sức mạnh engine', chat: 'Stockfish đang chạy ở sức mạnh tối đa.' }
+  { elo: 3190, avatar: animalAvatar('\u265A', '#bfe7ff'), name: 'Stockfish Max', mood: 'Sức mạnh UCI_Elo 3190', chat: 'Stockfish đã sẵn sàng ở mức 3190.' }
 ];
 
 export const SEASONAL_BOT_PERSONAS = [
@@ -66,7 +66,7 @@ export function normalizeBotPersona(bot) {
 export function mergeBotPersonas(customBots = []) {
   const seen = new Set();
   return [...customBots.map(normalizeBotPersona), ...BOT_PERSONAS]
-    .filter((bot) => bot.active)
+    .filter((bot) => bot.active !== false)
     .filter((bot) => {
       const key = `${bot.name}:${bot.elo}`;
       if (seen.has(key)) return false;
@@ -84,7 +84,7 @@ export function groupBotPersonas(botPersonas = []) {
     if (!byTag.has(tag)) {
       byTag.set(tag, {
         id: tag,
-        label: tag === 'stockfish' ? 'Stockfish roster' : tag,
+        label: tag === 'stockfish' ? 'Đối thủ Stockfish' : tag,
         bots: []
       });
       groups.push(byTag.get(tag));

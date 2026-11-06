@@ -1,8 +1,9 @@
 import React from 'react';
-import { Check, Copy, Loader2, LogIn, RefreshCw, Search, Swords, UserMinus, UserPlus, Users, X } from 'lucide-react';
-import { createFriendGame } from '../../api/online';
+import { Check, Loader2, LogIn, RefreshCw, Search, Swords, UserMinus, UserPlus, Users, X } from 'lucide-react';
+import { sendGameInvitation } from '../../api/gameInvitations';
 import { fetchFriends, removeFriendship, respondFriendRequest, searchUsers, sendFriendRequest } from '../../api/friends';
 import Pagination from '../../components/Pagination';
+import { discoverFriends, friendRating, friendOnline, FRIEND_MODES } from '../../api/friendDiscovery';
 
 const TABS = [
   { id: 'friends', label: 'Bạn bè' },
@@ -32,15 +33,19 @@ function PlayerAvatar({ user }) {
   );
 }
 
-function FriendPlayer({ item, onChallenge, onRemove, busyId }) {
+function FriendPlayer({ item, onChallenge, onRemove, busyId, mode, now }) {
   const user = item.user;
+  const online = friendOnline(user, now);
+  const rating = friendRating(user, mode);
   return (
     <article className="friend-card">
       <button className="friend-main" onClick={() => openProfile(user?.id)} type="button">
         <PlayerAvatar user={user} />
         <span>
           <strong>{user?.displayName || 'Player'}</strong>
-          <small>@{user?.username || 'player'} - {presenceLabel(user?.presence)}</small>
+          <small>@{user?.username || 'player'} - {presenceLabel({ ...user?.presence, online })}</small>
+          <small>{rating === null ? 'Chưa có Elo thi đấu' : `${rating} Elo`} · {mode}</small>
+          {!online && user?.lastActiveAt && <small>Hoạt động: {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(user.lastActiveAt))}</small>}
         </span>
       </button>
       <div className="friend-actions">
@@ -114,10 +119,7 @@ function SearchResult({ user, onAdd, busyId }) {
   );
 }
 
-function formatInviteExpiry(value) {
-  if (!value) return '10 phút';
-  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
-}
+
 
 function pageSlice(items, page) {
   return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -135,31 +137,57 @@ export default function FriendsPage({ authUser, onLogin }) {
   const [results, setResults] = React.useState([]);
   const [loading, setLoading] = React.useState(Boolean(authUser));
   const [searching, setSearching] = React.useState(false);
+  const [challengeTime, setChallengeTime] = React.useState('600+0');
+  const [challengeSide, setChallengeSide] = React.useState('random');
   const [busyId, setBusyId] = React.useState('');
   const [message, setMessage] = React.useState('');
-  const [invite, setInvite] = React.useState(null);
+  const [viewer, setViewer] = React.useState(null);
+  const [filters, setFilters] = React.useState({ mode: 'rapid', status: 'all', gap: 'all', sort: 'recommended', query: '' });
+  const [now, setNow] = React.useState(Date.now);
+  const clockOffset = React.useRef(0);
+  const friendRequest = React.useRef(0);
+  const searchRequest = React.useRef(0);
 
-  const loadFriends = React.useCallback(async () => {
+
+  const loadFriends = React.useCallback(async (silent = false) => {
     if (!authUser) return;
-    setLoading(true);
-    setMessage('');
+    const requestId = ++friendRequest.current;
+    if (!silent) { setLoading(true); setMessage(''); }
     try {
       const data = await fetchFriends();
+      if (requestId !== friendRequest.current) return;
       setFriends(data.friends || []);
       setIncoming(data.incoming || []);
       setOutgoing(data.outgoing || []);
+      setViewer(data.viewer || null);
+      clockOffset.current = data.serverNow ? Date.parse(data.serverNow) - Date.now() : 0;
+      setNow(Date.now() + clockOffset.current);
     } catch (error) {
-      setMessage(error.message);
+      if (requestId === friendRequest.current && !silent) setMessage(error.message);
     } finally {
-      setLoading(false);
+      if (requestId === friendRequest.current) setLoading(false);
     }
   }, [authUser]);
 
   React.useEffect(() => {
     loadFriends();
+    const timer = window.setInterval(() => {
+      setNow(Date.now() + clockOffset.current);
+      if (document.visibilityState === 'visible') loadFriends(true);
+    }, 30000);
+    return () => { window.clearInterval(timer); friendRequest.current += 1; };
   }, [loadFriends]);
 
+  const changeFilter = (name, value) => {
+    setFilters(current => ({ ...current, [name]: value, ...(name === 'mode' ? { gap: 'all' } : {}) }));
+    setFriendsPage(1);
+  };
+  const filteredFriends = React.useMemo(() => discoverFriends(friends, viewer, filters, now), [friends, viewer, filters, now]);
+
   React.useEffect(() => {
+    const requestId = ++searchRequest.current;
+    const controller = new AbortController();
+    setSearching(false);
     if (!authUser || query.trim().length < 2) {
       setResults([]);
       setSearchPage(1);
@@ -169,23 +197,25 @@ export default function FriendsPage({ authUser, onLogin }) {
       setSearching(true);
       setMessage('');
       try {
-        const data = await searchUsers(query);
+        const data = await searchUsers(query, { signal: controller.signal });
+        if (controller.signal.aborted || requestId !== searchRequest.current) return;
         setResults(data.users || []);
         setSearchPage(1);
       } catch (error) {
-        setMessage(error.message);
+        if (!controller.signal.aborted && requestId === searchRequest.current) setMessage(error.message);
       } finally {
-        setSearching(false);
+        if (requestId === searchRequest.current) setSearching(false);
       }
     }, 280);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); controller.abort(); searchRequest.current += 1; };
   }, [authUser, query]);
 
   const reloadAfterAction = async () => {
+    const requestId = searchRequest.current;
     await loadFriends();
     if (query.trim().length >= 2) {
       const data = await searchUsers(query);
-      setResults(data.users || []);
+      if (requestId === searchRequest.current) setResults(data.users || []);
     }
   };
 
@@ -235,10 +265,8 @@ export default function FriendsPage({ authUser, onLogin }) {
     setBusyId(item.id);
     setMessage('');
     try {
-      const data = await createFriendGame('600+0', 'random', item.user?.id);
-      const link = `${window.location.origin}/play/online?invite=${data.inviteCode}`;
-      setInvite({ code: data.inviteCode, link, name: item.user?.displayName || 'Player', expiresAt: data.expiresAt });
-      setMessage(`Đã tạo lời mời thách đấu cho ${item.user?.displayName || 'người chơi'}. Link hết hạn lúc ${formatInviteExpiry(data.expiresAt)}.`);
+      await sendGameInvitation(item.user?.id, challengeTime, challengeSide);
+      setMessage('Đã gửi lời mời. Bạn của bạn sẽ nhận thông báo và cả hai vào trận khi lời mời được chấp nhận.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -246,21 +274,14 @@ export default function FriendsPage({ authUser, onLogin }) {
     }
   };
 
-  const copyInvite = async () => {
-    if (!invite?.link) return;
-    try {
-      await navigator.clipboard.writeText(invite.link);
-      setMessage('Đã copy link thách đấu.');
-    } catch {
-      setMessage(invite.link);
-    }
-  };
+
 
   const requestItems = React.useMemo(() => [
     ...incoming.map((item) => ({ ...item, direction: 'incoming' })),
     ...outgoing.map((item) => ({ ...item, direction: 'outgoing' }))
   ], [incoming, outgoing]);
-  const friendsTotalPages = Math.max(1, Math.ceil(friends.length / PAGE_SIZE));
+  const friendsTotalPages = Math.max(1, Math.ceil(filteredFriends.length / PAGE_SIZE));
+  const visibleFriendsPage = Math.min(friendsPage, friendsTotalPages);
   const requestsTotalPages = Math.max(1, Math.ceil(requestItems.length / PAGE_SIZE));
   const searchTotalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
 
@@ -285,13 +306,13 @@ export default function FriendsPage({ authUser, onLogin }) {
         </div>
         <div className="friends-hero-stats" aria-label="Tổng quan bạn bè">
           <article><strong>{friends.length}</strong><small>Bạn bè</small></article>
-          <article><strong>{friends.filter((item) => item.user?.presence?.online).length}</strong><small>Đang online</small></article>
+          <article><strong>{friends.filter((item) => friendOnline(item.user, now)).length}</strong><small>Đang online</small></article>
           <article><strong>{incoming.length}</strong><small>Lời mời mới</small></article>
         </div>
         <button
           className="friends-refresh-button"
           disabled={loading}
-          onClick={loadFriends}
+          onClick={() => loadFriends()}
           type="button"
         >
           <RefreshCw size={17} className={loading ? 'social-spin' : ''} />
@@ -318,17 +339,36 @@ export default function FriendsPage({ authUser, onLogin }) {
         ))}
       </nav>
 
+      <div className="friends-challenge-options">
+        <label>Thời gian trận mời <select value={challengeTime} onChange={(event) => setChallengeTime(event.target.value)}>
+          <option value="180+0">3 phút</option><option value="300+0">5 phút</option><option value="600+0">10 phút</option><option value="900+10">15 phút + 10 giây</option>
+        </select></label>
+        <label>Quân của bạn <select value={challengeSide} onChange={(event) => setChallengeSide(event.target.value)}>
+          <option value="random">Ngẫu nhiên</option><option value="w">Trắng</option><option value="b">Đen</option>
+        </select></label>
+      </div>
       {message && <p className="friends-message">{message}</p>}
-      {invite && (
-        <article className="friends-invite-card">
-          <div>
-            <span>Lời mời thách đấu</span>
-            <strong>{invite.code}</strong>
-            <small>Gửi link này cho {invite.name}. Link hết hạn lúc {formatInviteExpiry(invite.expiresAt)}.</small>
-          </div>
-          <button onClick={copyInvite} type="button"><Copy size={17} /> Sao chép link</button>
-        </article>
-      )}
+
+      {activeTab === 'friends' && <section className="friends-discovery" aria-label="Bộ lọc bạn bè">
+        <div className="friends-filter-grid">
+          <label>Tìm trong bạn bè<input value={filters.query} onChange={event => changeFilter('query', event.target.value)} placeholder="Tên hoặc username" /></label>
+          <label>Elo theo chế độ<select value={filters.mode} onChange={event => changeFilter('mode', event.target.value)}>
+            {FRIEND_MODES.map(mode => <option key={mode} value={mode}>{mode[0].toUpperCase() + mode.slice(1)}</option>)}
+          </select></label>
+          <label>Hoạt động<select value={filters.status} onChange={event => changeFilter('status', event.target.value)}>
+            <option value="all">Tất cả</option><option value="available">Online, chưa vào trận</option><option value="online">Đang online</option><option value="day">Trong 24 giờ</option><option value="week">Trong 7 ngày</option>
+          </select></label>
+          <label>Chênh lệch Elo<select value={filters.gap} disabled={friendRating(viewer, filters.mode) === null} onChange={event => changeFilter('gap', event.target.value)}>
+            <option value="all">Không giới hạn</option><option value="100">Trong ±100 Elo</option><option value="200">Trong ±200 Elo</option><option value="400">Trong ±400 Elo</option>
+          </select></label>
+          <label>Ưu tiên hiển thị<select value={filters.sort} onChange={event => changeFilter('sort', event.target.value)}>
+            <option value="recommended">Phù hợp để thách đấu</option><option value="rating">Elo gần tôi nhất</option><option value="recent">Hoạt động gần nhất</option>
+          </select></label>
+        </div>
+        <p>{filteredFriends.length}/{friends.length} bạn bè · {friendRating(viewer, filters.mode) === null ? `Bạn chưa có Elo ${filters.mode}; hoàn thành một trận xếp hạng để lọc chênh lệch.` : `Elo ${filters.mode} của bạn: ${friendRating(viewer, filters.mode)}.`}</p>
+        <small>Gợi ý ưu tiên người online chưa vào trận, rồi Elo gần bạn và hoạt động gần đây. Người chưa có Elo được hiển thị sau khi so trình độ; bộ lọc không thay đổi quyền gửi lời mời.</small>
+      </section>}
+
 
       {activeTab === 'friends' && (
         <div className="friends-list">
@@ -339,12 +379,14 @@ export default function FriendsPage({ authUser, onLogin }) {
             </div>
           ) : friends.length === 0 ? (
             <p className="friends-empty">Chưa có bạn bè. Mở tab Tìm người chơi để gửi lời mời kết bạn.</p>
+          ) : filteredFriends.length === 0 ? (
+            <p className="friends-empty">Không có bạn bè phù hợp bộ lọc. Hãy mở rộng hoạt động hoặc chênh lệch Elo.</p>
           ) : (
             <>
-              {pageSlice(friends, friendsPage).map((item) => (
-                <FriendPlayer item={item} busyId={busyId} key={item.id} onChallenge={challenge} onRemove={remove} />
+              {pageSlice(filteredFriends, visibleFriendsPage).map((item) => (
+                <FriendPlayer item={item} busyId={busyId} key={item.id} onChallenge={challenge} onRemove={remove} mode={filters.mode} now={now} />
               ))}
-              <Pagination page={friendsPage} totalPages={friendsTotalPages} onPageChange={setFriendsPage} label="Phân trang bạn bè" />
+              <Pagination page={visibleFriendsPage} totalPages={friendsTotalPages} onPageChange={setFriendsPage} label="Phân trang bạn bè" />
             </>
           )}
         </div>

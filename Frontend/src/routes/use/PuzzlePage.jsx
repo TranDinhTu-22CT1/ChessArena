@@ -2,21 +2,18 @@
 import { Chess } from 'chess.js';
 import { CalendarDays, Check, Crown, Flame, Lock, Puzzle, Swords, Timer, Trophy, X, Zap } from 'lucide-react';
 import {
-  answerPuzzleBattle,
-  cancelPuzzleBattle,
   checkPuzzleMove,
-  fetchPuzzleBattle,
   fetchPuzzleProgress,
-  joinPuzzleBattle,
   recordPuzzleSession,
-  requestPuzzle,
-  savePuzzleProgress
+  requestPuzzle
 } from '../../api/puzzles';
 import { getPieceImage } from '../../game/pieces';
 import { squareName } from '../../game/chessLogic';
 import { formatLimit, hasPremium, membershipPlan } from '../../membership/plans';
+import PromotionPicker from '../../components/PromotionPicker';
+import PuzzleBattle from '../../components/PuzzleBattle';
 
-const POOL_VERSION = 'progressive-tactics-v5';
+const POOL_VERSION = 'verified-tactics-v6';
 const ROUTE_MODES = {
   puzzles: 'rated',
   'daily-puzzle': 'daily',
@@ -48,6 +45,15 @@ const MODES = [
   { id: 'custom', route: 'custom-puzzles', label: 'Custom Puzzles', icon: Trophy },
   { id: 'personal', route: 'personal-puzzles', label: 'Mistake Lab', icon: Flame }
 ];
+const MODE_HELP = {
+  rated: 'Luyện chiến thuật theo trình độ. Hoàn thành toàn bộ chuỗi nước để nhận điểm.',
+  daily: 'Một thử thách chung mỗi ngày UTC. Giải đúng để duy trì chuỗi ngày luyện tập.',
+  rush: 'Giải nhanh trong 3 phút. Sai 3 câu hoặc hết giờ sẽ kết thúc lượt chơi.',
+  streak: 'Không giới hạn thời gian. Giải liên tiếp đến khi sai một câu.',
+  battle: 'Hai người, cùng bộ câu đố. Theo dõi đối thủ, điểm số và đồng hồ ngay trên bàn.',
+  custom: 'Chọn chủ đề, giai đoạn và độ khó để luyện đúng phần bạn cần.',
+  personal: 'Luyện lại các thế cờ rút từ sai lầm trong những ván đã Review.'
+};
 
 function initialProgress() {
   return {
@@ -92,15 +98,17 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
   const customLocked = mode === 'custom' && !hasPremium(membership, 'pro');
   const premiumLocked = rushLocked || customLocked;
   const [progress, setProgress] = React.useState(initialProgress);
-  const quotaLocked = puzzleQuotaReached(plan, progress, mode);
   const [puzzle, setPuzzle] = React.useState(null);
   const [position, setPosition] = React.useState(null);
   const [selected, setSelected] = React.useState(null);
   const [targets, setTargets] = React.useState([]);
   const [feedback, setFeedback] = React.useState(null);
+  const quotaLocked = puzzleQuotaReached(plan, progress, mode) && (!puzzle || feedback?.correct);
   const [scoreBurst, setScoreBurst] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [checking, setChecking] = React.useState(false);
+  const [playedMoves, setPlayedMoves] = React.useState([]);
+  const [promotion, setPromotion] = React.useState(null);
   const [error, setError] = React.useState('');
   const [theme, setTheme] = React.useState('all');
   const [stage, setStage] = React.useState('all');
@@ -112,16 +120,28 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
   const [streakActive, setStreakActive] = React.useState(false);
   const [streakScore, setStreakScore] = React.useState(0);
   const sessionStartedAtRef = React.useRef(null);
-  const progressLoadedRef = React.useRef(false);
+  const [progressReady, setProgressReady] = React.useState(!authUser);
+  const progressRef = React.useRef(progress);
+  progressRef.current = progress;
+  const requestRef = React.useRef(null);
+  const attemptRef = React.useRef(null);
+  const generationRef = React.useRef(0);
+  const nextTimerRef = React.useRef(null);
+  const loadRef = React.useRef(null);
+  const rushDeadlineRef = React.useRef(0);
+  const runRef = React.useRef(null);
+  const puzzleVersionRef = React.useRef(0);
 
   React.useEffect(() => {
+    setProgress(initialProgress());
+    setProgressReady(!authUser);
     if (!authUser) {
-      progressLoadedRef.current = true;
       return;
     }
     let cancelled = false;
     fetchPuzzleProgress().then((data) => {
-      if (cancelled || !data.progress) return;
+      if (cancelled) return;
+      if (!data.progress) return;
       const dailySolved = Object.fromEntries((data.dailyClaims || []).filter((item) => item.solved_at).map((item) => [item.puzzle_date, true]));
       setProgress((current) => ({
         ...current,
@@ -129,24 +149,24 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
         dailySolved
       }));
     }).catch(() => {}).finally(() => {
-      progressLoadedRef.current = true;
+      if (!cancelled) setProgressReady(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [authUser]);
-
-  React.useEffect(() => {
-    if (!authUser || !progressLoadedRef.current) return undefined;
-    const timer = window.setTimeout(() => {
-      savePuzzleProgress(progress).catch(() => {});
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [authUser, progress]);
+  }, [authUser?.uid]);
 
   const loadPuzzle = React.useCallback(async (nextMode = mode, additionalExcluded = []) => {
     if (nextMode === 'battle') return;
-    if (puzzleQuotaReached(plan, progress, nextMode)) return;
+    const currentProgress = progressRef.current;
+    if (!authUser && puzzleQuotaReached(plan, currentProgress, nextMode)) return;
+    requestRef.current?.abort();
+    attemptRef.current?.abort();
+    attemptRef.current = null;
+    window.clearTimeout(nextTimerRef.current);
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const generation = ++generationRef.current;
     const [minRating, maxRating] = ratingBand.split('-').map(Number);
     setLoading(true);
     setFeedback(null);
@@ -154,21 +174,38 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
     setError('');
     setSelected(null);
     setTargets([]);
+    setChecking(false);
+    setPlayedMoves([]);
+    setPromotion(null);
 
     try {
       const nextPuzzle = await requestPuzzle({
         mode: nextMode,
+        runId: ['rush','streak'].includes(nextMode) ? runRef.current?.id : undefined,
         date: dateKey(),
-        preferredId: nextMode === 'daily' ? progress.dailyAssignments?.[dateKey()] : undefined,
+        signal: controller.signal,
+        rating: currentProgress.rating,
         theme: nextMode === 'custom' ? theme : 'all',
         stage: nextMode === 'custom' ? stage : 'all',
         minRating: nextMode === 'custom' ? minRating : 0,
         maxRating: nextMode === 'custom' ? maxRating : 4000,
-        excluded: [...progress.seen, ...additionalExcluded]
+        excluded: [...currentProgress.seen, ...additionalExcluded]
       });
+      if (controller.signal.aborted || generation !== generationRef.current) return;
       setPuzzle(nextPuzzle);
-      setPosition(new Chess(nextPuzzle.fen));
-      if (nextMode === 'daily' && progress.dailySolved[dateKey()]) {
+      const board = new Chess(nextPuzzle.fen);
+      for (const lan of nextPuzzle.playedMoves || []) board.move({from:lan.slice(0,2),to:lan.slice(2,4),promotion:lan[4]});
+      setPosition(board);
+      setPlayedMoves(nextPuzzle.playedMoves || []);
+      puzzleVersionRef.current = nextPuzzle.version || 0;
+      if(nextPuzzle.run) {
+        runRef.current=nextPuzzle.run;
+        if(nextMode==='rush')rushDeadlineRef.current=Date.now()+Math.max(0,Date.parse(nextPuzzle.run.expires_at)-Date.parse(nextPuzzle.run.serverNow || new Date().toISOString()));
+        if(nextMode==='rush') { setRushScore(nextPuzzle.run.score);setRushMisses(nextPuzzle.run.misses); }
+        if(nextMode==='streak')setStreakScore(nextPuzzle.run.score);
+      }
+      if(nextPuzzle.progress)setProgress(current=>({...current,...nextPuzzle.progress}));
+      if (nextMode === 'daily' && currentProgress.dailySolved[dateKey()]) {
         setFeedback({ correct: true, text: 'Bạn đã giải Daily Puzzle hôm nay.' });
       }
       setProgress((current) => ({
@@ -178,17 +215,31 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
           : current.dailyAssignments ?? {}
       }));
     } catch (loadError) {
+      if (controller.signal.aborted || generation !== generationRef.current) return;
       setPuzzle(null);
       setPosition(null);
-      setError(loadError.exhausted
-        ? 'Bạn đã hoàn thành toàn bộ câu đố chưa gặp trong bộ lọc này.'
-        : 'Stockfish không thể tải câu đố lúc này.');
+      setError(loadError.message || 'Chưa tải được câu đố. Hãy thử lại.');
+      if(loadError.data?.progress)setProgress(current=>({...current,...loadError.data.progress}));
+      if(loadError.exhausted || loadError.data?.run?.status==='finished') {
+        setRushActive(false);setStreakActive(false);
+        if(loadError.data?.run)runRef.current=loadError.data.run;
+      }
     } finally {
-      setLoading(false);
+      if (generation === generationRef.current) setLoading(false);
     }
-  }, [mode, plan, progress.dailyPuzzleUsage, progress.seen, ratingBand, stage, theme]);
+  }, [mode, plan, authUser, progress.dailyPuzzleUsage, progress.seen, ratingBand, stage, theme]);
+  loadRef.current = loadPuzzle;
+
+  React.useEffect(() => () => {
+    generationRef.current += 1;
+    requestRef.current?.abort();
+    attemptRef.current?.abort();
+    window.clearTimeout(nextTimerRef.current);
+    runRef.current=null;
+  }, [mode, authUser?.uid]);
 
   React.useEffect(() => {
+    if (!progressReady) return;
     setPuzzle(null);
     setPosition(null);
     setFeedback(null);
@@ -207,37 +258,59 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
       return;
     }
     if (mode !== 'battle') loadPuzzle(mode);
-  }, [mode]);
+  }, [mode, progressReady]);
 
   React.useEffect(() => {
     if (!rushActive) return undefined;
     const timer = window.setInterval(() => {
-      setRushSeconds((seconds) => {
-        if (seconds > 1) return seconds - 1;
+      const remaining = Math.max(0, Math.ceil((rushDeadlineRef.current - Date.now()) / 1000));
+      setRushSeconds(remaining);
+      if (remaining === 0) {
+        generationRef.current += 1;
+        attemptRef.current?.abort();
+        attemptRef.current = null;
+        requestRef.current?.abort();
+        window.clearTimeout(nextTimerRef.current);
+        setChecking(false);
+        setLoading(false);
         setRushActive(false);
         setFeedback({ correct: false, text: 'Hết giờ.' });
         setProgress((current) => ({ ...current, rushBest: Math.max(current.rushBest, rushScore) }));
         saveSession({ mode: 'rush', score: rushScore, correct: rushScore, attempted: rushScore + rushMisses, bestStreak: rushScore, durationSeconds: 180 });
-        return 0;
-      });
-    }, 1000);
+      }
+    }, 250);
     return () => window.clearInterval(timer);
-  }, [rushActive, rushScore]);
+  }, [rushActive, rushScore, rushMisses]);
 
   const showScoreBurst = (value) => {
     setScoreBurst({ id: Date.now(), value });
   };
 
   const saveSession = (payload) => {
+    if (!authUser || !runRef.current?.id) return;
+    const generation=generationRef.current;
     recordPuzzleSession({
+      runId:runRef.current.id,
       startedAt: sessionStartedAtRef.current,
       date: dateKey(),
       puzzleId: puzzle?.id,
       ...payload
-    }).catch(() => {});
+    }).then(data=>{ if(generation===generationRef.current && data.progress)setProgress(current=>({...current,...data.progress})); })
+      .catch(error=>{if(generation===generationRef.current)setError(error.message || 'Chưa lưu được phiên câu đố.');});
   };
 
-  const completePuzzle = () => {
+  const completePuzzle = (serverResult) => {
+    if(serverResult?.progress) {
+      const reward=serverResult.reward || 0;
+      setProgress(current=>({...current,...serverResult.progress}));
+      showScoreBurst(reward);
+      setFeedback({correct:true,text:reward ? `Chính xác! +${reward}` : 'Chính xác! Bài này đã được tính điểm hôm nay.'});
+      if(mode==='rush')setRushScore(serverResult.run.score);
+      if(mode==='streak')setStreakScore(serverResult.run.score);
+      if(!['rush','streak'].includes(mode))saveSession({});
+      if(mode!=='daily')nextTimerRef.current=window.setTimeout(()=>loadRef.current(mode,[puzzle.id]),620);
+      return;
+    }
     const today = dateKey();
     const reward = mode === 'daily'
       ? 20
@@ -309,13 +382,27 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
       }));
     }
 
-    window.setTimeout(() => {
+    nextTimerRef.current = window.setTimeout(() => {
       if ((mode === 'rush' && !rushActive) || (mode === 'streak' && !streakActive)) return;
-      loadPuzzle(mode, [puzzle.id]);
+      loadRef.current(mode, [puzzle.id]);
     }, 620);
   };
 
-  const markIncorrect = () => {
+  const markIncorrect = (serverResult) => {
+    if(serverResult?.progress) {
+      setProgress(current=>({...current,...serverResult.progress}));
+      showScoreBurst(serverResult.reward || 0);
+      if(mode==='rush') { setRushMisses(serverResult.run.misses);setRushScore(serverResult.run.score); }
+      if(serverResult.run.status==='finished') {
+        setRushActive(false);setStreakActive(false);
+        setFeedback({correct:false,text:`Lượt chơi kết thúc. Điểm: ${serverResult.run.score}.`});
+        saveSession({});
+      } else {
+        setFeedback({correct:false,text:'Chưa đúng. Hãy thử lại.'});
+        if(mode==='rush')nextTimerRef.current=window.setTimeout(()=>loadRef.current(mode,[puzzle.id]),520);
+      }
+      return;
+    }
     const penalty = mode === 'rush' ? 1 : mode === 'rated' ? 8 : 4;
     showScoreBurst(-penalty);
 
@@ -334,7 +421,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
         return;
       }
       setFeedback({ correct: false, text: `Sai. Chuyển câu tiếp theo. -${penalty}` });
-      window.setTimeout(() => loadPuzzle(mode, [puzzle.id]), 520);
+      nextTimerRef.current = window.setTimeout(() => loadRef.current(mode, [puzzle.id]), 520);
       return;
     }
     if (mode === 'streak') {
@@ -370,34 +457,56 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
       return;
     }
 
-    const fromSquare = selected;
-    const promotion = position.get(fromSquare)?.type === 'p' && ['1', '8'].includes(square[1]) ? 'q' : undefined;
-    const lan = `${fromSquare}${square}${promotion ?? ''}`;
+    const choices = position.moves({ square: selected, verbose: true }).filter((move) => move.to === square);
     setSelected(null);
     setTargets([]);
+    if (!choices.length) return;
+    if (choices.some((move) => move.promotion)) { setPromotion(choices); return; }
+    await submitMove(choices[0]);
+  };
 
+  const submitMove = async (move) => {
+    if (attemptRef.current || loading) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const generation = generationRef.current;
+    setPromotion(null);
     setChecking(true);
+    setError('');
     try {
-      const result = await checkPuzzleMove(puzzle.id, lan);
+      const result = await checkPuzzleMove(puzzle.id, move.lan, { playedMoves, attemptId:puzzle.attemptId,version:puzzleVersionRef.current,signal: controller.signal });
+      if (controller.signal.aborted || generation !== generationRef.current) return;
+      if(result.version!==undefined)puzzleVersionRef.current=result.version;
+      if(result.run)runRef.current=result.run;
+      if(result.expired) { if(result.progress)setProgress(current=>({...current,...result.progress}));setRushActive(false);setStreakActive(false);setFeedback({correct:false,text:'Phiên đã hết hạn. Hãy bắt đầu lại.'});return; }
       if (!result.accepted) {
-        markIncorrect();
+        markIncorrect(result);
         return;
       }
 
       const solvedPosition = new Chess(position.fen());
-      solvedPosition.move({ from: fromSquare, to: square, promotion });
+      solvedPosition.move(move);
+      if (result.reply) solvedPosition.move(result.reply);
       setPosition(solvedPosition);
-      completePuzzle();
-    } catch {
-      setError('Stockfish không thể kiểm tra nước đi lúc này.');
+      setPlayedMoves(result.playedMoves || [...playedMoves, move.lan]);
+      if (result.complete === false) {
+        setFeedback({ correct: false, continuing: true, text: 'Đúng hướng rồi. Hãy đi tiếp để hoàn thành bài.' });
+        return;
+      }
+      completePuzzle(result);
+    } catch (checkError) {
+      if (controller.signal.aborted || generation !== generationRef.current) return;
+      setError(checkError.message || 'Stockfish không thể kiểm tra nước đi lúc này.');
     } finally {
-      setChecking(false);
+      if (attemptRef.current === controller) { attemptRef.current = null; setChecking(false); }
     }
   };
 
   const startRush = () => {
+    runRef.current=null;
     sessionStartedAtRef.current = new Date().toISOString();
     setRushActive(true);
+    rushDeadlineRef.current = Date.now() + 180000;
     setRushSeconds(180);
     setRushScore(0);
     setRushMisses(0);
@@ -405,6 +514,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
   };
 
   const startStreak = () => {
+    runRef.current=null;
     sessionStartedAtRef.current = new Date().toISOString();
     setStreakActive(true);
     setStreakScore(0);
@@ -424,6 +534,7 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
             <button
               className={`${mode === item.id ? 'active' : ''} ${locked ? 'locked' : ''}`}
               key={item.id}
+              aria-current={mode === item.id ? 'page' : undefined}
               onClick={() => locked ? onNavigate('membership') : onNavigate(item.route)}
             >
               <Icon size={20} />
@@ -439,10 +550,12 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
           <div>
             <span>Tactics Trainer</span>
             <h1>{MODES.find((item) => item.id === mode)?.label}</h1>
+            <p className="puzzle-mode-help">{MODE_HELP[mode]}</p>
           </div>
           <div className="puzzle-metrics">
-            {mode === 'rush' ? <b><Timer size={17} />{Math.floor(rushSeconds / 60)}:{String(rushSeconds % 60).padStart(2, '0')}</b> : <b><Trophy size={17} />{mode === 'streak' ? streakScore : progress.rating}</b>}
-            <b><Flame size={17} />{mode === 'daily' ? progress.dailyStreak : mode === 'rush' ? rushScore : progress.points}</b>
+            {mode === 'rush' ? <b><Timer size={17} />{Math.floor(rushSeconds / 60)}:{String(rushSeconds % 60).padStart(2, '0')}</b> : <b><Trophy size={17} /><span>{mode === 'streak' ? 'Chuỗi' : 'Elo câu đố'}: {mode === 'streak' ? streakScore : progress.rating}</span></b>}
+            <b><Flame size={17} /><span>{mode === 'daily' ? 'Ngày liên tiếp' : 'Điểm'}: {mode === 'daily' ? progress.dailyStreak : mode === 'rush' ? rushScore : progress.points}</span></b>
+            {mode === 'rush' && <b><X size={17}/>{rushMisses}/3 lỗi</b>}
           </div>
         </header>
 
@@ -461,9 +574,9 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
             <button onClick={() => onNavigate('membership')}>Xem gói Premium</button>
           </section>
         ) : mode === 'battle' ? (
-          <PuzzleBattle pieceSet={pieceSet} authUser={authUser} />
+          <PuzzleBattle key={authUser?.uid || authUser?.id || "guest"} pieceSet={pieceSet} authUser={authUser} Board={PuzzleBoard} />
         ) : (
-          <section className={`puzzle-play-layout ${feedback?.correct ? 'puzzle-solved' : feedback && !feedback.correct ? 'puzzle-missed' : ''}`}>
+          <section className={`puzzle-play-layout ${feedback?.correct ? 'puzzle-solved' : feedback && !feedback.continuing ? 'puzzle-missed' : ''}`}>
             <PuzzleBoard
               position={position}
               flipped={flipped}
@@ -471,6 +584,8 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
               selected={selected}
               targets={targets}
               onSelectSquare={playSquare}
+              disabled={loading || checking || !progressReady || Boolean(promotion)}
+              promotion={promotion} onPromote={submitMove} onCancelPromotion={() => setPromotion(null)}
             />
             <aside className="puzzle-panel">
               {mode === 'custom' && (
@@ -511,19 +626,21 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
                     {scoreBurst.value > 0 ? '+' : ''}{scoreBurst.value}
                   </span>
                 )}
-                {loading && <p>Stockfish đang tạo câu đố...</p>}
+                {loading && <p>Đang tải câu đố...</p>}
                 {checking && <p>Stockfish đang kiểm tra nước đi...</p>}
-                {error && <p className="error">{error}</p>}
+                {error && <p role="alert" className="error">{error}</p>}
+                {error && !puzzle && <button type="button" disabled={loading} onClick={() => loadPuzzle(mode)}>Tải lại câu đố</button>}
                 {!loading && !error && puzzle && (
                   <>
                     <strong>{puzzle.sideToMove === 'w' ? 'Trắng' : 'Đen'} đi trước</strong>
                     <span>{THEME_LABELS[puzzle.theme] ?? puzzle.theme} · {STAGE_LABELS[puzzle.stage] ?? puzzle.stage} · {puzzle.rating}</span>
+                    <small>{puzzle.playerMoves > 1 ? `Hoàn thành chuỗi ${puzzle.playerMoves} nước của bạn` : 'Tìm nước đi quyết định'}</small>
                     {mode === 'daily' && <small>{dateKey()}</small>}
                   </>
                 )}
                 {feedback && (
-                  <p className={feedback.correct ? 'correct' : 'wrong'}>
-                    {feedback.correct ? <Check size={18} /> : <X size={18} />}
+                  <p role="status" className={feedback.correct || feedback.continuing ? 'correct' : 'wrong'}>
+                    {feedback.correct || feedback.continuing ? <Check size={18} /> : <X size={18} />}
                     {feedback.text}
                   </p>
                 )}
@@ -538,165 +655,11 @@ export default function PuzzlePage({ activeRoute, pieceSet, membership, authUser
   );
 }
 
-function PuzzleBattle({ pieceSet, authUser }) {
-  const [battle, setBattle] = React.useState(null);
-  const [position, setPosition] = React.useState(null);
-  const [selected, setSelected] = React.useState(null);
-  const [targets, setTargets] = React.useState([]);
-  const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState('');
-
-  React.useEffect(() => {
-    if (!battle?.puzzle?.fen) {
-      setPosition(null);
-      return;
-    }
-    setPosition(new Chess(battle.puzzle.fen));
-    setSelected(null);
-    setTargets([]);
-  }, [battle?.puzzle?.id, battle?.puzzle?.fen]);
-
-  React.useEffect(() => {
-    if (!authUser || !battle?.id || battle.status === 'finished') return undefined;
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const data = await fetchPuzzleBattle(battle.id);
-        if (!cancelled) setBattle(data.battle);
-      } catch {
-        // Keep the current board while a polling request is unavailable.
-      }
-    };
-    const interval = window.setInterval(refresh, 1500);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [authUser, battle?.id, battle?.status]);
-
-  const join = async () => {
-    setBusy(true);
-    setMessage('');
-    try {
-      const data = await joinPuzzleBattle();
-      setBattle(data.battle);
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const cancel = async () => {
-    if (!battle?.id) return;
-    setBusy(true);
-    try {
-      await cancelPuzzleBattle(battle.id);
-      setBattle(null);
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const playSquare = async (square) => {
-    if (!position || !battle?.puzzle || busy) return;
-    const piece = position.get(square);
-    if (!selected) {
-      if (piece?.color !== position.turn()) return;
-      setSelected(square);
-      setTargets(position.moves({ square, verbose: true }).map((move) => move.to));
-      return;
-    }
-    if (selected === square) {
-      setSelected(null);
-      setTargets([]);
-      return;
-    }
-    const move = position.moves({ square: selected, verbose: true }).find((item) => item.to === square);
-    setSelected(null);
-    setTargets([]);
-    if (!move) return;
-    setBusy(true);
-    try {
-      const lan = `${move.from}${move.to}${move.promotion || ''}`;
-      const data = await answerPuzzleBattle(battle.id, lan);
-      setMessage(data.correct ? 'Chính xác. Đã chuyển sang câu tiếp theo.' : 'Chưa đúng. Đã chuyển sang câu tiếp theo.');
-      setBattle(data.battle);
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!authUser) {
-    return <section className="puzzle-unavailable"><Swords size={42} /><h2>Đăng nhập để chơi Puzzle Battle</h2></section>;
-  }
-  if (!battle) {
-    return (
-      <section className="puzzle-unavailable">
-        <Swords size={42} />
-        <h2>Puzzle Battle realtime</h2>
-        <p>Hai người giải cùng một bộ câu đố. Server xác nhận từng nước đi và chốt điểm.</p>
-        <button type="button" disabled={busy} onClick={join}>{busy ? 'Đang tìm...' : 'Tìm đối thủ'}</button>
-        {message && <small>{message}</small>}
-      </section>
-    );
-  }
-  if (battle.status === 'waiting') {
-    return (
-      <section className="puzzle-unavailable">
-        <Swords size={42} />
-        <h2>Đang chờ đối thủ</h2>
-        <p>Phòng #{String(battle.id).slice(0, 8)}</p>
-        <button type="button" disabled={busy} onClick={cancel}>Hủy tìm</button>
-      </section>
-    );
-  }
-  if (battle.status === 'finished') {
-    return (
-      <section className="puzzle-unavailable">
-        <Trophy size={42} />
-        <h2>{battle.winnerUserId === null ? 'Trận hòa' : battle.won ? 'Bạn thắng' : 'Đối thủ thắng'}</h2>
-        <p>{battle.score} - {battle.opponentScore}</p>
-        <button type="button" onClick={() => setBattle(null)}>Chơi trận mới</button>
-      </section>
-    );
-  }
-  if (!battle.puzzle || !position) {
-    return (
-      <section className="puzzle-unavailable">
-        <Timer size={42} />
-        <h2>Đã hoàn thành phần của bạn</h2>
-        <p>Điểm hiện tại: {battle.score} - {battle.opponentScore}. Đang chờ đối thủ.</p>
-      </section>
-    );
-  }
-  return (
-    <section className="puzzle-play-layout puzzle-battle-live">
-      <PuzzleBoard
-        position={position}
-        flipped={position.turn() === 'b'}
-        pieceSet={pieceSet}
-        selected={selected}
-        targets={targets}
-        onSelectSquare={playSquare}
-      />
-      <aside className="puzzle-panel">
-        <span>Puzzle Battle</span>
-        <h2>{battle.score} - {battle.opponentScore}</h2>
-        <p>Câu {battle.index + 1}/{battle.total} | Rating {battle.puzzle.rating}</p>
-        <p>{message || 'Tìm nước đi tốt nhất.'}</p>
-      </aside>
-    </section>
-  );
-}
-
-function PuzzleBoard({ position, flipped, pieceSet, selected, targets, onSelectSquare }) {
+function PuzzleBoard({ position, flipped, pieceSet, selected, targets, onSelectSquare, disabled = false, promotion, onPromote, onCancelPromotion }) {
   return (
     <section className={`puzzle-board piece-set-${pieceSet}`} aria-label="Puzzle board">
+      <PromotionPicker request={promotion?.[0]} pieceSet={pieceSet} flipped={flipped} onClose={onCancelPromotion}
+        onChoose={(piece) => onPromote(promotion.find((move) => move.promotion === piece))} />
       {Array.from({ length: 8 }).map((_, row) => (
         Array.from({ length: 8 }).map((__, col) => {
           const square = squareName(row, col, flipped);
@@ -708,6 +671,7 @@ function PuzzleBoard({ position, flipped, pieceSet, selected, targets, onSelectS
               key={square}
               onClick={() => onSelectSquare(square)}
               aria-label={square}
+              disabled={disabled || !position}
             >
               {piece && <img className={`piece ${piece.color} piece-set-${pieceSet}`} src={getPieceImage(pieceSet, `${piece.color}${piece.type}`)} alt="" draggable="false" />}
               {(row === 7 || col === 0) && <span className="coord">{row === 7 ? square[0] : square[1]}</span>}

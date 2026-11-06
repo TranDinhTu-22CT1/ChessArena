@@ -12,14 +12,12 @@ import {
   Shield,
   ShieldAlert,
   Swords,
-  Trophy,
   Users
 } from 'lucide-react';
 import {
   adminUserAction,
   createAdminBot,
   createAdminEvent,
-  createAdminTournament,
   deleteAdminBot,
   fetchAdminAuditLogs,
   fetchAdminBots,
@@ -32,21 +30,17 @@ import {
   fetchAdminSupportRequests,
   fetchAdminUserDetail,
   fetchAdminUsers,
-  fetchAdminTournaments,
-  fetchAntiCheatReports,
   fetchModerationReports,
   fetchPayPalDiagnostics,
   lockAdmin,
-  scanUserAntiCheat,
   testPayPalSubscription,
   unlockAdmin,
   updateTestAdminAccess,
   updateAdminBot,
+  updateAdminConfig,
   updateAdminEvent,
   updateAdminMatchStatus,
   updateAdminSupportRequest,
-  updateAdminTournamentStatus,
-  updateAntiCheatReport,
   updateModerationReport
 } from '../../api/admin';
 import { notify } from '../../components/ToastHost';
@@ -57,15 +51,15 @@ import BanModal from './BanModal';
 import BotsSection from './BotsSection';
 import ConfigSection from './ConfigSection';
 import DetailModal from './DetailModal';
-import FairPlaySection from './FairPlaySection';
+
 import MatchesSection from './MatchesSection';
-import ModerationSection from './ModerationSection';
 import OverviewSection from './OverviewSection';
 import PaymentsSection from './PaymentsSection';
 import PlayersSection from './PlayersSection';
 import SupportSection from './SupportSection';
-import TournamentsSection from './TournamentsSection';
-import { defaultBotForm, NAV_ITEMS } from './adminUtils';
+import ModerationSection from './ModerationSection';
+import { defaultBotForm, NAV_ITEMS, SECTION_DESCRIPTIONS } from './adminUtils';
+import '../../styles/admin.css';
 
 const ICONS = {
   Activity,
@@ -78,14 +72,18 @@ const ICONS = {
   Shield,
   ShieldAlert,
   Swords,
-  Trophy,
   Users
 };
 
 const ADMIN_SECTION_IDS = new Set(NAV_ITEMS.map((item) => item.id));
+const EMPTY_MATCH_FILTERS = { search: '', status: '', matchType: '', rated: '', dateFrom: '', dateTo: '' };
+const EMPTY_REPORT_FILTERS = { search: '', status: '', category: '', dateFrom: '', dateTo: '' };
+const EMPTY_SUPPORT_FILTERS = { search: '', status: '', category: '', dateFrom: '', dateTo: '' };
+const EMPTY_PAYMENT_FILTERS = { search: '', status: '', provider: '', tier: '', dateFrom: '', dateTo: '' };
 
 function sectionFromPath() {
   const sectionId = window.location.pathname.split('/').filter(Boolean)[1];
+  if (sectionId === 'support' && new URLSearchParams(window.location.search).get('tab') === 'reports') return 'moderation';
   return ADMIN_SECTION_IDS.has(sectionId) ? sectionId : 'overview';
 }
 
@@ -99,24 +97,21 @@ export default function AdminPage() {
   const [users, setUsers] = React.useState([]);
   const [userPage, setUserPage] = React.useState(() => getUrlPage('page'));
   const [userTotalPages, setUserTotalPages] = React.useState(1);
-  const [reports, setReports] = React.useState([]);
-  const [fairPlayPage, setFairPlayPage] = React.useState(() => getUrlPage('page'));
-  const [fairPlayTotalPages, setFairPlayTotalPages] = React.useState(1);
-  const [fairPlayFilters, setFairPlayFilters] = React.useState({ status: 'all', minRisk: 0, search: '' });
+
   const [moderationReports, setModerationReports] = React.useState([]);
   const [supportRequests, setSupportRequests] = React.useState([]);
   const [supportPage, setSupportPage] = React.useState(() => getUrlPage('page'));
   const [supportTotalPages, setSupportTotalPages] = React.useState(1);
   const [supportStatus, setSupportStatus] = React.useState('');
+  const [supportFilters, setSupportFilters] = React.useState(EMPTY_SUPPORT_FILTERS);
   const [matches, setMatches] = React.useState([]);
   const [matchesPage, setMatchesPage] = React.useState(() => getUrlPage('page'));
   const [matchesTotalPages, setMatchesTotalPages] = React.useState(1);
-  const [tournaments, setTournaments] = React.useState([]);
-  const [tournamentsPage, setTournamentsPage] = React.useState(() => getUrlPage('page'));
-  const [tournamentsTotalPages, setTournamentsTotalPages] = React.useState(1);
+  const [matchFilters, setMatchFilters] = React.useState(EMPTY_MATCH_FILTERS);
   const [payments, setPayments] = React.useState([]);
   const [paymentsPage, setPaymentsPage] = React.useState(() => getUrlPage('page'));
   const [paymentsTotalPages, setPaymentsTotalPages] = React.useState(1);
+  const [paymentFilters, setPaymentFilters] = React.useState(EMPTY_PAYMENT_FILTERS);
   const [bots, setBots] = React.useState([]);
   const [botsPage, setBotsPage] = React.useState(() => getUrlPage('botPage'));
   const [botsTotalPages, setBotsTotalPages] = React.useState(1);
@@ -130,21 +125,15 @@ export default function AdminPage() {
   const [testAdmin, setTestAdmin] = React.useState(null);
   const [paypalDiagnostics, setPaypalDiagnostics] = React.useState(null);
   const [search, setSearch] = React.useState('');
+  const [appliedSearch, setAppliedSearch] = React.useState('');
+  const adminSessionRef = React.useRef(null);
+  const loadRequestRef = React.useRef(0);
   const [message, setMessage] = React.useState('');
   const [selectedDetail, setSelectedDetail] = React.useState(null);
   const [banTarget, setBanTarget] = React.useState(null);
-  const [banForm, setBanForm] = React.useState({ banType: 'account', reason: 'Vi phạm fair play / chính sách', expiresAt: '' });
+  const [banForm, setBanForm] = React.useState({ reason: 'Vi phạm chính sách', expiresAt: '' });
   const [botForms, setBotForms] = React.useState(() => Array.from({ length: 5 }, (_, index) => defaultBotForm(index)));
   const [eventForm, setEventForm] = React.useState({ title: 'Thử thách bot mùa lễ', eventType: 'bot_challenge', description: 'Đánh bại bot nổi bật và leo bảng sự kiện trong thời gian giới hạn.', rewardLabel: 'Huy hiệu mùa', active: true });
-  const [tournamentForm, setTournamentForm] = React.useState({
-    title: 'Giải nhanh ChessArena',
-    timeControl: '300+0',
-    durationMinutes: 30,
-    startsAt: '',
-    pairingSystem: 'arena',
-    maxPlayers: 100,
-    autoManage: true
-  });
   const [loading, setLoading] = React.useState(false);
   const [section, setSection] = React.useState(() => sectionFromPath());
   const [unlockEmail, setUnlockEmail] = React.useState('');
@@ -152,14 +141,12 @@ export default function AdminPage() {
   const [loginRequired, setLoginRequired] = React.useState(true);
   const [moderationPage, setModerationPage] = React.useState(() => getUrlPage('page'));
   const [moderationTotalPages, setModerationTotalPages] = React.useState(1);
+  const [moderationFilters, setModerationFilters] = React.useState(EMPTY_REPORT_FILTERS);
 
   const load = React.useCallback(async (
-    nextSearch = search,
+    nextSearch = appliedSearch,
     nextUserPage = userPage,
-    nextFairPlayPage = fairPlayPage,
-    nextFairPlayFilters = fairPlayFilters,
     nextMatchesPage = matchesPage,
-    nextTournamentsPage = tournamentsPage,
     nextModerationPage = moderationPage,
     nextPaymentsPage = paymentsPage,
     nextBotsPage = botsPage,
@@ -169,21 +156,22 @@ export default function AdminPage() {
     nextSupportStatus = supportStatus
   ) => {
     const activeSection = section;
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setMessage('');
     try {
-      const me = await fetchAdminMe();
+      const me = adminSessionRef.current || await fetchAdminMe();
+      if (requestId !== loadRequestRef.current) return;
+      adminSessionRef.current = me;
       setAdmin(me.admin);
       setLoginRequired(false);
 
       const [
         summaryData,
         usersData,
-        reportsData,
         moderationData,
         supportData,
         matchesData,
-        tournamentsData,
         paymentsData,
         botsData,
         eventsData,
@@ -192,26 +180,22 @@ export default function AdminPage() {
       ] = await Promise.all([
         activeSection === 'overview' ? fetchAdminSummary() : Promise.resolve(null),
         activeSection === 'players' ? fetchAdminUsers(nextSearch, { page: nextUserPage, limit: 10 }) : Promise.resolve(null),
-        activeSection === 'fairplay' ? fetchAntiCheatReports({ page: nextFairPlayPage, limit: 10, ...nextFairPlayFilters }) : Promise.resolve(null),
-        activeSection === 'moderation' ? fetchModerationReports({ page: nextModerationPage, limit: 10 }).catch(() => ({ reports: [], totalPages: 1 })) : Promise.resolve(null),
-        activeSection === 'support' ? fetchAdminSupportRequests({ page: nextSupportPage, limit: 10, status: nextSupportStatus }).catch(() => ({ requests: [], totalPages: 1 })) : Promise.resolve(null),
-        activeSection === 'matches' ? fetchAdminMatches({ page: nextMatchesPage, limit: 10 }) : Promise.resolve(null),
-        activeSection === 'tournaments' ? fetchAdminTournaments({ page: nextTournamentsPage, limit: 10 }).catch(() => ({ tournaments: [], totalPages: 1 })) : Promise.resolve(null),
-        activeSection === 'payments' ? fetchAdminPayments({ page: nextPaymentsPage, limit: 10 }) : Promise.resolve(null),
-        activeSection === 'bots' ? fetchAdminBots({ page: nextBotsPage, limit: 50 }).catch(() => ({ bots: [], totalPages: 1 })) : Promise.resolve(null),
-        activeSection === 'bots' ? fetchAdminEvents({ page: nextEventsPage, limit: 10 }).catch(() => ({ events: [], totalPages: 1 })) : Promise.resolve(null),
+        activeSection === 'moderation' ? fetchModerationReports({ page: nextModerationPage, limit: 10, ...moderationFilters }) : Promise.resolve(null),
+        activeSection === 'support' ? fetchAdminSupportRequests({ page: nextSupportPage, limit: 10, ...supportFilters, status: nextSupportStatus || supportFilters.status }) : Promise.resolve(null),
+        activeSection === 'matches' ? fetchAdminMatches({ page: nextMatchesPage, limit: 10, ...matchFilters }) : Promise.resolve(null),
+        activeSection === 'payments' ? fetchAdminPayments({ page: nextPaymentsPage, limit: 10, ...paymentFilters }) : Promise.resolve(null),
+        activeSection === 'bots' ? fetchAdminBots({ page: nextBotsPage, limit: 50 }) : Promise.resolve(null),
+        activeSection === 'bots' ? fetchAdminEvents({ page: nextEventsPage, limit: 10 }) : Promise.resolve(null),
         activeSection === 'audit' ? fetchAdminAuditLogs({ page: nextAuditPage, limit: 20 }) : Promise.resolve(null),
         activeSection === 'config' ? fetchAdminConfig() : Promise.resolve(null)
       ]);
+      if (requestId !== loadRequestRef.current) return;
       if (summaryData) setSummary(summaryData.summary);
       if (usersData) {
         setUsers(usersData.users || []);
         setUserTotalPages(usersData.totalPages || 1);
       }
-      if (reportsData) {
-        setReports(reportsData.reports || []);
-        setFairPlayTotalPages(reportsData.totalPages || 1);
-      }
+
       if (moderationData) {
         setModerationReports(moderationData.reports || []);
         setModerationTotalPages(moderationData.totalPages || 1);
@@ -223,10 +207,6 @@ export default function AdminPage() {
       if (matchesData) {
         setMatches(matchesData.matches || []);
         setMatchesTotalPages(matchesData.totalPages || 1);
-      }
-      if (tournamentsData) {
-        setTournaments(tournamentsData.tournaments || []);
-        setTournamentsTotalPages(tournamentsData.totalPages || 1);
       }
       if (paymentsData) {
         setPayments(paymentsData.payments || []);
@@ -250,16 +230,18 @@ export default function AdminPage() {
       }
       setLoginRequired(false);
     } catch (error) {
+      if (requestId !== loadRequestRef.current) return;
       const text = error.message || 'Không thể tải trang quản trị.';
       setMessage(text);
       if (error.status === 401 || error.status === 403) {
+        adminSessionRef.current = null;
         setLoginRequired(true);
       }
       notify(text, 'error');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, matchesPage, moderationPage, paymentsPage, search, section, supportPage, supportStatus, tournamentsPage, userPage]);
+  }, [auditPage, botsPage, eventsPage, matchFilters, matchesPage, moderationFilters, moderationPage, paymentFilters, paymentsPage, appliedSearch, section, supportFilters, supportPage, supportStatus, userPage]);
 
   const changeSection = React.useCallback((nextSection) => {
     const nextPath = adminSectionPath(nextSection);
@@ -269,10 +251,9 @@ export default function AdminPage() {
     }
     if (nextSection === 'players') setUserPage(1);
     if (nextSection === 'matches') setMatchesPage(1);
-    if (nextSection === 'tournaments') setTournamentsPage(1);
-    if (nextSection === 'fairplay') setFairPlayPage(1);
-    if (nextSection === 'moderation') setModerationPage(1);
+
     if (nextSection === 'support') setSupportPage(1);
+    if (nextSection === 'moderation') setModerationPage(1);
     if (nextSection === 'payments') setPaymentsPage(1);
     if (nextSection === 'bots') {
       setBotsPage(1);
@@ -285,77 +266,54 @@ export default function AdminPage() {
   const changeUserPage = React.useCallback((nextPage) => {
     setUserPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, nextPage, fairPlayPage, fairPlayFilters);
-  }, [fairPlayFilters, fairPlayPage, load, search]);
-
-  const changeFairPlayPage = React.useCallback((nextPage) => {
-    setFairPlayPage(nextPage);
-    setUrlPage(nextPage, 'page');
-    load(search, userPage, nextPage, fairPlayFilters);
-  }, [fairPlayFilters, load, search, userPage]);
+  }, []);
 
   const changeMatchesPage = React.useCallback((nextPage) => {
     setMatchesPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, nextPage, tournamentsPage);
-  }, [fairPlayFilters, fairPlayPage, load, search, tournamentsPage, userPage]);
-
-  const changeTournamentsPage = React.useCallback((nextPage) => {
-    setTournamentsPage(nextPage);
-    setUrlPage(nextPage, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, nextPage);
-  }, [fairPlayFilters, fairPlayPage, load, matchesPage, search, userPage]);
+  }, []);
 
   const changeModerationPage = React.useCallback((nextPage) => {
     setModerationPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, nextPage);
-  }, [fairPlayFilters, fairPlayPage, load, matchesPage, search, tournamentsPage, userPage]);
+  }, []);
 
   const changeSupportPage = React.useCallback((nextPage) => {
     setSupportPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, eventsPage, auditPage, nextPage, supportStatus);
-  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, supportStatus, tournamentsPage, userPage]);
+  }, []);
 
   const changeSupportStatus = React.useCallback((nextStatus) => {
     setSupportStatus(nextStatus);
+    setSupportFilters((current) => ({ ...current, status: nextStatus }));
     setSupportPage(1);
     setUrlPage(1, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, eventsPage, auditPage, 1, nextStatus);
-  }, [auditPage, botsPage, eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+  }, []);
+
+  const applyMatchFilters = React.useCallback((filters) => { setMatchFilters(filters); setMatchesPage(1); setUrlPage(1, 'page'); }, []);
+  const applyModerationFilters = React.useCallback((filters) => { setModerationFilters(filters); setModerationPage(1); setUrlPage(1, 'page'); }, []);
+  const applySupportFilters = React.useCallback((filters) => { setSupportFilters(filters); setSupportStatus(filters.status || ''); setSupportPage(1); setUrlPage(1, 'page'); }, []);
+  const applyPaymentFilters = React.useCallback((filters) => { setPaymentFilters(filters); setPaymentsPage(1); setUrlPage(1, 'page'); }, []);
 
   const changePaymentsPage = React.useCallback((nextPage) => {
     setPaymentsPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, nextPage);
-  }, [fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, search, tournamentsPage, userPage]);
+  }, []);
 
   const changeBotsPage = React.useCallback((nextPage) => {
     setBotsPage(nextPage);
     setUrlPage(nextPage, 'botPage');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, nextPage, eventsPage);
-  }, [eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+  }, []);
 
   const changeEventsPage = React.useCallback((nextPage) => {
     setEventsPage(nextPage);
     setUrlPage(nextPage, 'eventPage');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, nextPage);
-  }, [botsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
+  }, []);
 
   const changeAuditPage = React.useCallback((nextPage) => {
     setAuditPage(nextPage);
     setUrlPage(nextPage, 'page');
-    load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage, moderationPage, paymentsPage, botsPage, eventsPage, nextPage);
-  }, [botsPage, eventsPage, fairPlayFilters, fairPlayPage, load, matchesPage, moderationPage, paymentsPage, search, tournamentsPage, userPage]);
-
-  const changeFairPlayFilters = React.useCallback((patch) => {
-    const nextFilters = { ...fairPlayFilters, ...patch };
-    setFairPlayFilters(nextFilters);
-    setFairPlayPage(1);
-    setUrlPage(1, 'page');
-    load(search, userPage, 1, nextFilters);
-  }, [fairPlayFilters, load, search, userPage]);
+  }, []);
 
   React.useEffect(() => {
     const syncSection = () => {
@@ -363,10 +321,9 @@ export default function AdminPage() {
       setSection(nextSection);
       if (nextSection === 'players') setUserPage(getUrlPage('page'));
       if (nextSection === 'matches') setMatchesPage(getUrlPage('page'));
-      if (nextSection === 'tournaments') setTournamentsPage(getUrlPage('page'));
-      if (nextSection === 'fairplay') setFairPlayPage(getUrlPage('page'));
-      if (nextSection === 'moderation') setModerationPage(getUrlPage('page'));
+
       if (nextSection === 'support') setSupportPage(getUrlPage('page'));
+      if (nextSection === 'moderation') setModerationPage(getUrlPage('page'));
       if (nextSection === 'payments') setPaymentsPage(getUrlPage('page'));
       if (nextSection === 'bots') {
         setBotsPage(getUrlPage('botPage'));
@@ -379,7 +336,8 @@ export default function AdminPage() {
   }, []);
 
   React.useEffect(() => {
-    load('');
+    void load();
+    return () => { loadRequestRef.current += 1; };
   }, [load]);
 
   const submitLogin = async (event) => {
@@ -388,6 +346,7 @@ export default function AdminPage() {
     setMessage('');
     try {
       const data = await unlockAdmin(unlockEmail, unlockPassword);
+      adminSessionRef.current = data;
       setAdmin(data.admin);
       setUnlockPassword('');
       setLoginRequired(false);
@@ -404,16 +363,17 @@ export default function AdminPage() {
   const logoutAdmin = async () => {
     await lockAdmin().catch(() => {});
     setAdmin(null);
+    adminSessionRef.current = null;
+    loadRequestRef.current += 1;
     setSummary(null);
     setLoginRequired(true);
     notify('Phiên admin đã được khóa.', 'info');
   };
 
-  const openBan = (user, banType) => {
+  const openBan = (user) => {
     setBanTarget(user);
     setBanForm({
-      banType,
-      reason: banType === 'risk' ? 'Vi phạm công bằng liên quan tín hiệu rủi ro' : 'Vi phạm công bằng / chính sách',
+      reason: 'Vi phạm chính sách',
       expiresAt: ''
     });
   };
@@ -421,17 +381,14 @@ export default function AdminPage() {
   const submitBan = async (event) => {
     event.preventDefault();
     if (!banTarget) return;
-    const deviceFingerprint = banTarget.devices?.[0]?.device_fingerprint || '';
     try {
       await adminUserAction({
         action: 'ban',
         userId: banTarget.id,
-        banType: banForm.banType,
-        deviceFingerprint,
         reason: banForm.reason,
         expiresAt: banForm.expiresAt || null
       });
-      notify(banForm.banType === 'risk' ? 'Đã áp dụng cấm theo rủi ro.' : 'Đã cấm người chơi.', 'success');
+      notify('Đã khóa tài khoản người chơi.', 'success');
       setBanTarget(null);
       await load();
     } catch (error) {
@@ -450,40 +407,6 @@ export default function AdminPage() {
       setMessage(error.message);
       notify(error.message, 'error');
       return false;
-    }
-  };
-
-  const banFromAntiCheat = async (report) => {
-    const targetUser = report.users || { id: report.user_id };
-    if (!targetUser?.id && !report.user_id) return;
-    const reason = `Anti-cheat report ${report.id}: risk ${report.risk_score}/100`;
-    const banned = await runUserAction('ban', { ...targetUser, id: targetUser.id || report.user_id }, 'Đã cấm người chơi từ báo cáo anti-cheat.', {
-      banType: 'account',
-      reason
-    });
-    if (!banned) return;
-    await updateAntiCheatReport(report.id, 'actioned').catch(() => {});
-    await load();
-  };
-
-  const unbanFromAntiCheat = async (report) => {
-    const targetUser = report.users || { id: report.user_id };
-    if (!targetUser?.id && !report.user_id) return;
-    await runUserAction('unban', { ...targetUser, id: targetUser.id || report.user_id }, 'Đã gỡ cấm người chơi.');
-  };
-
-  const scanUser = async (user) => {
-    setMessage(`Đang quét ${user.display_name || user.email}...`);
-    try {
-      const data = await scanUserAntiCheat(user.id);
-      const scan = data.summary || {};
-      setMessage(`Đã quét ${scan.gamesScanned ?? data.reports?.length ?? 0} ván. Rủi ro cao nhất ${scan.maxRisk ?? 0}/100, ${scan.recommendation || 'không cần xử lý'}.`);
-      notify('Quét chống gian lận hoàn tất.', 'success');
-      await load();
-      changeSection('fairplay');
-    } catch (error) {
-      setMessage(error.message);
-      notify(error.message, 'error');
     }
   };
 
@@ -578,49 +501,21 @@ export default function AdminPage() {
     }
   };
 
-  const submitTournament = async (event) => {
-    event.preventDefault();
-    try {
-      const data = await createAdminTournament(tournamentForm);
-      notify(`Đã tạo giải đấu và thông báo cho ${data.notifiedPlayers || 0} người chơi.`, 'success');
-      setTournamentForm((form) => ({ ...form, title: 'Giải nhanh ChessArena', startsAt: '' }));
-      setTournamentsPage(1);
-      if (section === 'tournaments') setUrlPage(1, 'page');
-      await load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, 1);
-    } catch (error) {
-      setMessage(error.message);
-      notify(error.message, 'error');
-    }
-  };
-
-  const changeTournamentStatus = async (tournament, status) => {
-    const labels = { cancelled: 'hủy', open: 'mở đăng ký', running: 'bắt đầu', finished: 'kết thúc' };
-    if (!window.confirm(`Xác nhận ${labels[status] || status} giải "${tournament.title}"?`)) return;
-    try {
-      await updateAdminTournamentStatus(tournament.id, status);
-      notify('Đã cập nhật trạng thái giải đấu.', 'success');
-      await load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage, tournamentsPage);
-    } catch (error) {
-      setMessage(error.message);
-      notify(error.message, 'error');
-    }
-  };
-
   const changeMatchStatus = async (match, status) => {
     const label = status === 'abandoned' ? 'đánh dấu bỏ ván' : status === 'draw' ? 'kết thúc hòa' : 'đánh dấu đầu hàng';
     if (!window.confirm(`Xác nhận ${label} trận ${match.white_name || 'Trắng'} vs ${match.black_name || 'Đen'}?`)) return;
     try {
       await updateAdminMatchStatus(match.id, status);
       notify('Đã cập nhật trạng thái trận đấu.', 'success');
-      await load(search, userPage, fairPlayPage, fairPlayFilters, matchesPage);
+      await load();
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
     }
   };
 
-  const changeModerationStatus = async (report, status) => {
-    const resolutionNote = ['resolved', 'dismissed', 'escalated'].includes(status)
+  const changeModerationStatus = async (report, status, suppliedNote) => {
+    const resolutionNote = suppliedNote !== undefined ? suppliedNote : ['resolved', 'dismissed', 'escalated'].includes(status)
       ? window.prompt('Ghi chú xử lý', status === 'dismissed' ? 'Không phát hiện vi phạm chính sách.' : 'Đã được đội kiểm duyệt xem xét.')
       : '';
     if (resolutionNote === null) return;
@@ -634,21 +529,11 @@ export default function AdminPage() {
       await updateAdminSupportRequest(request.id, status, adminNote);
       notify('Đã cập nhật yêu cầu hỗ trợ.', 'success');
       await load();
+      return true;
     } catch (error) {
       setMessage(error.message);
       notify(error.message, 'error');
-    }
-  };
-
-  const changeAntiCheatStatus = async (reportId, status) => {
-    try {
-      const data = await updateAntiCheatReport(reportId, status);
-      const refund = data.refund?.refundDelta ? ` Refund +${data.refund.refundDelta}.` : '';
-      notify(`Anti-cheat report updated.${refund}`, 'success');
-      await load();
-    } catch (error) {
-      setMessage(error.message);
-      notify(error.message, 'error');
+      return false;
     }
   };
 
@@ -687,6 +572,17 @@ export default function AdminPage() {
     }
   };
 
+  const saveWebsiteSettings = async (settings) => {
+    try {
+      const data = await updateAdminConfig(settings);
+      setConfig(data.config);
+      notify('Đã lưu Website Settings.', 'success');
+    } catch (error) {
+      notify(error.message, 'error');
+      throw error;
+    }
+  };
+
   if (loginRequired) {
     return (
       <AdminLogin
@@ -708,33 +604,38 @@ export default function AdminPage() {
           <Shield size={28} />
           <div>
             <strong>ChessArena</strong>
-            <span>Admin</span>
+            <span>Không gian quản trị</span>
           </div>
         </div>
-        <nav>
+        <nav aria-label="Danh mục quản trị">
           {NAV_ITEMS.map((item) => {
             const Icon = ICONS[item.iconName] || Shield;
             return (
-              <button className={section === item.id ? 'active' : ''} key={item.id} onClick={() => changeSection(item.id)}>
+              <button className={section === item.id ? 'active' : ''} aria-current={section === item.id ? 'page' : undefined} key={item.id} onClick={() => changeSection(item.id)}>
                 <Icon size={18} /> {item.label}
               </button>
             );
           })}
         </nav>
-        <button className="admin-lock-button" onClick={logoutAdmin}><LogOut size={18} /> Khóa admin</button>
+        <div className="admin-sidebar-footer">
+          <div className="admin-identity"><span>{(admin?.email || 'A').slice(0, 1).toUpperCase()}</span><div><strong>Quản trị viên</strong><small>{admin?.email}</small></div></div>
+          <a className="admin-return-link" href="/">← Về ChessArena</a>
+          <button className="admin-lock-button" onClick={logoutAdmin}><LogOut size={16} /> Khóa quản trị</button>
+        </div>
       </aside>
 
       <section className="admin-main">
         <header className="admin-hero">
           <div>
-            <span><Shield size={18} /> Bảng quản trị</span>
-            <h1>Quản lý trận đấu và tạo giải đấu</h1>
-            <p>Admin: {admin?.email || 'đang xác thực'} | Vai trò: {admin?.role || 'owner'} | Phiên quản trị riêng.</p>
+            <span><Shield size={15} /> ChessArena / Quản trị</span>
+            <h1>{NAV_ITEMS.find((item) => item.id === section)?.label || 'Tổng quan'}</h1>
+            <p>{SECTION_DESCRIPTIONS[section]}</p>
           </div>
-          <button onClick={() => load()} disabled={loading}><RefreshCw size={18} /> Làm mới</button>
+          <button onClick={() => load()} disabled={loading}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> {loading ? 'Đang tải...' : 'Làm mới'}</button>
         </header>
 
-        {message && <p className="admin-message">{message}</p>}
+        {message && <p className="admin-message" role="status">{message}</p>}
+        <div className="admin-section-content" key={section} aria-busy={loading}>
         {section === 'overview' && <OverviewSection summary={summary} admin={admin} loading={loading} onLoad={() => load()} onSectionChange={changeSection} />}
         {section === 'players' && (
           <PlayersSection
@@ -743,16 +644,18 @@ export default function AdminPage() {
             loading={loading}
             onSearchChange={setSearch}
             onLoad={(nextSearch) => {
+              const query = nextSearch.trim();
+              if (query === appliedSearch && userPage === 1) { void load(); return; }
+              setAppliedSearch(query);
               setUserPage(1);
               setUrlPage(1, 'page');
-              load(nextSearch, 1);
             }}
             page={userPage}
             totalPages={userTotalPages}
             onPageChange={changeUserPage}
             onOpenDetail={openDetail}
             onOpenPublicProfile={openPublicProfile}
-            onScanUser={scanUser}
+
             onMuteUser={(user) => {
               const reason = window.prompt('Lý do tắt chat', 'Lạm dụng chat/báo cáo');
               if (reason) runUserAction('mute', user, 'Đã tắt chat người chơi.', { reason });
@@ -765,84 +668,58 @@ export default function AdminPage() {
         {section === 'matches' && (
           <MatchesSection
             matches={matches}
+            filters={matchFilters}
             loading={loading}
             page={matchesPage}
             totalPages={matchesTotalPages}
             onPageChange={changeMatchesPage}
+            onFiltersChange={applyMatchFilters}
             onChangeStatus={changeMatchStatus}
-          />
-        )}
-        {section === 'tournaments' && (
-          <TournamentsSection
-            tournaments={tournaments}
-            loading={loading}
-            tournamentForm={tournamentForm}
-            onChangeTournamentForm={(patch) => setTournamentForm((form) => ({ ...form, ...patch }))}
-            onSubmitTournament={submitTournament}
-            page={tournamentsPage}
-            totalPages={tournamentsTotalPages}
-            onPageChange={changeTournamentsPage}
-            onChangeStatus={changeTournamentStatus}
-          />
-        )}
-        {section === 'fairplay' && (
-          <FairPlaySection
-            reports={reports}
-            loading={loading}
-            filters={fairPlayFilters}
-            page={fairPlayPage}
-            totalPages={fairPlayTotalPages}
-            onFilterChange={changeFairPlayFilters}
-            onPageChange={changeFairPlayPage}
-            onUpdateReport={changeAntiCheatStatus}
-            onBanUser={banFromAntiCheat}
-            onUnbanUser={unbanFromAntiCheat}
-          />
-        )}
-        {section === 'moderation' && (
-          <ModerationSection
-            reports={moderationReports}
-            loading={loading}
-            page={moderationPage}
-            totalPages={moderationTotalPages}
-            onPageChange={changeModerationPage}
-            onChangeStatus={changeModerationStatus}
           />
         )}
         {section === 'support' && (
           <SupportSection
-            requests={supportRequests}
-            loading={loading}
-            page={supportPage}
-            totalPages={supportTotalPages}
-            status={supportStatus}
-            onStatusFilter={changeSupportStatus}
-            onPageChange={changeSupportPage}
-            onChangeStatus={changeSupportRequestStatus}
-            onReload={() => load(
-              search,
-              userPage,
-              fairPlayPage,
-              fairPlayFilters,
-              matchesPage,
-              tournamentsPage,
-              moderationPage,
-              paymentsPage,
-              botsPage,
-              eventsPage,
-              auditPage,
-              supportPage,
-              supportStatus
-            )}
+            selectedRequestId={new URLSearchParams(window.location.search).get('ticket') || ''}
+            {...{
+              requests: supportRequests,
+              loading,
+              page: supportPage,
+              totalPages: supportTotalPages,
+              status: supportStatus,
+              filters: supportFilters,
+              onStatusFilter: changeSupportStatus,
+              onFiltersChange: applySupportFilters,
+              onPageChange: changeSupportPage,
+              onChangeStatus: changeSupportRequestStatus,
+              onReload: () => load()
+            }}
+          />
+        )}
+        {section === 'moderation' && (
+          <ModerationSection
+            selectedReportId={new URLSearchParams(window.location.search).get('report') || ''}
+            {...{
+              reports: moderationReports,
+              filters: moderationFilters,
+              loading,
+              page: moderationPage,
+              totalPages: moderationTotalPages,
+              onPageChange: changeModerationPage,
+              onFiltersChange: applyModerationFilters,
+              onChangeStatus: changeModerationStatus,
+              onTakeAction: openBan
+            }}
           />
         )}
         {section === 'payments' && (
           <PaymentsSection
             payments={payments}
+            filters={paymentFilters}
             loading={loading}
             page={paymentsPage}
             totalPages={paymentsTotalPages}
             onPageChange={changePaymentsPage}
+            onFiltersChange={applyPaymentFilters}
             paypalDiagnostics={paypalDiagnostics}
             onRunDiagnostics={runPayPalDiagnostics}
             onRunCreateTest={runPayPalCreateTest}
@@ -888,10 +765,12 @@ export default function AdminPage() {
             config={config}
             testAdmin={testAdmin}
             loading={loading}
+            onSave={saveWebsiteSettings}
             onGrantTestAdmin={() => changeTestAdminAccess(true)}
             onRevokeTestAdmin={() => changeTestAdminAccess(false)}
           />
         )}
+        </div>
       </section>
 
       <DetailModal selectedDetail={selectedDetail} onClose={() => setSelectedDetail(null)} />

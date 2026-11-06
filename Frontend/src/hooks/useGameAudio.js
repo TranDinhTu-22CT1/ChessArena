@@ -1,8 +1,11 @@
 import React from 'react';
 import { chessSoundEvent, chessSoundProfile, playChessSound, preloadChessSounds } from '../game/chessAudio';
+import { vietnameseChessSpeech, vietnameseVoice } from '../coach/speech';
 
 export function useGameAudio({ pieceSet = 'neo', theme = {} } = {}) {
   const audioContextRef = React.useRef(null);
+  const [coachVoiceAvailable, setCoachVoiceAvailable] = React.useState(false);
+  const pendingSpeech = React.useRef('');
 
   const ensureAudioContext = React.useCallback(() => {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -63,13 +66,14 @@ export function useGameAudio({ pieceSet = 'neo', theme = {} } = {}) {
   }, [playTone]);
 
   const speakCoachText = React.useCallback((text) => {
-    const cleanText = String(text || '').replace(/\s+/g, ' ').trim();
+    const cleanText = vietnameseChessSpeech(text);
     if (!cleanText || !('speechSynthesis' in window)) return;
-
+    const voice = vietnameseVoice(window.speechSynthesis.getVoices());
+    pendingSpeech.current = voice ? '' : cleanText;
+    if (!voice) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    const voices = window.speechSynthesis.getVoices();
-    utterance.voice = voices.find((voice) => voice.lang?.toLowerCase().startsWith('vi')) ?? null;
+    utterance.voice = voice;
     utterance.lang = 'vi-VN';
     utterance.rate = 1.03;
     utterance.pitch = 1;
@@ -78,14 +82,28 @@ export function useGameAudio({ pieceSet = 'neo', theme = {} } = {}) {
   }, []);
 
   const stopSpeech = React.useCallback(() => {
+    pendingSpeech.current = '';
     window.speechSynthesis?.cancel?.();
   }, []);
+
+  React.useEffect(() => {
+    const synthesis = window.speechSynthesis;
+    const update = () => {
+      const available = Boolean(vietnameseVoice(synthesis?.getVoices?.() || []));
+      setCoachVoiceAvailable(available);
+      if (available && pendingSpeech.current) speakCoachText(pendingSpeech.current);
+    };
+    update();
+    synthesis?.addEventListener('voiceschanged', update);
+    return () => { synthesis?.removeEventListener('voiceschanged', update); stopSpeech(); };
+  }, [speakCoachText, stopSpeech]);
 
   return {
     ensureAudioContext,
     playMoveSound,
     playUiSound,
     speakCoachText,
+    coachVoiceAvailable,
     stopSpeech
   };
 }

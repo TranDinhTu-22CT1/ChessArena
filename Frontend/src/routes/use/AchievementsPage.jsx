@@ -49,10 +49,6 @@ const ACHIEVEMENT_TEXT = {
   daily_7: {
     title: 'Chuỗi daily 7 ngày',
     description: 'Giữ chuỗi Daily Puzzle trong 7 ngày.'
-  },
-  tournament_joined: {
-    title: 'Người chơi giải đấu',
-    description: 'Tham gia giải Arena đầu tiên.'
   }
 };
 
@@ -64,8 +60,7 @@ const ACHIEVEMENT_META = {
   puzzle_50_correct: { icon: Puzzle, category: 'Puzzle' },
   rush_20: { icon: Zap, category: 'Puzzle' },
   streak_15: { icon: Flame, category: 'Puzzle' },
-  daily_7: { icon: CalendarDays, category: 'Puzzle' },
-  tournament_joined: { icon: Medal, category: 'Giải đấu' }
+  daily_7: { icon: CalendarDays, category: 'Puzzle' }
 };
 
 const FILTERS = [
@@ -141,7 +136,7 @@ export default function AchievementsPage({ authUser, onLogin, onNavigate }) {
       <section className="feature-page empty-feature">
         <Award size={44} />
         <h1>Thành tựu</h1>
-        <p>Đăng nhập để theo dõi thành tích từ ván online, puzzle, review và giải đấu.</p>
+        <p>Đăng nhập để theo dõi thành tích từ ván online, bài tập chiến thuật và phân tích ván đấu.</p>
         <button onClick={onLogin}>Đăng nhập</button>
       </section>
     );
@@ -168,7 +163,7 @@ export default function AchievementsPage({ authUser, onLogin, onNavigate }) {
           <h1>Thành tựu của bạn</h1>
           <p>
             Theo dõi những cột mốc được ghi nhận trực tiếp từ ván online,
-            bài tập chiến thuật, phân tích và giải đấu.
+            bài tập chiến thuật và phân tích ván đấu.
           </p>
         </div>
 

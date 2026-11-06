@@ -1,14 +1,16 @@
-﻿import React from 'react';
+import PlayPageHeader from '../../components/PlayPageHeader';
+import ReviewPage from './ReviewPage';
+import React from 'react';
+import { apiFetch } from '../../api/request';
+import PromotionPicker from '../../components/PromotionPicker';
 import { Chess } from 'chess.js';
-import { BarChart3, Brain, Copy, Download, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, X } from 'lucide-react';
+import { BarChart3, Brain, Copy, Flag, LogIn, Radio, RefreshCw, RotateCcw, Search, Send, ShieldCheck, Swords, Trophy, UserPlus, UserRound, X } from 'lucide-react';
 import {
   cancelOnlineQueue,
-  createFriendGame,
   currentMatchmakingSessionId,
   fetchOnlineChat,
   fetchOnlineGame,
   joinOnlineSpectators,
-  joinFriendGame,
   joinOnlineQueue,
   onlineGameEventsUrl,
   reportOnlineGame,
@@ -28,6 +30,8 @@ import { chessSoundEvent, chessSoundProfile, playChessSound, preloadChessSounds 
 import { squareName } from '../../game/chessLogic';
 import { hasPremium, membershipPlan } from '../../membership/plans';
 import MembershipBadge from '../../components/MembershipBadge';
+import { chooseNewestGameSnapshot, mergeOnlineChatMessages } from '../../game/realtimeState';
+import { computeOnlineClocks, parseOnlineTimeControl } from '../../game/onlineClock';
 
 const TIME_CONTROLS = [
   { id: '180+0', label: '3+0' },
@@ -37,10 +41,8 @@ const TIME_CONTROLS = [
 ];
 const REMATCH_RESPONSE_MS = 15_000;
 const REPORT_REASONS = [
-  { id: 'cheating', label: 'Cheating / engine use' },
   { id: 'stalling', label: 'Stalling / cố tình kéo giờ' },
   { id: 'toxic', label: 'Toxic behavior' },
-  { id: 'sandbagging', label: 'Sandbagging' },
   { id: 'harassment', label: 'Harassment' },
   { id: 'match_abuse', label: 'Match abuse' },
   { id: 'username', label: 'Username violation' },
@@ -49,18 +51,18 @@ const REPORT_REASONS = [
 ];
 
 function statusText(game) {
-  if (!game) return 'Ready';
-  if (game.status === 'waiting') return 'Waiting for friend';
-  if (game.status === 'checkmate') return `Checkmate ${game.result}`;
-  if (game.status === 'draw') return `Draw ${game.result}`;
-  if (game.status === 'resigned') return `Resigned ${game.result}`;
-  if (game.status === 'abandoned') return 'Game aborted';
-  return game.turn === game.playerColor ? 'Your move' : 'Opponent move';
+  if (!game) return 'Sẵn sàng';
+  if (game.status === 'waiting') return 'Đang chờ bạn';
+  if (game.status === 'checkmate') return `Chiếu hết · ${game.result}`;
+  if (game.status === 'draw') return `Hòa cờ · ${game.result}`;
+  if (game.status === 'resigned') return `Đầu hàng · ${game.result}`;
+  if (game.status === 'abandoned') return 'Ván đấu đã hủy';
+  return game.turn === game.playerColor ? 'Lượt của bạn' : 'Lượt đối thủ';
 }
 
-function displayName(value, fallback = 'Player') {
+function displayName(value, fallback = 'Chờ đối thủ') {
   const name = String(value || '').trim();
-  return name && name !== 'White' && name !== 'Black' ? name : fallback;
+  return name && name !== 'Trắng' && name !== 'Đen' ? name : fallback;
 }
 
 function formatSearchTime(seconds) {
@@ -78,11 +80,10 @@ function modeFromTimeControl(value) {
 }
 
 function clientRatingWindow(seconds) {
-  if (seconds < 3) return 50;
-  if (seconds < 8) return 100;
-  if (seconds < 15) return 200;
-  if (seconds < 30) return 350;
-  return 500;
+  if (seconds < 5) return 50;
+  if (seconds < 12) return 100;
+  if (seconds < 25) return 150;
+  return 200;
 }
 
 function signedRating(value) {
@@ -90,13 +91,7 @@ function signedRating(value) {
   return value > 0 ? `+${value}` : String(value);
 }
 
-function parseTimeControl(value) {
-  const [base = '600', increment = '0'] = String(value || '600+0').split('+');
-  return {
-    baseSeconds: Math.max(0, Number(base) || 600),
-    incrementSeconds: Math.max(0, Number(increment) || 0)
-  };
-}
+const parseTimeControl = parseOnlineTimeControl;
 
 function formatClock(milliseconds) {
   const safeMs = Math.max(0, Number(milliseconds) || 0);
@@ -125,37 +120,10 @@ function checkedKingSquare(chess) {
   return null;
 }
 
-function computeOnlineClocks(game, now = Date.now()) {
-  if (!game) return null;
-  const { baseSeconds, incrementSeconds } = parseTimeControl(game.timeControl);
-  const clocks = { w: baseSeconds * 1000, b: baseSeconds * 1000 };
-  const moves = game.moves || [];
-  let previousAt = Date.parse(
-    game.startedAt || game.lastMoveAt || game.createdAt || game.updatedAt || new Date().toISOString()
-  );
-
-  for (const move of moves) {
-    const moveAt = Date.parse(move.createdAt || game.lastMoveAt || game.updatedAt || new Date().toISOString());
-    if (Number.isFinite(previousAt) && Number.isFinite(moveAt)) {
-      clocks[move.color] = Math.max(0, clocks[move.color] - Math.max(0, moveAt - previousAt));
-    }
-    clocks[move.color] += incrementSeconds * 1000;
-    previousAt = moveAt;
-  }
-
-  if (game.status === 'active' && game.turn && Number.isFinite(previousAt)) {
-    clocks[game.turn] = Math.max(0, clocks[game.turn] - Math.max(0, now - previousAt));
-  } else if (game.turn && game.finishedAt && Number.isFinite(previousAt)) {
-    clocks[game.turn] = Math.max(0, clocks[game.turn] - Math.max(0, Date.parse(game.finishedAt) - previousAt));
-  }
-
-  return clocks;
-}
-
 function onlineOutcome(game, clocks) {
   if (!game || !['checkmate', 'draw', 'resigned', 'abandoned'].includes(game.status)) return null;
   if (game.status === 'abandoned') {
-    return { type: 'draw', aborted: true, title: 'Game aborted', detail: 'Opening move was not played in time. Ratings unchanged.' };
+    return { type: 'draw', aborted: true, title: 'Ván đấu đã hủy', detail: 'Opening move was not played in time. Ratings unchanged.' };
   }
   if (game.status === 'draw') {
     return { type: 'draw', title: 'Draw Game', detail: game.result || '1/2-1/2' };
@@ -168,7 +136,7 @@ function onlineOutcome(game, clocks) {
   return {
     type: youWon ? 'win' : 'loss',
     title: youWon ? 'You won' : 'You lost',
-    detail: `${winner === 'w' ? 'White' : 'Black'} wins ${reason}`
+    detail: `${winner === 'w' ? 'Trắng' : 'Đen'} wins ${reason}`
   };
 }
 
@@ -239,8 +207,8 @@ function buildOnlineReviewPositions(moves = [], stockfishReview = [], pendingAna
       fen,
       move: moveLan,
       san: move.san,
-      piece: move.piece,
-      captured: move.captured,
+      piece: priorBoard.get(move.from)?.type,
+      captured: move.captured || priorBoard.get(move.to)?.type,
       variant: 'standard',
       priorMoves: [...priorMoves]
     });
@@ -259,20 +227,20 @@ function calculateReviewStats(stockfishReview) {
   const loss = { w: 0, b: 0 };
 
   stockfishReview.forEach((item) => {
-    if (!item) return;
+    if (!item || item.analysisError) return;
     const color = item.mover === 'b' ? 'b' : 'w';
     if (stats[color][item.tone] === undefined) stats[color][item.tone] = 0;
     stats[color][item.tone] += 1;
     totals[color] += 1;
-    loss[color] += Number(item.winLoss || 0);
+    loss[color] += item.accuracy ?? 100 * Math.exp(-0.045 * Number(item.winLoss || 0));
   });
 
   return {
     stats,
     totals,
     accuracy: {
-      w: totals.w ? Math.max(1, Math.min(99, 100 - loss.w / totals.w * 2.4)).toFixed(1) : '--',
-      b: totals.b ? Math.max(1, Math.min(99, 100 - loss.b / totals.b * 2.4)).toFixed(1) : '--'
+      w: totals.w ? (loss.w / totals.w).toFixed(1) : '--',
+      b: totals.b ? (loss.b / totals.b).toFixed(1) : '--'
     }
   };
 }
@@ -285,26 +253,39 @@ function playMoveSound(audioRef, move = {}, pieceSet = 'neo', theme = {}) {
   playChessSound(context, chessSoundEvent(move), chessSoundProfile(pieceSet, theme));
 }
 
+function onlineGameStorageKey(authUser) {
+  return `chessarena:online-game:${authUser?.uid || authUser?.id || 'anonymous'}`;
+}
+
+function restoredOnlineGameId(authUser) {
+  try {
+    const value = window.sessionStorage.getItem(onlineGameStorageKey(authUser));
+    return /^[0-9a-f-]{36}$/i.test(value || '') ? value : null;
+  } catch { return null; }
+}
+
 export default function OnlinePage({ authUser, userName, pieceSet, theme, membership, onLogin, onNavigate, onCoachContextChange, historyOnly = false, historyReviewGameId = '' }) {
   const [summary, setSummary] = React.useState({ onlineCount: 0, queueCount: 0 });
   const [timeControl, setTimeControl] = React.useState('600+0');
   const [queueing, setQueueing] = React.useState(false);
-  const [gameId, setGameId] = React.useState(null);
+  const [queueJoining, setQueueJoining] = React.useState(false);
+  const [gameId, setGameId] = React.useState(() => restoredOnlineGameId(authUser));
   const [game, setGame] = React.useState(null);
   const [selected, setSelected] = React.useState(null);
   const [targets, setTargets] = React.useState([]);
-  const [inviteCode, setInviteCode] = React.useState('');
-  const [inviteLink, setInviteLink] = React.useState('');
-  const [inviteExpiresAt, setInviteExpiresAt] = React.useState('');
-  const [friendSide, setFriendSide] = React.useState('random');
+
+
+
+
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
+
   const [pgnCopied, setPgnCopied] = React.useState(false);
   const [queueStartedAt, setQueueStartedAt] = React.useState(null);
   const [queueSeconds, setQueueSeconds] = React.useState(0);
   const [myRating, setMyRating] = React.useState(400);
   const [queueRatingWindow, setQueueRatingWindow] = React.useState(50);
+  const [queueRatingLimit, setQueueRatingLimit] = React.useState(200);
   const [clockNow, setClockNow] = React.useState(Date.now());
   const [showMateBanner, setShowMateBanner] = React.useState(false);
   const [showResultDialog, setShowResultDialog] = React.useState(false);
@@ -312,23 +293,27 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   const [rematchBusy, setRematchBusy] = React.useState(false);
   const [rematchNow, setRematchNow] = React.useState(Date.now());
   const [reviewMode, setReviewMode] = React.useState(false);
+  const [reviewStarted, setReviewStarted] = React.useState(false);
+  const [promotionRequest, setPromotionRequest] = React.useState(null);
   const [reviewPly, setReviewPly] = React.useState(0);
   const [stockfishReview, setStockfishReview] = React.useState([]);
   const [stockfishStatus, setStockfishStatus] = React.useState('idle');
   const [pendingAnalysis, setPendingAnalysis] = React.useState([]);
   const [reportOpen, setReportOpen] = React.useState(false);
-  const [reportCategory, setReportCategory] = React.useState('cheating');
+  const [reportCategory, setReportCategory] = React.useState('toxic');
   const [reportDescription, setReportDescription] = React.useState('');
   const [reportBusy, setReportBusy] = React.useState(false);
   const [chatMessages, setChatMessages] = React.useState([]);
   const [chatBody, setChatBody] = React.useState('');
   const [chatBusy, setChatBusy] = React.useState(false);
   const [spectatorCount, setSpectatorCount] = React.useState(0);
-  const inviteHandledRef = React.useRef(false);
-  const reviewLinkHandledRef = React.useRef(null);
+  const [actionConfirm, setActionConfirm] = React.useState(null);
+
   const pendingMoveRef = React.useRef(false);
   const audioRef = React.useRef(null);
-  const gameFetchInFlightRef = React.useRef(false);
+  const gameFetchInFlightRef = React.useRef(null);
+  const activeGameIdRef = React.useRef(gameId);
+  activeGameIdRef.current = gameId;
   const heartbeatInFlightRef = React.useRef(false);
   const lastPlyRef = React.useRef(0);
   const lastTerminalKeyRef = React.useRef(null);
@@ -341,6 +326,26 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     : null;
   const historyReviewId = historyReviewGameId || queryReviewId;
   const openedFromHistory = historyOnly || Boolean(historyReviewId);
+  const onlineIdentity = authUser?.uid || authUser?.id || 'anonymous';
+  const onlineIdentityRef = React.useRef(onlineIdentity);
+
+  React.useEffect(() => {
+    if (!authUser || openedFromHistory) return;
+    if (onlineIdentityRef.current !== onlineIdentity) {
+      onlineIdentityRef.current = onlineIdentity;
+      setGame(null);
+      setGameId(restoredOnlineGameId(authUser));
+      setShowResultDialog(false);
+      return;
+    }
+    try {
+      const key = onlineGameStorageKey(authUser);
+      if (gameId) window.sessionStorage.setItem(key, gameId);
+      else window.sessionStorage.removeItem(key);
+    } catch {
+      // Session storage is an identifier hint only; the server remains authoritative.
+    }
+  }, [authUser, gameId, onlineIdentity, openedFromHistory]);
 
   React.useEffect(() => {
     const prepareAudio = () => {
@@ -355,20 +360,18 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
 
   const applyGameSnapshot = React.useCallback((incomingGame) => {
     if (!incomingGame) return;
-    setGame((currentGame) => {
-      if (!currentGame || currentGame.id !== incomingGame.id) return incomingGame;
-      const currentPly = currentGame.moves?.length || 0;
-      const incomingPly = incomingGame.moves?.length || 0;
-      if (incomingPly < currentPly) return currentGame;
-      if (incomingPly === currentPly) {
-        const currentUpdatedAt = Date.parse(currentGame.updatedAt || '');
-        const incomingUpdatedAt = Date.parse(incomingGame.updatedAt || '');
-        if (Number.isFinite(currentUpdatedAt) && Number.isFinite(incomingUpdatedAt) && incomingUpdatedAt < currentUpdatedAt) {
-          return currentGame;
-        }
-      }
-      return incomingGame;
+    setGame((currentGame) => chooseNewestGameSnapshot(currentGame, incomingGame));
+  }, []);
+
+  const applySavedReview = React.useCallback((reviewMoves) => {
+    if (!Array.isArray(reviewMoves) || reviewMoves.length === 0) return;
+    setStockfishReview((current) => {
+      const merged = [...current];
+      reviewMoves.forEach((item) => { if (item?.ply > 0) merged[item.ply - 1] = item; });
+      return merged;
     });
+    setReviewStarted(true);
+    setStockfishStatus('ready');
   }, []);
 
   const moves = game?.moves || [];
@@ -378,6 +381,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   const board = reviewMode ? reviewBoard : liveBoard;
   const flipped = game?.playerColor === 'b';
   const isMyTurn = game?.status === 'active' && game.turn === game.playerColor;
+  React.useEffect(() => setPromotionRequest(null), [game?.id, game?.fen, reviewMode]);
   const terminalGame = isTerminalGame(game);
   const playingView = Boolean(game && game.status !== 'waiting') || reviewMode;
   const terminalKey = terminalGame
@@ -386,20 +390,22 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   const reviewStats = React.useMemo(() => calculateReviewStats(stockfishReview), [stockfishReview]);
   const currentReviewAnalysis = reviewMode ? stockfishReview[reviewPly - 1] : null;
   const reviewBadge = currentReviewAnalysis ?? (reviewMode && reviewPly > 0 ? { label: 'Analyzing', tone: 'loading' } : null);
-  const reviewedMoveCount = stockfishReview.filter(Boolean).length;
-  const reviewProgress = moves.length ? Math.round((reviewedMoveCount / moves.length) * 100) : 0;
   const reviewingLiveGame = reviewMode && !terminalGame;
   const coachContext = React.useMemo(() => {
     if (!game || !board) return null;
-    const latestMove = moves.at(-1);
+    const visiblePly = reviewMode ? reviewPly : moves.length;
+    const visibleMoves = moves.slice(0, visiblePly);
+    const latestMove = visibleMoves.at(-1);
     return {
       hasBoardContext: true,
       fen: board.fen(),
-      pgn: board.pgn(),
+      pgn: visibleMoves.map((move,index) => `${index % 2 === 0 ? `${Math.floor(index / 2) + 1}. ` : ''}${move.san || ''}`).join(' '),
       turn: board.turn(),
       playerColor: game.playerColor || '',
       latestMove: latestMove?.san || latestMove?.lan || '',
-      recentMoves: moves.slice(-12).map((move) => `${move.ply}. ${move.color === 'w' ? 'White' : 'Black'} ${move.san || move.lan}`),
+      previousFen: latestMove ? reviewBoards[visiblePly - 1]?.fen() || '' : '',
+      latestLan: latestMove ? moveToLan(latestMove) : '',
+      recentMoves: moves.slice(-12).map((move) => `${move.ply}. ${move.color === 'w' ? 'Trắng' : 'Đen'} ${move.san || move.lan}`),
       review: currentReviewAnalysis ? {
         label: currentReviewAnalysis.label,
         tone: currentReviewAnalysis.tone,
@@ -408,7 +414,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
         winLoss: currentReviewAnalysis.winLoss
       } : null
     };
-  }, [board, currentReviewAnalysis, game, moves]);
+  }, [board, currentReviewAnalysis, game, moves, reviewBoards, reviewMode, reviewPly]);
 
   React.useEffect(() => {
     onCoachContextChange?.(coachContext);
@@ -416,29 +422,55 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   }, [coachContext, onCoachContextChange]);
 
   const refreshGame = React.useCallback(async (id = gameId) => {
-    if (!id || gameFetchInFlightRef.current) return;
-    gameFetchInFlightRef.current = true;
+    if (!id || gameFetchInFlightRef.current?.id === id) return;
+    const request = { id };
+    gameFetchInFlightRef.current = request;
     try {
       const data = await fetchOnlineGame(id);
+      if (activeGameIdRef.current !== id) return;
       if (!pendingMoveRef.current) applyGameSnapshot(data.game);
       setGameId(data.game.id);
-      setInviteCode(data.game.inviteCode || inviteCode);
-      if (data.game.inviteCode) {
-        setInviteLink(`${window.location.origin}/play/online?invite=${data.game.inviteCode}`);
-        setInviteExpiresAt(data.game.inviteExpiresAt || '');
-      }
+      applySavedReview(data.reviewMoves);
+
     } catch {
       if (game?.status === 'active') setMessage('Connection interrupted. Reconnecting to your game...');
     } finally {
-      gameFetchInFlightRef.current = false;
+      if (gameFetchInFlightRef.current === request) gameFetchInFlightRef.current = null;
     }
-  }, [applyGameSnapshot, game?.status, gameId, inviteCode]);
+  }, [applyGameSnapshot, applySavedReview, game?.status, gameId]);
 
   const openPlayerProfile = (player) => {
     if (!player?.id) return;
     window.history.pushState(null, '', `/profile/${encodeURIComponent(player.id)}`);
     window.dispatchEvent(new window.PopStateEvent('popstate'));
   };
+
+  React.useEffect(() => {
+    if (!authUser || openedFromHistory) return undefined;
+    let disposed = false;
+    const openRequestedGame = async () => {
+      const id = new URLSearchParams(window.location.search).get('game');
+      if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+      try {
+        const data = await fetchOnlineGame(id);
+        if (disposed) return;
+        setQueueing(false);
+        setQueueStartedAt(null);
+        setQueueSeconds(0);
+        setReviewMode(false);
+        setShowResultDialog(false);
+        setSelected(null);
+        setTargets([]);
+        setGame(data.game);
+        setGameId(data.game.id);
+        applySavedReview(data.reviewMoves);
+        setMessage('Đã vào trận. Chúc hai bạn chơi vui!');
+      } catch (error) { if (!disposed) setMessage(error.message); }
+    };
+    openRequestedGame();
+    window.addEventListener('popstate', openRequestedGame);
+    return () => { disposed = true; window.removeEventListener('popstate', openRequestedGame); };
+  }, [applySavedReview, authUser, openedFromHistory]);
 
   React.useEffect(() => {
     if (!authUser || openedFromHistory) return undefined;
@@ -460,29 +492,35 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
         if (!cancelled) {
           setSummary({ onlineCount: data.onlineCount, queueCount: data.queueCount });
           if (data.me?.rating) setMyRating(data.me.rating);
-          if (data.game && gameId) {
-            applyGameSnapshot(data.game);
-            setGameId(data.game.id);
-          }
-          if (queueing && data.currentGameId) {
+          if (data.ratingWindow != null) setQueueRatingWindow(data.ratingWindow);
+          if (data.ratingLimit != null) setQueueRatingLimit(data.ratingLimit);
+          if (queueing && data.joinedAt) setQueueStartedAt(current => current ?? Date.parse(data.joinedAt));
+          if (data.game && data.currentGameId) {
+            const reconnecting = !gameId && !queueing;
             setQueueing(false);
             setQueueStartedAt(null);
             setQueueSeconds(0);
-            if (data.game) applyGameSnapshot(data.game);
+            applyGameSnapshot(data.game);
             setGameId(data.currentGameId);
-            setMessage('Matched. Loading board...');
+            setMessage(reconnecting ? 'Đã khôi phục ván đang chơi.' : 'Matched. Loading board...');
           } else if (queueing && !data.queueTicketId) {
-            setMessage('Still searching. Reconnecting to matchmaking automatically...');
+            setQueueing(false);
+            setQueueStartedAt(null);
+            setMessage('Lượt tìm trận đã kết thúc hoặc hết hạn kết nối. Nhấn tìm trận để thử lại.');
           }
         }
-      } catch {
-        if (!cancelled && queueing) setMessage('Still searching for an opponent. We will keep trying automatically.');
+      } catch (error) {
+        if (!cancelled && error.data?.code === 'DATABASE_UPGRADE_REQUIRED') {
+          setQueueing(false);
+          setQueueStartedAt(null);
+          setMessage(error.message);
+        } else if (!cancelled && queueing) setMessage('Kết nối ghép trận đang gián đoạn. Hệ thống đang thử kết nối lại.');
       } finally {
         heartbeatInFlightRef.current = false;
       }
     };
     tick();
-    const intervalMs = queueing ? 5000 : gameId && !realtimeConnected ? 1000 : gameId ? 10_000 : 15_000;
+    const intervalMs = queueing ? 3000 : gameId && !realtimeConnected ? 2500 : gameId ? 10_000 : 15_000;
     const timer = window.setInterval(tick, intervalMs);
     return () => {
       cancelled = true;
@@ -508,34 +546,13 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     });
   }, [applyGameSnapshot, authUser, queueing]);
 
-  React.useEffect(() => {
-    if (!authUser || openedFromHistory || inviteHandledRef.current) return;
-    const code = new URLSearchParams(window.location.search).get('invite');
-    if (!code) return;
 
-    inviteHandledRef.current = true;
-    setBusy(true);
-    setMessage('Joining friend invite...');
-    joinFriendGame(code)
-      .then((data) => {
-        setInviteCode(data.inviteCode);
-        setInviteLink(`${window.location.origin}/play/online?invite=${data.inviteCode}`);
-        setInviteExpiresAt(data.expiresAt || data.game?.inviteExpiresAt || '');
-        setGameId(data.gameId);
-        if (data.game) applyGameSnapshot(data.game);
-        setMessage('Joined friend game.');
-        window.history.replaceState(null, '', '/play/online');
-      })
-      .catch((error) => setMessage(error.message))
-      .finally(() => setBusy(false));
-  }, [applyGameSnapshot, authUser, openedFromHistory]);
 
   React.useEffect(() => {
     if (!authUser) return;
     const reviewGameId = historyReviewId;
-    if (!reviewGameId || reviewLinkHandledRef.current === reviewGameId) return;
-
-    reviewLinkHandledRef.current = reviewGameId;
+    if (!reviewGameId) return;
+    let cancelled = false;
     setBusy(true);
     setQueueing(false);
     setQueueStartedAt(null);
@@ -546,19 +563,24 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setMessage('Đang tải ván đấu từ lịch sử...');
     fetchOnlineGame(reviewGameId)
       .then((data) => {
+        if (cancelled) return;
+        if (!isTerminalGame(data.game)) throw new Error('Chỉ có thể Review sau khi ván đấu kết thúc.');
         setGameId(data.game.id);
         setGame(data.game);
         setReviewMode(true);
+        setReviewStarted(Boolean(data.reviewMoves?.length));
         setReviewPly((data.game.moves || []).length);
         setShowResultDialog(false);
         setShowMateBanner(false);
         setStockfishReview([]);
+        applySavedReview(data.reviewMoves);
         setPendingAnalysis([]);
         setMessage('Đang xem lại ván online đã lưu. Dùng mũi tên trái/phải để chuyển nước.');
       })
-      .catch((error) => setMessage(error.message))
-      .finally(() => setBusy(false));
-  }, [authUser, historyReviewId]);
+      .catch((error) => { if (!cancelled) setMessage(error.message); })
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [applySavedReview, authUser, historyReviewId]);
 
   React.useEffect(() => {
     if (!gameId || openedFromHistory) return undefined;
@@ -576,7 +598,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     const source = new window.EventSource(onlineGameEventsUrl(gameId), { withCredentials: true });
 
     source.addEventListener('open', () => {
-      if (!closed) setRealtimeConnected(true);
+      if (!closed) setRealtimeConnected(false);
     });
 
     source.addEventListener('realtime-status', (event) => {
@@ -593,13 +615,23 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       if (closed) return;
       try {
         const data = JSON.parse(event.data);
-          const incomingTerminal = isTerminalGame(data.game);
-          if (data.game && (!pendingMoveRef.current || incomingTerminal)) {
-            applyGameSnapshot(data.game);
-            setGameId(data.game.id);
-          }
+          if (!data.game || activeGameIdRef.current !== gameId || data.game.id !== gameId) return;
+          // Version/ply ordering rejects stale snapshots, including while our
+          // HTTP response is pending. Do not discard the opponent's quick reply.
+          applyGameSnapshot(data.game);
+          setGameId(data.game.id);
       } catch {
         // Ignore malformed stream events; manual Refresh remains available.
+      }
+    });
+
+    source.addEventListener('chat', (event) => {
+      if (closed) return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.message) setChatMessages((current) => mergeOnlineChatMessages(current, data.message));
+      } catch {
+        // A malformed chat event must not interrupt board updates.
       }
     });
 
@@ -642,14 +674,14 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   }, [applyGameSnapshot, game?.id, game?.rematch?.expiresAt, game?.rematch?.response, game?.rematch?.requestedBy, game?.rematch?.requestedByYou]);
 
   React.useEffect(() => {
-    if (!queueing || !queueStartedAt) return undefined;
+    if ((!queueing && !queueJoining) || !queueStartedAt) return undefined;
     const timer = window.setInterval(() => {
       const elapsed = Math.max(0, Math.floor((Date.now() - queueStartedAt) / 1000));
       setQueueSeconds(elapsed);
       if (elapsed === 15) setMessage('The search is taking a little longer. We are keeping your place in line.');
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [queueStartedAt, queueing]);
+  }, [queueStartedAt, queueing, queueJoining]);
 
   React.useEffect(() => {
     if (!game?.id || game.status !== 'active') return undefined;
@@ -691,25 +723,31 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   }, [game?.status, reviewMode, terminalKey]);
 
   React.useEffect(() => {
-    if ((!reviewMode && !terminalGame) || moves.length === 0) return;
+    if (!openedFromHistory || !terminalGame || !reviewStarted || moves.length === 0) return;
     const missing = buildOnlineReviewPositions(moves, stockfishReview, pendingAnalysis, reviewBoards);
     if (missing.length) setPendingAnalysis((current) => [...current, ...missing]);
-  }, [reviewMode, terminalGame, moves, stockfishReview, pendingAnalysis, reviewBoards]);
+  }, [openedFromHistory, terminalGame, reviewStarted, moves, stockfishReview, pendingAnalysis, reviewBoards]);
 
+  const analysisQueueRef=React.useRef(pendingAnalysis);
+  analysisQueueRef.current=pendingAnalysis;
+  const firstAnalysisKey=pendingAnalysis[0]?JSON.stringify(pendingAnalysis[0]):'';
+  const [analysisRetry,setAnalysisRetry]=React.useState(0);
   React.useEffect(() => {
-    if (pendingAnalysis.length === 0) return undefined;
+    if (!openedFromHistory || !terminalGame || !firstAnalysisKey) return undefined;
+    const pendingAnalysis=analysisQueueRef.current;
+    const controller=new AbortController();
+    const timeout=window.setTimeout(()=>controller.abort(),30000);
 
     let cancelled = false;
-    const currentPosition = pendingAnalysis.find((item) => item.ply === reviewPly);
-    const positions = currentPosition
-      ? [currentPosition, ...pendingAnalysis.filter((item) => item.ply !== reviewPly).slice(0, 3)]
-      : pendingAnalysis.slice(0, 4);
+    const positions = pendingAnalysis.slice(0, 3);
     setStockfishStatus('loading');
-    fetch(apiUrl('/api/analysis/review'), {
+    apiFetch(apiUrl('/api/analysis/review'), {
+      timeoutMs: 30000,
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId: game?.id || gameId || historyReviewId || '', positions, movetime: 180 })
+      signal:controller.signal,
+      body: JSON.stringify({ gameId: game?.id || gameId || historyReviewId || '', positions, quality:'quick' })
     })
       .then(async (response) => {
         const contentType = response.headers.get('content-type') || '';
@@ -722,6 +760,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       .then(({ response, data }) => {
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || 'Stockfish review failed.');
+        if (positions.some(position=>!data.results?.some(item=>item.ply===position.ply&&item.tone))) throw new Error('Chưa nhận đủ kết quả. Hãy thử lại.');
         setStockfishReview((current) => {
           const next = [...current];
           (data.results ?? []).forEach((item) => {
@@ -734,12 +773,14 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       })
       .catch((error) => {
         if (!cancelled) setStockfishStatus(error.message || 'Stockfish unavailable');
-      });
+      }).finally(()=>window.clearTimeout(timeout));
 
     return () => {
       cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeout);
     };
-  }, [pendingAnalysis, reviewPly]);
+  }, [openedFromHistory, terminalGame, firstAnalysisKey, game?.id, gameId, historyReviewId, analysisRetry]);
 
   React.useEffect(() => {
     if (game?.rematch?.response === 'accepted' && game.rematch.gameId && game.rematch.gameId !== game.id) {
@@ -759,8 +800,13 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   }, [game]);
 
   const startQueue = async () => {
+    if (busy || queueing || queueJoining) return;
     setBusy(true);
+    setQueueJoining(true);
+    setQueueStartedAt(Date.now());
+    setQueueSeconds(0);
     setMessage('');
+    activeGameIdRef.current = null;
     setGameId(null);
     setGame(null);
     setReviewMode(false);
@@ -770,8 +816,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setPendingAnalysis([]);
     setSelected(null);
     setTargets([]);
-    setInviteCode('');
-    setInviteLink('');
     try {
       const data = await joinOnlineQueue(timeControl);
       setSummary({ onlineCount: data.onlineCount, queueCount: data.queueCount });
@@ -784,9 +828,8 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
         setMessage('Matched. Loading board...');
       } else {
         setQueueing(true);
-        setQueueStartedAt(Date.now());
-        setQueueSeconds(0);
         setQueueRatingWindow(data.ratingWindow ?? 50);
+        setQueueRatingLimit(data.ratingLimit ?? 200);
         setMessage('Finding a real player...');
       }
     } catch (error) {
@@ -797,6 +840,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
           : 'Cannot reach matchmaking right now. Please check the connection and try again.'
       );
     } finally {
+      setQueueJoining(false);
       setBusy(false);
     }
   };
@@ -810,7 +854,10 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       setQueueStartedAt(null);
       setQueueSeconds(0);
       setQueueRatingWindow(50);
-      setMessage('Queue cancelled.');
+      if (data.status === 'matched' && data.gameId) {
+        setGameId(data.gameId);
+        setMessage('Đối thủ đã được ghép trước khi hủy. Đang vào trận...');
+      } else setMessage('Đã hủy tìm trận.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -818,35 +865,9 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     }
   };
 
-  const createInvite = async () => {
-    setBusy(true);
-    setMessage('');
-    try {
-      setReviewMode(false);
-      setShowResultDialog(false);
-      setShowMateBanner(false);
-      setStockfishReview([]);
-      setPendingAnalysis([]);
-      const data = await createFriendGame(timeControl, friendSide);
-      setInviteCode(data.inviteCode);
-      setInviteLink(`${window.location.origin}/play/online?invite=${data.inviteCode}`);
-      setInviteExpiresAt(data.expiresAt || '');
-      setGameId(data.gameId);
-      if (data.game) applyGameSnapshot(data.game);
-      setMessage('Invite created. This link expires after 10 minutes.');
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const copyInvite = async () => {
-    await navigator.clipboard?.writeText(inviteLink || inviteCode).catch(() => {});
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
-    setMessage('Invite link copied.');
-  };
+
+
 
   const copyGamePgn = async () => {
     const pgn = game?.pgn || (game?.moves || []).map((move) => move.san).join(' ');
@@ -858,25 +879,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setPgnCopied(true);
     window.setTimeout(() => setPgnCopied(false), 1800);
     setMessage('PGN copied.');
-  };
-
-  const downloadGamePgn = () => {
-    const pgn = game?.pgn || (game?.moves || []).map((move) => move.san).join(' ');
-    if (!pgn) {
-      setMessage('No PGN to download yet.');
-      return;
-    }
-    const safeId = String(game?.id || 'online-game').replace(/[^a-z0-9_-]/gi, '-');
-    const blob = new Blob([pgn], { type: 'application/x-chess-pgn;charset=utf-8' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chessarena-${safeId}.pgn`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    setMessage('PGN downloaded.');
   };
 
   const leaveGameView = async () => {
@@ -891,9 +893,6 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setShowMateBanner(false);
     setStockfishReview([]);
     setPendingAnalysis([]);
-    setInviteCode('');
-    setInviteLink('');
-    setInviteExpiresAt('');
     setSelected(null);
     setTargets([]);
     setQueueing(false);
@@ -903,9 +902,17 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setMessage('Back to online lobby.');
   };
 
-  const playOnlineMove = async (from, to) => {
+  const playOnlineMove = async (from, to, chosenPromotion) => {
     if (!game || reviewMode || terminalGame || !isMyTurn || busy || !from || !to) return;
-    const promotion = board.get(from)?.type === 'p' && ['1', '8'].includes(to[1]) ? 'q' : undefined;
+    const choices = board.moves({ square: from, verbose: true }).filter((move) => move.to === to);
+    if (!choices.length) return;
+    if (!chosenPromotion && choices.some((move) => move.promotion)) {
+      setPromotionRequest({ from, to, color: board.turn() });
+      return;
+    }
+    const promotion = chosenPromotion;
+    if (promotion && !choices.some((move) => move.promotion === promotion)) return;
+    setPromotionRequest(null);
     const optimisticChess = new Chess(game.fen);
     const played = optimisticChess.move({ from, to, promotion });
     if (!played) {
@@ -933,8 +940,12 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setTargets([]);
     pendingMoveRef.current = true;
     playMoveSound(audioRef, played, pieceSet, theme);
+    const optimisticClocks = computeOnlineClocks(game, Date.parse(optimisticMove.createdAt));
+    optimisticClocks[game.playerColor] += parseOnlineTimeControl(game.timeControl).incrementSeconds * 1000;
     setGame({
       ...game,
+      clocks: optimisticClocks,
+      clockSnapshotAt: optimisticMove.createdAt,
       fen: optimisticChess.fen(),
       pgn: optimisticChess.pgn(),
       turn: optimisticChess.turn(),
@@ -945,7 +956,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       applyGameSnapshot(data.game);
     } catch (error) {
       if (error.data?.game) applyGameSnapshot(error.data.game);
-      else setGame(previousGame);
+      else setGame(current => Number(current?.stateVersion || 0) > Number(previousGame.stateVersion || 0) ? current : previousGame);
       setMessage(error.message);
       refreshGame(game.id);
     } finally {
@@ -968,6 +979,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
 
   const resign = async () => {
     if (!game || game.status !== 'active') return;
+    setActionConfirm(null);
     setBusy(true);
     try {
       const data = await resignOnlineGame(game.id);
@@ -981,11 +993,14 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
 
   const drawAction = async (action) => {
     if (!game?.id || game.status !== 'active') return;
+    if (action === 'offer') setActionConfirm(null);
     setBusy(true);
     try {
       const data = await sendOnlineDrawAction(game.id, action);
       applyGameSnapshot(data.game);
-      setMessage(action === 'offer'
+      setMessage(data.game?.status !== 'active' && data.game?.status !== 'draw'
+        ? 'V?n ??u ?? k?t th?c.'
+        : action === 'offer'
         ? 'Đã gửi đề nghị hòa.'
         : action === 'accept'
           ? 'Hai bên đã đồng ý hòa.'
@@ -1003,7 +1018,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setChatBusy(true);
     try {
       const data = await sendOnlineChat(game.id, chatBody.trim());
-      setChatMessages((current) => [...current, data.message].slice(-100));
+      setChatMessages((current) => mergeOnlineChatMessages(current, data.message));
       setChatBody('');
     } catch (error) {
       setMessage(error.message);
@@ -1040,16 +1055,23 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
   };
 
   const openOnlineReview = () => {
-    if (!game || moves.length === 0) {
-      setMessage('No moves to review yet.');
+    if (!terminalGame || moves.length === 0) {
+      setMessage('Chưa có nước đi để đánh giá.');
       return;
     }
-    setShowResultDialog(false);
-    setShowMateBanner(false);
-    setReviewMode(true);
-    setReviewPly(moves.length);
-    setStockfishStatus('loading');
+    window.history.pushState(null, '', `/review/${encodeURIComponent(game.id)}`);
+    window.dispatchEvent(new window.PopStateEvent('popstate'));
   };
+
+  const queueOnlineReview = React.useCallback(() => {
+    if (!openedFromHistory || !terminalGame || !moves.length) return;
+    setReviewStarted(true);
+    const missing = buildOnlineReviewPositions(moves, stockfishReview, pendingAnalysis, reviewBoards);
+    if (missing.length) setPendingAnalysis((current) => {
+      const existing = new Set(current.map((item) => item.ply));
+      return [...current, ...missing.filter((item) => !existing.has(item.ply))];
+    });
+  }, [openedFromHistory, terminalGame, moves, pendingAnalysis, reviewBoards, stockfishReview]);
 
   const reviewStep = (direction) => {
     setReviewPly((current) => Math.min(moves.length, Math.max(0, current + direction)));
@@ -1099,7 +1121,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
     setRematchBusy(true);
     try {
       const data = await sendOnlineRematch(game.id, action);
-      if (action === 'accept' && data.game?.id !== game.id) {
+      if (data.game?.id && data.game.id !== game.id) {
         applyGameSnapshot(data.game);
         setGameId(data.game.id);
         setReviewMode(false);
@@ -1115,13 +1137,14 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
             : 'Rematch accepted.');
       }
     } catch (error) {
+      if (error.data?.game) applyGameSnapshot(error.data.game);
       setMessage(error.message);
     } finally {
       setRematchBusy(false);
     }
   };
 
-  const selfName = displayName(userName || authUser?.displayName, 'Player');
+  const selfName = displayName(userName || authUser?.displayName, 'Chờ đối thủ');
   const isSpectatorView = Boolean(game && !game.white?.you && !game.black?.you);
 
   React.useEffect(() => {
@@ -1138,7 +1161,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
           isSpectatorView ? joinOnlineSpectators(game.id) : Promise.resolve(null)
         ]);
         if (!cancelled) {
-          setChatMessages(chatData.messages || []);
+          setChatMessages((current) => mergeOnlineChatMessages(current, chatData.messages || []));
           if (spectatorData) setSpectatorCount(spectatorData.spectators || 0);
         }
       } catch {
@@ -1146,28 +1169,35 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       }
     };
     refreshSideChannel();
-    const interval = window.setInterval(refreshSideChannel, 4000);
+    const interval = isSpectatorView ? window.setInterval(async () => {
+      try {
+        const spectatorData = await joinOnlineSpectators(game.id);
+        if (!cancelled) setSpectatorCount(spectatorData.spectators || 0);
+      } catch {
+        // Spectator counts are non-critical.
+      }
+    }, 10000) : null;
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      if (interval) window.clearInterval(interval);
     };
   }, [game?.id, isSpectatorView]);
   const opponentPlayer = game?.white?.you ? game.black : game?.black?.you ? game.white : null;
   const topPlayer = isSpectatorView ? game?.black : opponentPlayer;
   const bottomPlayer = isSpectatorView ? game?.white : (game?.white?.you ? game.white : game?.black?.you ? game.black : null);
-  const topName = displayName(topPlayer?.name, 'Player');
+  const topName = displayName(topPlayer?.name, 'Chờ đối thủ');
   const topPhotoURL = topPlayer?.photoURL;
-  const topRating = topPlayer?.rating || 400;
-  const topLabel = isSpectatorView ? 'Black' : game?.status === 'active' ? 'Opponent' : game?.status === 'waiting' ? 'Waiting' : 'Opponent';
-  const bottomName = isSpectatorView ? displayName(bottomPlayer?.name, 'Player') : selfName;
+  const topRating = topPlayer?.rating ?? '—';
+  const topLabel = isSpectatorView ? 'Đen' : game?.status === 'active' ? 'Đối thủ' : game?.status === 'waiting' ? 'Đang chờ' : 'Đối thủ';
+  const bottomName = isSpectatorView ? displayName(bottomPlayer?.name, 'Chờ đối thủ') : selfName;
   const selfPlayer = bottomPlayer;
   const bottomPhotoURL = isSpectatorView ? bottomPlayer?.photoURL : selfPlayer?.photoURL || authUser?.photoURL;
   const bottomRating = bottomPlayer?.rating || myRating;
   const activeQueueWindow = queueing ? Math.max(queueRatingWindow, clientRatingWindow(queueSeconds)) : queueRatingWindow;
-  const queueMinRating = Math.max(100, myRating - activeQueueWindow);
-  const queueMaxRating = Math.min(4000, myRating + activeQueueWindow);
+  const queueMinRating = Math.max(100, myRating - queueRatingLimit);
+  const queueMaxRating = Math.min(4000, myRating + queueRatingLimit);
   const activeMode = modeFromTimeControl(timeControl);
-  const playerColorLabel = game?.playerColor === 'w' ? 'White' : game?.playerColor === 'b' ? 'Black' : 'Choose match';
+  const playerColorLabel = game?.playerColor === 'w' ? 'Trắng' : game?.playerColor === 'b' ? 'Đen' : 'Chọn thời gian';
   const pairs = movePairs(moves);
   const topColor = isSpectatorView ? 'b' : game?.playerColor === 'w' ? 'b' : 'w';
   const bottomColor = isSpectatorView ? 'w' : game?.playerColor || 'w';
@@ -1224,15 +1254,15 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
       <section className="online-workspace">
         <div className="online-auth-required">
           <ShieldCheck size={46} />
-          <h1>Online play requires sign in</h1>
-          <p>Every online move is verified by the server and tied to your secure session.</p>
-          <button onClick={onLogin}><LogIn size={18} /> Sign in</button>
+          <h1>Đăng nhập để chơi online</h1>
+          <p>Tìm đối thủ cùng trình độ hoặc gửi lời mời cho bạn bè của bạn.</p>
+          <button onClick={onLogin}><LogIn size={18} /> Đăng nhập</button>
         </div>
       </section>
     );
   }
 
-  if (openedFromHistory && busy && !game) {
+  if (openedFromHistory && !game) {
     return (
       <section className="online-workspace">
         <div className="online-history-loading">
@@ -1240,15 +1270,90 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
             {Array.from({ length: 16 }).map((_, index) => <span key={index} />)}
           </div>
           <span>Game Review</span>
-          <h1>Đang mở lại ván đấu</h1>
+          <h1>{busy ? 'Đang mở lại ván đấu' : 'Chưa mở được Review'}</h1>
           <p>{message || 'Đang tải bàn cờ và danh sách nước đi từ lịch sử online.'}</p>
+          {!busy && <button type="button" onClick={() => onNavigate?.('history')}>Về lịch sử</button>}
         </div>
+      </section>
+    );
+  }
+
+  if (openedFromHistory && game) {
+    return (
+      <section className="online-workspace history-review-workspace">
+        <main className="online-layout review-page-layout">
+          <section className="online-board-section board-area">
+            <div className="online-player-bar top">
+              <button className="online-player-profile-button" disabled={!topPlayer?.id} onClick={() => openPlayerProfile(topPlayer)} type="button">
+                <PlayerAvatar name={topName} photoURL={topPhotoURL} />
+                <strong title={topName}>{topName}</strong>
+                <MembershipBadge tier={topPlayer?.membershipTier} compact />
+              </button>
+              <span className="online-player-meta">{topLabel} · {topRating} ELO</span>
+              <b className="online-clock">{topClock}</b>
+            </div>
+            <div className="online-board-wrap">
+              <OnlineBoard
+                board={reviewBoard}
+                flipped={flipped}
+                pieceSet={pieceSet}
+                pieceSets={onlinePieceSets}
+                selected={null}
+                targets={[]}
+                lastMove={moves[reviewPly - 1]}
+                checkedSquare={null}
+                reviewBadge={reviewStarted ? reviewBadge : null}
+                disabled
+                canMove={false}
+                onSelectSquare={() => {}}
+                onMove={() => {}}
+                promotionRequest={null}
+                onCancelPromotion={() => {}}
+              />
+            </div>
+            <div className="online-player-bar">
+              <button className="online-player-profile-button" disabled={!bottomPlayer?.id} onClick={() => openPlayerProfile(bottomPlayer)} type="button">
+                <PlayerAvatar name={bottomName} photoURL={bottomPhotoURL} />
+                <strong title={bottomName}>{bottomName}</strong>
+                <MembershipBadge tier={bottomPlayer?.membershipTier} compact />
+              </button>
+              <span className="online-player-meta">{isSpectatorView ? 'Trắng' : 'Bạn'} · {bottomRating} ELO</span>
+              <b className="online-clock">{bottomClock}</b>
+            </div>
+          </section>
+          <ReviewPage
+            initialFen={null}
+            stockfishStatus={stockfishStatus}
+            onRetryReview={() => { setStockfishReview(current => current.map(item => item?.analysisError ? null : item)); setAnalysisRetry(value => value + 1); }}
+            coachMode="balanced"
+            coachLesson={null}
+            currentReviewAnalysis={currentReviewAnalysis}
+            reviewPly={reviewPly}
+            history={moves}
+            stockfishReview={stockfishReview}
+            reviewStats={reviewStats}
+            reviewStarted={reviewStarted}
+            membership={membership}
+            whiteName={game.white?.name || 'White'}
+            blackName={game.black?.name || 'Black'}
+            returnRoute="history"
+            onNavigate={onNavigate}
+            onStartNewGame={() => onNavigate?.('online')}
+            onReviewStep={reviewStep}
+            onSetReviewMode={setReviewMode}
+            onSetResultDismissed={(dismissed) => setShowResultDialog(!dismissed)}
+            onSetReviewPly={setReviewPly}
+            onQueueMissingReviewAnalysis={queueOnlineReview}
+            onStartReview={queueOnlineReview}
+          />
+        </main>
       </section>
     );
   }
 
   return (
     <section className="online-workspace">
+      <PlayPageHeader mode="online" status={queueing ? 'Đang tìm đối thủ' : game?.status === 'active' ? 'Đang chơi' : 'Sảnh chờ'} />
       <main className="online-layout">
         <section className="online-board-section">
           <div className={`online-player-bar top ${game?.turn === topColor && game?.status === 'active' ? 'active-clock' : ''}`}>
@@ -1257,30 +1362,21 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
               <strong title={topName}>{topName}</strong>
               <MembershipBadge tier={topPlayer?.membershipTier} compact />
             </button>
-            <span className="online-player-meta">{topLabel} - {topRating}</span>
+            <span className="online-player-meta">{game ? `${topLabel} · ${topRating} ELO` : 'Chưa ghép trận'}</span>
             <b className={`online-clock ${topClockLow ? 'low' : ''}`}>{topClock}</b>
           </div>
-          {reviewMode && (
-            <div className="online-review-legend">
-              {REVIEW_LEGEND.map((item) => (
-                <span className={item.tone} key={item.tone}>
-                  <b>{reviewIcon(item.tone)}</b>{item.label}
-                </span>
-              ))}
-            </div>
-          )}
           <div className="online-board-wrap">
             {openingRemainingMs !== null && (
               <div className="online-opening-deadline" aria-live="polite">
                 {openingTurnName} cần đi nước đầu trong {Math.ceil(openingRemainingMs / 1000)} giây, nếu không ván sẽ bị hủy.
               </div>
             )}
-            {showMateBanner && <div className="online-checkmate-banner">Checkmate</div>}
+            {showMateBanner && <div className="online-checkmate-banner">Chiếu hết</div>}
             {terminalGame && !reviewMode && !showResultDialog && (
               <div className="online-ended-overlay">
                 <Trophy size={34} />
-                <strong>{game.status === 'abandoned' ? 'Game aborted' : 'Game finished'}</strong>
-                <span>{game.status === 'abandoned' ? 'No rating change. Start a new match.' : 'Open Game Review to inspect the old position.'}</span>
+                <strong>{game.status === 'abandoned' ? 'Ván đấu đã hủy' : 'Ván đấu đã kết thúc'}</strong>
+                <span>{game.status === 'abandoned' ? 'Điểm xếp hạng được giữ nguyên. Bạn có thể tìm ván mới.' : 'Mở đánh giá ván đấu để xem lại các nước cờ.'}</span>
               </div>
             )}
             <OnlineBoard
@@ -1292,11 +1388,13 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
               targets={targets}
               lastMove={lastMove}
               checkedSquare={checkedSquare}
-              reviewBadge={reviewMode ? reviewBadge : null}
+              reviewBadge={null}
               disabled={terminalGame || reviewMode}
               canMove={isMyTurn && !busy}
               onSelectSquare={chooseSquare}
               onMove={playOnlineMove}
+              promotionRequest={promotionRequest}
+              onCancelPromotion={() => setPromotionRequest(null)}
             />
           </div>
           <div className={`online-player-bar ${game?.turn === bottomColor && game?.status === 'active' ? 'active-clock' : ''}`}>
@@ -1305,7 +1403,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
               <strong title={bottomName}>{bottomName}</strong>
               <MembershipBadge tier={bottomPlayer?.membershipTier} compact />
             </button>
-            <span className="online-player-meta">{isSpectatorView ? 'White' : 'You'} - {bottomRating}</span>
+            <span className="online-player-meta">{isSpectatorView ? 'Trắng' : 'Bạn'} - {bottomRating}</span>
             <b className={`online-clock ${bottomClockLow ? 'low' : ''}`}>{bottomClock}</b>
           </div>
         </section>
@@ -1317,29 +1415,21 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
             <strong>{reviewMode ? `Move ${reviewPly} / ${moves.length}` : game?.result && game.result !== '*' ? game.result : game?.timeControl || timeControl}</strong>
             <div className="online-status-row">
               <b>{playerColorLabel}</b>
-              <b>{reviewMode ? stockfishStatus : `${game?.status || (queueing ? 'searching' : 'lobby')} ${gameId && realtimeConnected ? 'live' : ''}`}</b>
+              <b>{reviewMode ? stockfishStatus : `${game?.status === 'active' ? 'Trong trận' : queueing ? 'Đang tìm' : 'Sảnh chờ'} ${gameId && realtimeConnected ? 'live' : ''}`}</b>
             </div>
-            {reviewMode && (
-              <div className="online-review-active">
-                <span className={`move-badge inline ${reviewBadge?.tone ?? 'loading'}`}>
-                  {reviewIcon(reviewBadge?.tone ?? 'loading')}
-                </span>
-                <p>{reviewPly > 0 ? reviewBadge?.label || 'Analyzing move' : 'Start position'}</p>
-              </div>
-            )}
-          {queueing && (
+          {(queueing || queueJoining) && (
               <div className="search-timer" aria-live="polite">
                 <Search size={17} />
-                Searching {formatSearchTime(queueSeconds)}
+                {queueJoining ? 'Đang kết nối' : 'Đang tìm'} {formatSearchTime(queueSeconds)}
               </div>
             )}
             {queueing && (
               <div className="online-search-details">
                 <span>Mode <b>{activeMode}</b></span>
-                <span>Your rating <b>{myRating}</b></span>
-                <span>Opponent range <b>{queueMinRating}-{queueMaxRating}</b></span>
-                <span>Plan <b>{plan.name}</b></span>
-                <small>{queueSeconds < 30 ? 'Range expands automatically while you wait.' : 'Maximum fair range is active. Oldest compatible player is prioritized.'}</small>
+                <span>ELO của bạn <b>{myRating}</b></span>
+                <span>ELO đối thủ <b>{queueMinRating}-{queueMaxRating}</b></span>
+                <span>Gói <b>{plan.name}</b></span>
+                <small>Ưu tiên chênh lệch ±{activeQueueWindow} Elo. Ghép ngay khi có đối thủ phù hợp trong giới hạn ±{queueRatingLimit} Elo của cả hai.</small>
               </div>
             )}
             {message && <p>{message}</p>}
@@ -1354,16 +1444,16 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
 
           {!playingView && (
           <div className="online-controls">
-            <strong>Quick match</strong>
+            <strong>Tìm trận nhanh</strong>
             <div className="online-time-grid">
               {TIME_CONTROLS.map((control) => (
-                <button className={timeControl === control.id ? 'active' : ''} key={control.id} onClick={() => setTimeControl(control.id)}>
+                <button className={timeControl === control.id ? 'active' : ''} key={control.id} disabled={queueing || busy} onClick={() => setTimeControl(control.id)}>
                   {control.label}
                 </button>
               ))}
             </div>
             {queueing ? (
-              <button className="danger" disabled={busy} onClick={cancelQueue}><X size={18} /> Cancel search</button>
+              <button className="danger" disabled={busy} onClick={cancelQueue}><X size={18} /> Hủy tìm trận</button>
             ) : (
               <button disabled={busy || game?.status === 'active'} onClick={startQueue}><Swords size={18} /> Tìm trận</button>
             )}
@@ -1371,78 +1461,49 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
           )}
 
           {!playingView && (
-          <div className="online-controls">
-            <strong>Play with friend</strong>
-            <div className="friend-option-grid" aria-label="Friend game options">
-              {[
-                { id: 'random', label: 'Random' },
-                { id: 'white', label: 'White' },
-                { id: 'black', label: 'Black' }
-              ].map((option) => (
-                <button
-                  className={friendSide === option.id ? 'active' : ''}
-                  key={option.id}
-                  onClick={() => setFriendSide(option.id)}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <button disabled={busy || game?.status === 'active'} onClick={createInvite}><UserPlus size={18} /> Invite friend</button>
-            {inviteCode && (
-              <div className="invite-share-card">
-                <span>Invite ready</span>
-                <strong>{inviteCode}</strong>
-                <button className="invite-code" onClick={copyInvite}>
-                  <Copy size={17} /> {copied ? 'Copied' : 'Copy invite link'}
-                </button>
-                <small>{inviteLink}</small>
-                <small>Expires {inviteExpiresAt ? new Date(inviteExpiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'in 10 minutes'}</small>
-              </div>
-            )}
-          </div>
+          <div className="online-controls"><strong>Chơi cùng bạn bè</strong><p>Gửi lời mời trực tiếp và vào trận khi bạn chấp nhận.</p><button type="button" onClick={() => onNavigate?.('friends')}><UserPlus size={18} /> Mời bạn chơi</button></div>
           )}
 
-          <div className="online-controls">
-            <strong>Game</strong>
+          {game && <div className="online-controls">
+            <strong>Điều khiển ván đấu</strong>
+            {terminalGame && moves.length > 0 && <button type="button" onClick={openOnlineReview}><Brain size={18} /> Mở Review ván đấu</button>}
             <div className="online-game-actions">
-              <button disabled={!game || moves.length === 0 || (reviewMode && reviewPly === 0)} onClick={undoLastMove}><RotateCcw size={18} /> Undo</button>
-              <button disabled={!reviewingLiveGame} onClick={redoLastMove}><RefreshCw size={18} /> Redo</button>
-              <button className="danger" disabled={!game || game.status !== 'active' || busy} onClick={resign}>Resign</button>
+              <button disabled={!game || moves.length === 0 || (reviewMode && reviewPly === 0)} onClick={undoLastMove}><RotateCcw size={18} /> Nước trước</button>
+              <button disabled={!reviewingLiveGame} onClick={redoLastMove}><RefreshCw size={18} /> Nước tiếp</button>
+              <button className="danger" disabled={!game || game.status !== 'active' || busy} onClick={() => setActionConfirm('resign')}>Đầu hàng</button>
             </div>
             {game?.status === 'active' && !isSpectatorView && (
               <div className="online-draw-actions">
-                {!game.drawOffer && <button type="button" disabled={busy} onClick={() => drawAction('offer')}>Offer draw</button>}
-                {game.drawOffer?.byYou && <button type="button" disabled={busy} onClick={() => drawAction('cancel')}>Cancel draw offer</button>}
+                {!game.drawOffer && <button type="button" disabled={busy} onClick={() => setActionConfirm('draw')}>Đề nghị hòa</button>}
+                {game.drawOffer?.byYou && <button type="button" disabled={busy} onClick={() => drawAction('cancel')}>Rút đề nghị hòa</button>}
                 {game.drawOffer && !game.drawOffer.byYou && (
                   <>
-                    <button type="button" disabled={busy} onClick={() => drawAction('accept')}>Accept draw</button>
-                    <button type="button" disabled={busy} onClick={() => drawAction('decline')}>Decline</button>
+                    <button type="button" disabled={busy} onClick={() => drawAction('accept')}>Đồng ý hòa</button>
+                    <button type="button" disabled={busy} onClick={() => drawAction('decline')}>Từ chối</button>
                   </>
                 )}
               </div>
             )}
             {!playingView && (
               <>
-                <button disabled={!gameId || busy} onClick={() => refreshGame(gameId)}><RefreshCw size={18} /> Refresh</button>
-                <button disabled={!game || (game?.moves || []).length === 0} onClick={copyGamePgn}><Copy size={18} /> {pgnCopied ? 'PGN copied' : 'Copy PGN'}</button>
-                <button disabled={!gameId && !queueing} onClick={leaveGameView}><X size={18} /> Back to lobby</button>
+                <button disabled={!gameId || busy} onClick={() => refreshGame(gameId)}><RefreshCw size={18} /> Tải lại</button>
+                <button disabled={!game || (game?.moves || []).length === 0} onClick={copyGamePgn}><Copy size={18} /> {pgnCopied ? 'Đã sao chép PGN' : 'Sao chép PGN'}</button>
+                <button disabled={!gameId && !queueing} onClick={leaveGameView}><X size={18} /> Về sảnh chờ</button>
               </>
             )}
-          </div>
+          </div>}
 
           {game?.id && (
             <div className="online-controls online-chat-panel">
               <div className="online-chat-head">
-                <strong>Game chat</strong>
+                <strong>Trò chuyện trong ván</strong>
                 {isSpectatorView && <small><Radio size={14} /> {spectatorCount} watching</small>}
               </div>
               <div className="online-chat-messages" aria-live="polite">
-                {chatMessages.length === 0 && <small>No messages yet.</small>}
+                {chatMessages.length === 0 && <small>Chưa có tin nhắn. Chúc nhau một ván cờ vui nhé.</small>}
                 {chatMessages.map((item) => (
                   <p className={item.you ? 'you' : ''} key={item.id}>
-                    <b>{item.you ? 'You' : item.name}:</b> {item.body}
+                    <b>{item.you ? 'Bạn' : item.name}:</b> {item.body}
                   </p>
                 ))}
               </div>
@@ -1450,76 +1511,18 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
                 <input
                   value={chatBody}
                   onChange={(event) => setChatBody(event.target.value)}
-                  placeholder="Message..."
+                  placeholder="Nhắn với đối thủ…"
                   maxLength={500}
                 />
-                <button type="submit" aria-label="Send message" disabled={chatBusy || !chatBody.trim()}><Send size={17} /></button>
+                <button type="submit" aria-label="Gửi tin nhắn" disabled={chatBusy || !chatBody.trim()}><Send size={17} /></button>
               </form>
             </div>
           )}
 
-          {reviewMode && (
-            <div className="online-review-panel online-review-dashboard">
-              <div className="online-review-coach">
-                <div className="review-coach-avatar">GM</div>
-                <div>
-                  <span className={`move-badge inline ${reviewBadge?.tone ?? 'loading'}`}>
-                    {reviewIcon(reviewBadge?.tone ?? 'loading')}
-                  </span>
-                  <strong>{reviewPly > 0 ? reviewBadge?.label || 'Analyzing move' : 'Start position'}</strong>
-                  <p>
-                    {currentReviewAnalysis?.bestMove
-                      ? `Best move: ${currentReviewAnalysis.bestSan || currentReviewAnalysis.bestMove}.`
-                      : 'Use the arrows or move table to inspect this online game.'}
-                  </p>
-                </div>
-              </div>
-              {reviewedMoveCount < moves.length && (
-                <div className="online-review-progress" aria-live="polite">
-                  <p>Vui lòng đợi AI của chúng tôi đánh giá ván cờ của bạn</p>
-                  <div><span style={{ width: `${reviewProgress}%` }} /></div>
-                  <small>{reviewedMoveCount} / {moves.length} moves analyzed</small>
-                </div>
-              )}
-              <div className="online-review-accuracy">
-                <span>White <b>{reviewStats.accuracy.w}</b></span>
-                <span>Black <b>{reviewStats.accuracy.b}</b></span>
-              </div>
-              <div className="online-review-breakdown">
-                {REVIEW_LEGEND.map((item) => (
-                  <div key={item.tone}>
-                    <span>{reviewStats.stats.w[item.tone] ?? 0}</span>
-                    <b className={item.tone}>{reviewIcon(item.tone)}</b>
-                    <strong>{item.label}</strong>
-                    <span>{reviewStats.stats.b[item.tone] ?? 0}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="online-review-controls">
-                <button onClick={() => setReviewPly(0)} disabled={reviewPly === 0}>|&lt;</button>
-                <button onClick={() => reviewStep(-1)} disabled={reviewPly === 0}>&lt;</button>
-                <button onClick={() => reviewStep(1)} disabled={reviewPly >= moves.length}>&gt;</button>
-                <button onClick={() => setReviewPly(moves.length)} disabled={reviewPly >= moves.length}>&gt;|</button>
-              </div>
-              <div className="online-review-export">
-                <button disabled={!game || moves.length === 0} onClick={copyGamePgn}><Copy size={18} /> {pgnCopied ? 'PGN copied' : 'Copy PGN'}</button>
-                <button disabled={!game || moves.length === 0} onClick={downloadGamePgn}><Download size={18} /> Download PGN</button>
-              </div>
-              <button onClick={() => {
-                if (openedFromHistory) {
-                  window.history.pushState(null, '', '/history');
-                  window.dispatchEvent(new window.PopStateEvent('popstate'));
-                  return;
-                }
-                setReviewMode(false);
-                if (terminalGame) setShowResultDialog(true);
-              }}>{openedFromHistory ? 'Back to history' : 'Close review'}</button>
-            </div>
-          )}
 
-          <div className="online-moves">
-            <strong>Moves</strong>
-            {moves.length === 0 ? <span>No moves yet</span> : pairs.map((pair) => (
+          {game && <div className="online-moves">
+            <strong>Biên bản nước cờ</strong>
+            {moves.length === 0 ? <span>Chưa có nước đi</span> : pairs.map((pair) => (
               <p className="online-move-row" key={pair.number}>
                 <b>{pair.number}.</b>
                 <button
@@ -1528,7 +1531,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
                   disabled={!pair.white}
                   onClick={() => showPositionAt(pair.number * 2 - 1)}
                 >
-                  {pair.white ? `${pair.white.san} ${reviewMode ? reviewIcon(stockfishReview[pair.number * 2 - 2]?.tone ?? 'loading') : ''}` : ''}
+                  {pair.white?.san || ''}
                 </button>
                 <button
                   className={reviewMode && reviewPly === pair.number * 2 ? 'active' : ''}
@@ -1536,11 +1539,11 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
                   disabled={!pair.black}
                   onClick={() => showPositionAt(pair.number * 2)}
                 >
-                  {pair.black ? `${pair.black.san} ${reviewMode ? reviewIcon(stockfishReview[pair.number * 2 - 1]?.tone ?? 'loading') : ''}` : ''}
+                  {pair.black?.san || ''}
                 </button>
               </p>
             ))}
-          </div>
+          </div>}
         </aside>
       </main>
       {showResultDialog && outcome && !rematchFromOpponent && (
@@ -1555,6 +1558,7 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
           rematchBusy={rematchBusy}
           onReview={openOnlineReview}
           onNewGame={startQueue}
+          onLobby={leaveGameView}
           onLeaderboard={() => onNavigate?.('leaderboard')}
           onRematch={() => requestRematch('request')}
         />
@@ -1580,11 +1584,64 @@ export default function OnlinePage({ authUser, userName, pieceSet, theme, member
           onDecline={() => requestRematch('decline')}
         />
       )}
+      {actionConfirm && (
+        <GameActionConfirmDialog
+          action={actionConfirm}
+          busy={busy}
+          onCancel={() => setActionConfirm(null)}
+          onConfirm={() => actionConfirm === 'resign' ? resign() : drawAction('offer')}
+        />
+      )}
+      {game?.status === 'active' && game.drawOffer && !game.drawOffer.byYou && !isSpectatorView && (
+        <DrawOfferDialog
+          opponentName={opponentPlayer?.name || 'Đối thủ'}
+          busy={busy}
+          onAccept={() => drawAction('accept')}
+          onDecline={() => drawAction('decline')}
+        />
+      )}
     </section>
   );
 }
 
-function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, lastMove, checkedSquare, reviewBadge, disabled, canMove, onSelectSquare, onMove }) {
+function GameActionConfirmDialog({ action, busy, onCancel, onConfirm }) {
+  const resigning = action === 'resign';
+  return (
+    <div className="game-action-modal-layer" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !busy) onCancel();
+    }}>
+      <section className="game-action-confirm" role="dialog" aria-modal="true" aria-labelledby="game-action-title">
+        <span>{resigning ? 'Xác nhận đầu hàng' : 'Xác nhận đề nghị hòa'}</span>
+        <h2 id="game-action-title">{resigning ? 'Bạn muốn kết thúc ván đấu?' : 'Gửi đề nghị hòa cho đối thủ?'}</h2>
+        <p>{resigning ? 'Sau khi xác nhận, kết quả được chốt ngay và không thể hoàn tác.' : 'Đồng hồ vẫn tiếp tục chạy trong lúc chờ đối thủ trả lời.'}</p>
+        <div>
+          <button type="button" disabled={busy} onClick={onCancel}>Quay lại ván</button>
+          <button type="button" className={resigning ? 'danger' : 'primary'} disabled={busy} onClick={onConfirm}>
+            {busy ? 'Đang xử lý…' : resigning ? 'Xác nhận đầu hàng' : 'Gửi đề nghị hòa'}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DrawOfferDialog({ opponentName, busy, onAccept, onDecline }) {
+  return (
+    <div className="draw-offer-modal-layer" role="presentation">
+      <section className="draw-offer-dialog" role="dialog" aria-modal="true" aria-live="assertive" aria-labelledby="draw-offer-title">
+        <span>ĐỀ NGHỊ HÒA</span>
+        <h2 id="draw-offer-title">{opponentName} đề nghị hòa</h2>
+        <p>Ván đấu và đồng hồ vẫn tiếp tục. Chọn trả lời ngay hoặc tiếp tục suy nghĩ.</p>
+        <div>
+          <button type="button" disabled={busy} onClick={onDecline}>Từ chối</button>
+          <button type="button" className="primary" disabled={busy} onClick={onAccept}>Đồng ý hòa</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, lastMove, checkedSquare, reviewBadge, disabled, canMove, onSelectSquare, onMove, promotionRequest, onCancelPromotion }) {
   const handleDragStart = (event, square, piece) => {
     if (disabled || !canMove || piece?.color !== board.turn()) {
       event.preventDefault();
@@ -1596,6 +1653,8 @@ function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, l
 
   return (
     <section className={`online-board piece-set-${pieceSet} ${disabled ? 'disabled' : ''}`} aria-label="Online chess board">
+      <PromotionPicker request={promotionRequest} pieceSet={pieceSet} flipped={flipped} onClose={onCancelPromotion}
+        onChoose={(piece) => onMove(promotionRequest.from, promotionRequest.to, piece)} />
       {Array.from({ length: 8 }).map((_, row) => (
         Array.from({ length: 8 }).map((__, col) => {
           const square = squareName(row, col, flipped);
@@ -1643,7 +1702,7 @@ function OnlineBoard({ board, flipped, pieceSet, pieceSets, selected, targets, l
   );
 }
 
-function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLeaderboard, onRematch }) {
+function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premiumReview, rematch, rematchPending, rematchBusy, onReview, onNewGame, onLobby, onLeaderboard, onRematch }) {
   const ratingDelta = selfPlayer?.ratingDelta;
   const hasRatingDelta = Number.isFinite(ratingDelta) && game?.rated !== false;
   const ratingAfter = selfPlayer?.ratingAfter ?? selfPlayer?.rating;
@@ -1665,7 +1724,7 @@ function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premium
           <div>
             <span>Opponent</span>
             <strong>{opponentPlayer?.rating ?? '-'}</strong>
-            <b>{opponentPlayer?.name || 'Player'}</b>
+            <b>{opponentPlayer?.name || 'Chờ đối thủ'}</b>
           </div>
         </div>
         <div className="result-coach">
@@ -1682,6 +1741,7 @@ function OnlineResultDialog({ outcome, game, selfPlayer, opponentPlayer, premium
         <div className="result-actions">
           {!outcome.aborted && <button onClick={onReview}><Brain size={18} /> Game review</button>}
           <button onClick={onNewGame}><Search size={18} /> New game</button>
+          <button onClick={onLobby}><X size={18} /> Về sảnh tìm trận</button>
           {!outcome.aborted && <button onClick={onLeaderboard}><BarChart3 size={18} /> Leaderboard</button>}
           {!outcome.aborted && <button disabled={rematchBusy || (rematch?.requestedByYou && rematchPending)} onClick={onRematch}><RotateCcw size={18} /> Rematch</button>}
         </div>
@@ -1739,7 +1799,7 @@ function RematchRequestDialog({ opponentName, remainingSeconds, busy, onAccept, 
         </div>
         <div className="result-actions">
           <button disabled={busy} onClick={onAccept}>Accept</button>
-          <button className="secondary" disabled={busy} onClick={onDecline}>Decline</button>
+          <button className="secondary" disabled={busy} onClick={onDecline}>Từ chối</button>
         </div>
       </div>
     </div>

@@ -58,7 +58,8 @@ export const MEMBERSHIP_TIERS = {
 export const PAID_TIERS = ['plus', 'pro', 'master'];
 
 export function activeTier(membership) {
-  return membership?.status === 'active' && MEMBERSHIP_TIERS[membership?.tier] ? membership.tier : 'free';
+  return membership?.status === 'active' && MEMBERSHIP_TIERS[membership?.tier]
+    && Date.parse(membership?.currentPeriodEnd) > Date.now() ? membership.tier : 'free';
 }
 
 export function membershipPlan(membership) {

@@ -29,3 +29,10 @@ export async function createPayPalSubscriptionCheckout(payload) {
   }
   return data;
 }
+
+export async function cancelPendingPayPalCheckout() {
+  const response = await fetch(apiUrl('/api/paypal/subscriptions'), { method: 'DELETE', credentials: 'include' });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.error || 'Chưa thể hủy giao dịch PayPal đang chờ.');
+  return data;
+}

@@ -1,0 +1,18 @@
+.game-invitation-host { position: fixed; right: max(16px, env(safe-area-inset-right)); top: max(84px, calc(env(safe-area-inset-top) + 72px)); z-index: 1200; width: min(360px, calc(100vw - 32px)); display: grid; gap: 12px; max-height: calc(100dvh - 104px); overflow: auto; overscroll-behavior: contain; padding: 2px 2px 12px; }
+.game-invitation-card, .game-invitation-error { padding: 20px; border: 1px solid #dae5dd; border-top: 3px solid #448567; border-radius: 16px; color: #243a30; background: #fff; box-shadow: 0 10px 32px #153c2426; animation: invitation-arrive .28s ease-out both; }
+.game-invitation-card header, .game-invitation-player, .game-invitation-card footer { display: flex; align-items: center; gap: 10px; }
+.game-invitation-card header { color: #306b50; font-size: 13px; }
+.game-invitation-player { margin: 18px 0 12px; min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.game-invitation-player img { width: 42px; height: 42px; flex-shrink: 0; object-fit: cover; border-radius: 13px; background: #f0f4f1; }
+.game-invitation-card p { margin: 8px 0; font-size: 13px; line-height: 1.6; color: #637168; }
+.game-invitation-card footer { justify-content: flex-end; margin-top: 16px; padding-top: 14px; border-top: 1px solid #edf1ee; flex-wrap: wrap; }
+.game-invitation-host button { min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 10px; color: inherit; border: 1px solid #dce5df; background: #f8faf8; cursor: pointer; transition: background .18s, transform .18s; }
+.game-invitation-host button.accept { color: #fff; background: #337654; border-color: #337654; font-weight: 700; }
+.game-invitation-host button:hover:not(:disabled) { transform: translateY(-1px); background: #e9f0eb; }
+.game-invitation-host button.accept:hover:not(:disabled) { background: #255c40; }
+.game-invitation-host button:disabled { cursor: wait; opacity: .6; }
+.game-invitation-host button:focus-visible { outline: 3px solid #f3ce70; outline-offset: 2px; }
+.game-invitation-error { border-color: #e8a184; }
+.game-invitation-error button { float: right; padding: 2px; }
+@keyframes invitation-arrive { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .game-invitation-card, .game-invitation-error { animation: none; } .game-invitation-host button { transition: none; } }

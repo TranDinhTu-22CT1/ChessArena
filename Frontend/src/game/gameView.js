@@ -36,22 +36,6 @@ export function squareTopLeft(square, flipped) {
   };
 }
 
-export function promotionPopoverStyle(square, color, flipped) {
-  const file = square.charCodeAt(0) - 97;
-  const rank = Number(square[1]);
-  const col = flipped ? 7 - file : file;
-  const row = flipped ? rank - 1 : 8 - rank;
-  const x = Math.max(22, Math.min(78, col * 12.5 + 6.25));
-  const y = color === 'w'
-    ? Math.min(86, (row + 1) * 12.5 + 1.2)
-    : Math.max(14, row * 12.5 - 1.2);
-
-  return {
-    left: `${x}%`,
-    top: `${y}%`
-  };
-}
-
 export function boardMaterialScore(chess) {
   return chess.board().flat().reduce((score, piece) => {
     if (!piece) return score;

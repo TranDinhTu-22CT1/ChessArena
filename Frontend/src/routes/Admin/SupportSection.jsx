@@ -5,6 +5,7 @@ import { fetchAdminSupportThread, sendAdminSupportMessage } from '../../api/admi
 import { LoadingBlock } from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { time } from './adminUtils';
+import AdminFilterBar from './AdminFilterBar';
 
 const STATUS_LABELS = {
   new: 'Mới',
@@ -20,7 +21,6 @@ const CATEGORY_LABELS = {
   online: 'Online',
   moderation: 'Báo cáo',
   puzzle: 'Puzzle',
-  tournament: 'Giải đấu',
   technical: 'Kỹ thuật',
   general: 'Khác'
 };
@@ -73,6 +73,20 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState('');
   const [preview, setPreview] = React.useState(null);
+  const [deciding, setDeciding] = React.useState(false);
+  const decisionPending = React.useRef(false);
+
+  const decide = async (status) => {
+    if (decisionPending.current) return;
+    decisionPending.current = true;
+    setDeciding(true);
+    try {
+      await onChangeStatus(request, status, note);
+    } finally {
+      decisionPending.current = false;
+      setDeciding(false);
+    }
+  };
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -217,21 +231,36 @@ function SupportTicketModal({ request, note, onNoteChange, onClose, onChangeStat
             <textarea
               value={note}
               onChange={(event) => onNoteChange(event.target.value)}
-              placeholder="Ghi chú nội bộ hoặc kết luận xử lý..."
+              placeholder={request.context?.kind==='ban_appeal'?'Kết luận gửi cho người chơi về yêu cầu gỡ khóa…':'Ghi chú nội bộ hoặc kết luận xử lý...'}
               rows={3}
             />
           </label>
         </div>
 
         <footer className="support-actions support-ticket-modal-actions">
-          <button type="button" onClick={() => onChangeStatus(request, 'in_review', note)}>Đang xử lý</button>
+          {request.context?.kind === 'ban_appeal' ? <>
+            {request.context.decision ? <p>{request.context.decision === 'approved' ? 'Đã duyệt gỡ khóa tài khoản.' : 'Đã từ chối yêu cầu.'}</p> : <>
+              <button type="button" disabled={deciding || note.trim().length < 5} onClick={() => decide('approved')}>{deciding ? 'Đang lưu quyết định…' : 'Duyệt gỡ khóa tài khoản'}</button>
+              <button type="button" disabled={deciding || note.trim().length < 5} onClick={() => decide('rejected')}>Từ chối yêu cầu</button>
+              <small>Nhập kết luận ở trên để quyết định. Chỉ lệnh khóa trong yêu cầu này được xử lý.</small>
+            </>}
+          </> : <>
+          {['resolved', 'dismissed'].includes(request.status) ? (
+            <button type="button" onClick={() => onChangeStatus(request, 'in_review', note)}>Mở lại ticket</button>
+          ) : (
+            <button type="button" onClick={() => onChangeStatus(request, 'in_review', note)}>{request.status === 'new' ? 'Tiếp nhận' : 'Đang xử lý'}</button>
+          )}
           <button type="button" onClick={() => onChangeStatus(request, 'waiting_user', note)}>Chờ người chơi</button>
           <button type="button" onClick={() => onChangeStatus(request, 'resolved', note)}>Đã giải quyết</button>
           <button type="button" onClick={() => onChangeStatus(request, 'dismissed', note)}>Đóng ticket</button>
+          </>}
         </footer>
       </section>
       {preview && (
-        <div className="admin-media-preview-layer" role="dialog" aria-modal="true" onMouseDown={() => setPreview(null)}>
+        <div className="admin-media-preview-layer" role="dialog" aria-modal="true" onMouseDown={(event) => {
+          event.stopPropagation();
+          if (event.target === event.currentTarget) setPreview(null);
+        }}>
           <button type="button" className="admin-media-preview-close" onClick={() => setPreview(null)} aria-label="Đóng ảnh">
             <X size={22} />
           </button>
@@ -253,14 +282,22 @@ export default function SupportSection({
   page,
   totalPages,
   status,
+  filters,
   loading = false,
   onStatusFilter,
+  onFiltersChange,
   onPageChange,
   onChangeStatus,
-  onReload
+  onReload,
+  selectedRequestId = ''
 }) {
   const [notes, setNotes] = React.useState({});
   const [selectedRequest, setSelectedRequest] = React.useState(null);
+  React.useEffect(() => {
+    if (!selectedRequestId) return;
+    const target = requests.find((request) => request.id === selectedRequestId);
+    if (target) setSelectedRequest(target);
+  }, [requests, selectedRequestId]);
   const noteFor = (request) => notes[request.id] ?? request.admin_note ?? '';
   const openCount = requests.filter((request) => ['new', 'in_review', 'waiting_user'].includes(request.status)).length;
 
@@ -271,6 +308,11 @@ export default function SupportSection({
         <div><span>Thanh toán</span><strong>{requests.filter((request) => request.category === 'billing').length}</strong></div>
         <div><span>Mới nhất</span><strong>{requests[0]?.created_at ? time(requests[0].created_at) : '--'}</strong></div>
       </div>
+
+      <AdminFilterBar value={filters} onApply={onFiltersChange} searchPlaceholder="Mã ticket, chủ đề, email hoặc người gửi…" selects={[
+        { key: 'status', label: 'Trạng thái', options: [{ value: '', label: 'Tất cả' }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))] },
+        { key: 'category', label: 'Danh mục', options: [{ value: '', label: 'Tất cả' }, ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))] }
+      ]} />
 
       <div className="admin-panel-head support-panel-head">
         <div><span>Hộp thư hỗ trợ</span><h2>Yêu cầu từ người chơi</h2></div>
@@ -312,8 +354,8 @@ export default function SupportSection({
           onClose={() => setSelectedRequest(null)}
           onReload={onReload}
           onChangeStatus={async (request, nextStatus, adminNote) => {
-            await onChangeStatus(request, nextStatus, adminNote);
-            setSelectedRequest(null);
+            const success = await onChangeStatus(request, nextStatus, adminNote);
+            if (success !== false) setSelectedRequest(null);
           }}
         />
       ), document.body)}

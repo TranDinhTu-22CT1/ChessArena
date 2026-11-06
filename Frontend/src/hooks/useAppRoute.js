@@ -2,12 +2,15 @@ import React from 'react';
 import { gameModeFromRoute, pathForRoute, routeFromPath } from '../routes/routeConfig';
 
 function routeFromLocation() {
+  if (window.location.pathname === '/support' && new URLSearchParams(window.location.search).has('tab')) return 'supportTickets';
   return routeFromPath(window.location.pathname);
 }
 
 export function useAppRoute({ gameMode, setGameMode }) {
   const [route, setRoute] = React.useState(() => routeFromLocation());
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+  const gameModeRef = React.useRef(gameMode);
+  gameModeRef.current = gameMode;
 
   React.useEffect(() => {
     if (window.location.pathname === '/game') {
@@ -26,7 +29,7 @@ export function useAppRoute({ gameMode, setGameMode }) {
   }, [setGameMode]);
 
   const navigate = React.useCallback((nextRoute) => {
-    const resolvedRoute = nextRoute === 'game' ? gameMode : nextRoute;
+    const resolvedRoute = nextRoute === 'game' ? gameModeRef.current : nextRoute;
     const path = pathForRoute(resolvedRoute);
 
     window.history.pushState(null, '', path);
@@ -35,7 +38,7 @@ export function useAppRoute({ gameMode, setGameMode }) {
     const nextMode = gameModeFromRoute(resolvedRoute);
     if (nextMode) setGameMode(nextMode);
     setMobileSidebarOpen(false);
-  }, [gameMode, setGameMode]);
+  }, [setGameMode]);
 
   return {
     route,

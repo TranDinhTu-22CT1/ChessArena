@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { FILES, PIECE_VALUES } from './constants';
+import { FILES } from './constants';
 
 export function newLocalGameId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -28,11 +28,11 @@ export function squareName(row, col, flipped) {
 
 export function statusText(game) {
   if (game.isCheckmate()) {
-    return `${game.turn() === 'w' ? 'Black' : 'White'} wins by checkmate`;
+    return `${game.turn() === 'w' ? 'Đen' : 'Trắng'} thắng bằng chiếu hết`;
   }
-  if (game.isDraw()) return 'Draw';
-  if (game.isCheck()) return `${game.turn() === 'w' ? 'White' : 'Black'} is in check`;
-  return `${game.turn() === 'w' ? 'White' : 'Black'} to move`;
+  if (game.isDraw()) return 'Hòa cờ';
+  if (game.isCheck()) return `${game.turn() === 'w' ? 'Trắng' : 'Đen'} đang bị chiếu`;
+  return `Lượt ${game.turn() === 'w' ? 'Trắng' : 'Đen'}`;
 }
 
 export function gameResult(game) {
@@ -48,20 +48,20 @@ export function gameOutcome(game, playerColor) {
     const winner = game.turn() === 'w' ? 'b' : 'w';
     return {
       type: winner === playerColor ? 'win' : 'loss',
-      title: winner === playerColor ? 'You won' : 'You lost',
-      detail: `${winner === 'w' ? 'White' : 'Black'} wins by checkmate`
+      title: winner === playerColor ? 'Bạn thắng' : 'Bạn thua',
+      detail: `${winner === 'w' ? 'Trắng' : 'Đen'} thắng bằng chiếu hết`
     };
   }
 
   if (game.isDraw()) {
-    let detail = 'Draw';
-    if (game.isStalemate()) detail = 'Draw by stalemate';
-    else if (game.isThreefoldRepetition()) detail = 'Draw by threefold repetition';
-    else if (game.isInsufficientMaterial()) detail = 'Draw by insufficient material';
+    let detail = 'Hòa cờ';
+    if (game.isStalemate()) detail = 'Hòa do hết nước đi hợp lệ';
+    else if (game.isThreefoldRepetition()) detail = 'Hòa do lặp lại thế cờ ba lần';
+    else if (game.isInsufficientMaterial()) detail = 'Hòa do không đủ quân chiếu hết';
 
     return {
       type: 'draw',
-      title: 'Game drawn',
+      title: 'Ván đấu hòa',
       detail
     };
   }
@@ -167,141 +167,4 @@ export function createGameState(moves = [], initialFen = null) {
   });
 
   return { chess, moves: playedMoves };
-}
-
-export function evaluateBoard(chess) {
-  if (chess.isCheckmate()) {
-    return chess.turn() === 'w' ? -999999 : 999999;
-  }
-
-  if (chess.isDraw()) return 0;
-
-  let score = 0;
-  const board = chess.board();
-
-  for (const row of board) {
-    for (const piece of row) {
-      if (!piece) continue;
-      const value = PIECE_VALUES[piece.type];
-      score += piece.color === 'w' ? value : -value;
-    }
-  }
-
-  const legalMoves = chess.moves().length;
-  score += chess.turn() === 'w' ? legalMoves * 2 : -legalMoves * 2;
-
-  if (chess.isCheck()) {
-    score += chess.turn() === 'w' ? -35 : 35;
-  }
-
-  return score;
-}
-
-function moveScoreDelta(chess, move, color) {
-  const before = evaluateBoard(chess);
-  chess.move(move);
-  const after = evaluateBoard(chess);
-  chess.undo();
-  return color === 'w' ? after - before : before - after;
-}
-
-function classifyDelta(loss) {
-  if (loss <= 15) return { label: 'Best', tone: 'best' };
-  if (loss <= 55) return { label: 'Good', tone: 'good' };
-  if (loss <= 130) return { label: 'Inaccuracy', tone: 'inaccuracy' };
-  if (loss <= 280) return { label: 'Mistake', tone: 'mistake' };
-  return { label: 'Blunder', tone: 'blunder' };
-}
-
-export function analyzeMoves(history) {
-  const chess = new Chess();
-
-  return history.map((playedMove, index) => {
-    const legalMoves = chess.moves({ verbose: true });
-    const color = chess.turn();
-    const scoredMoves = legalMoves.map((move) => ({
-      move,
-      delta: moveScoreDelta(chess, move, color)
-    }));
-
-    scoredMoves.sort((a, b) => b.delta - a.delta);
-    const best = scoredMoves[0];
-    const played = scoredMoves.find((item) => item.move.from === playedMove.from
-      && item.move.to === playedMove.to
-      && (item.move.promotion ?? '') === (playedMove.promotion ?? ''));
-    const loss = Math.max(0, (best?.delta ?? 0) - (played?.delta ?? 0));
-    const classification = classifyDelta(loss);
-
-    chess.move({
-      from: playedMove.from,
-      to: playedMove.to,
-      promotion: playedMove.promotion ?? 'q'
-    });
-
-    return {
-      ply: index + 1,
-      san: playedMove.san,
-      color,
-      bestSan: best?.move?.san ?? playedMove.san,
-      centipawnLoss: Math.round(loss),
-      ...classification
-    };
-  });
-}
-
-function minimax(chess, depth, alpha, beta, maximizingWhite) {
-  if (depth === 0 || chess.isGameOver()) {
-    return evaluateBoard(chess);
-  }
-
-  const moves = chess.moves({ verbose: true });
-
-  if (maximizingWhite) {
-    let best = -Infinity;
-    for (const move of moves) {
-      chess.move(move);
-      best = Math.max(best, minimax(chess, depth - 1, alpha, beta, false));
-      chess.undo();
-      alpha = Math.max(alpha, best);
-      if (beta <= alpha) break;
-    }
-    return best;
-  }
-
-  let best = Infinity;
-  for (const move of moves) {
-    chess.move(move);
-    best = Math.min(best, minimax(chess, depth - 1, alpha, beta, true));
-    chess.undo();
-    beta = Math.min(beta, best);
-    if (beta <= alpha) break;
-  }
-  return best;
-}
-
-export function chooseAiMove(fen, level) {
-  const chess = new Chess(fen);
-  const aiColor = chess.turn();
-  const moves = chess.moves({ verbose: true });
-
-  if (moves.length === 0) return null;
-
-  const scoredMoves = moves.map((move) => {
-    chess.move(move);
-    const score = minimax(chess, level.depth - 1, -Infinity, Infinity, chess.turn() === 'w');
-    chess.undo();
-    return {
-      move,
-      score
-    };
-  });
-
-  scoredMoves.sort((a, b) => (aiColor === 'w' ? b.score - a.score : a.score - b.score));
-
-  if (Math.random() < level.blunderRate) {
-    const pool = scoredMoves.slice(0, Math.min(level.candidatePool, scoredMoves.length));
-    return pool[Math.floor(Math.random() * pool.length)].move;
-  }
-
-  return scoredMoves[0].move;
 }

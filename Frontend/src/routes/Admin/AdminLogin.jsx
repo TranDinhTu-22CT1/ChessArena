@@ -24,19 +24,20 @@ export default function AdminLogin({
         </label>
         <label>
           Mật khẩu admin
-          <input type="password" value={unlockPassword} onChange={(event) => onPasswordChange(event.target.value)} placeholder="ADMIN_PANEL_PASSWORD" autoComplete="current-password" />
+          <input type="password" value={unlockPassword} onChange={(event) => onPasswordChange(event.target.value)} placeholder="Nhập mật khẩu quản trị" autoComplete="current-password" />
         </label>
         {message && <p className="admin-message">{message}</p>}
         {loading && (
           <div className="admin-form-loading" role="status" aria-live="polite">
             <span />
-            Đang bảo vệ phiên admin...
+            Đang xác thực phiên quản trị...
           </div>
         )}
         <button disabled={loading || !unlockEmail || !unlockPassword}>
           {loading ? <RefreshCw size={18} className="admin-spin" /> : <LockKeyhole size={18} />}
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
+        <a className="admin-return-link" href="/">← Về ChessArena</a>
       </form>
     </main>
   );

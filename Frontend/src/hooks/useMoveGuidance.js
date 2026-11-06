@@ -1,6 +1,5 @@
 import React from 'react';
 import { requestStockfishMove } from '../api/stockfish';
-import { coachBehaviorFromMode } from '../coach/coach';
 
 export function useMoveGuidance({
   botGameStarted,
@@ -12,8 +11,6 @@ export function useMoveGuidance({
   botOptions,
   playerColor,
   aiElo,
-  isCoachGame,
-  coachMode,
   history,
   gameVariant,
   setSuggestionMove,
@@ -26,9 +23,8 @@ export function useMoveGuidance({
       return;
     }
 
-    const coachBehavior = coachBehaviorFromMode(coachMode);
-    const suggestionArrows = isCoachGame ? coachBehavior.suggestionArrows : botOptions.suggestionArrows;
-    const threatArrows = isCoachGame ? coachBehavior.threatArrows : botOptions.threatArrows;
+    const suggestionArrows = botOptions.suggestionArrows && game.turn() === playerColor;
+    const threatArrows = botOptions.threatArrows && game.turn() !== playerColor;
 
     if (!suggestionArrows && !threatArrows) {
       setSuggestionMove(null);
@@ -37,12 +33,14 @@ export function useMoveGuidance({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     const historyMoves = history.map((move) => `${move.from}${move.to}${move.promotion ?? ''}`);
 
     requestStockfishMove(gameFen, aiElo, {
       moves: historyMoves,
       variant: gameVariant,
-      fullStrength: true
+      fullStrength: true,
+      signal: controller.signal
     })
       .then((bestMove) => {
         if (cancelled) return;
@@ -75,19 +73,18 @@ export function useMoveGuidance({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     aiElo,
     botGameStarted,
     botOptions.suggestionArrows,
     botOptions.threatArrows,
-    coachMode,
     game,
     gameFen,
     gameFinished,
     gameVariant,
     history,
-    isCoachGame,
     playerColor,
     reviewMode,
     setSuggestionMove,

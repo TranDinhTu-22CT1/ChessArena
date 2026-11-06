@@ -26,13 +26,16 @@ import {
   Zap
 } from 'lucide-react';
 import { membershipPlan } from '../membership/plans';
+import Modal from './Modal';
+import './sidebar.css';
 
 const menuItems = [
   { icon: Swords, label: 'Play', hasFlyout: true },
   { icon: Users, label: 'Bạn bè', route: 'friends' },
   { icon: Bell, label: 'Thông báo', route: 'notifications', badge: true },
+  { icon: MessageSquare, label: 'Hỗ trợ', route: 'support' },
+  { icon: MessageSquare, label: 'Ticket & Báo cáo', route: 'supportTickets' },
   { icon: BookOpen, label: 'Hướng dẫn người mới', route: 'beginnerGuide' },
-  { icon: Trophy, label: 'Giải đấu', route: 'tournaments' },
   { icon: Puzzle, label: 'Puzzles', hasPuzzleFlyout: true },
   { icon: Crown, label: 'Premium', route: 'membership' }
 ];
@@ -84,6 +87,7 @@ const puzzleRoutes = [
 const playModeRoutes = new Set(['online', 'bot', 'coach', 'local']);
 
 export default function Sidebar({
+  siteTitle = 'Chess Arena',
   authUser,
   userName,
   activeRoute,
@@ -100,7 +104,26 @@ export default function Sidebar({
 }) {
   const [openFlyout, setOpenFlyout] = React.useState(null);
   const [mobileSubmenu, setMobileSubmenu] = React.useState(null);
+  const [isMobile, setIsMobile] = React.useState(() => window.matchMedia('(max-width: 980px)').matches);
+  const closeMobileRef = React.useRef(onCloseMobile);
+  closeMobileRef.current = onCloseMobile;
   const plan = membershipPlan(membership);
+  const NavigationContainer = isMobile ? Modal : React.Fragment;
+  const containerProps = isMobile ? {
+    open: mobileOpen, onClose: onCloseMobile, className: 'mobile-navigation-dialog', 'aria-label': 'Điều hướng chính'
+  } : {};
+
+  React.useEffect(() => {
+    const query = window.matchMedia('(max-width: 980px)');
+    const updateViewport = () => {
+      setIsMobile(query.matches);
+      setOpenFlyout(null);
+      setMobileSubmenu(null);
+      closeMobileRef.current?.();
+    };
+    query.addEventListener('change', updateViewport);
+    return () => query.removeEventListener('change', updateViewport);
+  }, []);
 
   React.useEffect(() => {
     const handleClickOutside = (event) => {
@@ -124,11 +147,6 @@ export default function Sidebar({
       setMobileSubmenu(null);
     }
   }, [mobileOpen]);
-
-  const isMobileView = () => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth <= 900;
-  };
 
   const handleNavigate = (nextRoute) => {
     setOpenFlyout(null);
@@ -203,188 +221,36 @@ export default function Sidebar({
 
   return (
     <>
-      <style>{`
-        .nav-item {
-          position: relative;
-        }
 
-        .nav-item > button {
-          width: 100%;
-        }
-
-        .nav-chevron {
-          margin-left: auto;
-          transition: transform 0.18s ease;
-        }
-
-        .nav-item.open .nav-chevron {
-          transform: rotate(90deg);
-        }
-
-        .play-flyout {
-          display: none !important;
-          position: absolute;
-          top: 0;
-          left: calc(100% + 10px);
-          min-width: 255px;
-          z-index: 999;
-          flex-direction: column;
-          opacity: 1;
-          visibility: visible;
-          pointer-events: auto;
-        }
-
-        .nav-item.open > .play-flyout {
-          display: flex !important;
-        }
-
-        .play-flyout hr {
-          width: 100%;
-          border: 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.14);
-          margin: 8px 0;
-        }
-
-        .play-flyout button {
-          width: 100%;
-          justify-content: flex-start;
-        }
-
-        .mobile-submenu-panel {
-          display: none;
-        }
-
-        @media (max-width: 900px) {
-          .app-sidebar {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-          }
-
-          .nav-item.has-flyout.open > .play-flyout {
-            display: none !important;
-          }
-
-          .mobile-submenu-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            width: 100%;
-            animation: mobileSubmenuIn 0.18s ease;
-          }
-
-          .mobile-submenu-back {
-            width: fit-content;
-            min-height: 40px;
-            padding: 9px 12px;
-            border-radius: 14px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(255, 255, 255, 0.08);
-            color: #f4ffe9;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-          }
-
-          .mobile-submenu-heading {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding: 4px 2px 2px;
-          }
-
-          .mobile-submenu-heading strong {
-            font-size: 24px;
-            line-height: 1.1;
-            color: #f4ffe9;
-          }
-
-          .mobile-submenu-heading span {
-            font-size: 13px;
-            color: rgba(244, 255, 233, 0.68);
-          }
-
-          .mobile-submenu-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-          }
-
-          .mobile-submenu-list hr {
-            width: 100%;
-            border: 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin: 6px 0;
-          }
-
-          .mobile-submenu-item {
-            width: 100%;
-            min-height: 50px;
-            padding: 12px 14px;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 12px;
-            background: rgba(255, 255, 255, 0.055);
-            color: #f4ffe9;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-          }
-
-          .mobile-submenu-item span {
-            flex: 1;
-            text-align: left;
-          }
-
-          .mobile-submenu-item svg:last-child {
-            opacity: 0.65;
-          }
-
-          .mobile-submenu-item:active {
-            transform: scale(0.985);
-          }
-
-          @keyframes mobileSubmenuIn {
-            from {
-              opacity: 0;
-              transform: translateX(16px);
-            }
-            to {
-              opacity: 1;
-              transform: translateX(0);
-            }
-          }
-        }
-      `}</style>
 
       <button
         className="mobile-sidebar-toggle"
         onClick={onToggleMobile}
-        aria-label={mobileOpen ? 'Đóng menu' : 'Mở menu'}
+        aria-label="Mở menu"
+        aria-haspopup="dialog"
+        aria-expanded={mobileOpen}
       >
-        {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+        <Menu size={22} />
       </button>
 
-      <button
-        className={`sidebar-backdrop ${mobileOpen ? 'open' : ''}`}
-        onClick={() => {
-          setOpenFlyout(null);
-          setMobileSubmenu(null);
-          onCloseMobile?.();
-        }}
-        aria-label="Đóng menu"
-        tabIndex={mobileOpen ? 0 : -1}
-      />
-
+      <NavigationContainer {...containerProps}>
       <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
+        {isMobile && <button className="mobile-sidebar-close" aria-label="Đóng menu" onClick={onCloseMobile} type="button"><X size={22} /></button>}
         <button className="logo-lockup" onClick={() => handleNavigate('home')}>
           <BrandMark className="logo-mark-image" />
           <div>
-            <strong>Chess Arena</strong>
+            <strong>{siteTitle}</strong>
             <span>Local beta</span>
           </div>
         </button>
 
-        <nav className="main-nav" aria-label="Main navigation">
+        <nav className="main-nav" aria-label="Điều hướng chính" onKeyDown={(event) => {
+          if (event.key === 'Escape' && openFlyout && !isMobile) {
+            event.stopPropagation();
+            setOpenFlyout(null);
+            event.target.closest('.nav-item')?.querySelector('button')?.focus();
+          }
+        }}>
           {mobileSubmenu
             ? renderMobileSubmenu()
             : menuItems.map((item) => {
@@ -405,11 +271,12 @@ export default function Sidebar({
                       hasFlyout ? 'has-flyout' : ''
                     } ${isOpen ? 'open' : ''}`}
                     key={item.label}
-                    onMouseLeave={() => {
+                    onMouseLeave={(event) => {
                       if (
                         hasFlyout &&
                         window.matchMedia('(hover: hover)').matches &&
-                        window.innerWidth > 900
+                        !isMobile &&
+                        !event.currentTarget.contains(document.activeElement)
                       ) {
                         setOpenFlyout(null);
                       }
@@ -420,7 +287,7 @@ export default function Sidebar({
                       className={isActive ? 'active' : ''}
                       onClick={() => {
                         if (hasFlyout) {
-                          if (isMobileView()) {
+                          if (isMobile) {
                             setMobileSubmenu(item.hasFlyout ? 'play' : 'puzzles');
                             setOpenFlyout(null);
                             return;
@@ -435,6 +302,7 @@ export default function Sidebar({
                         }
                       }}
                       aria-expanded={hasFlyout ? isOpen : undefined}
+                      aria-current={!hasFlyout && isActive ? 'page' : undefined}
                     >
                       <Icon size={20} />
                       <span>{item.label}</span>
@@ -517,7 +385,7 @@ export default function Sidebar({
               onClick={() => handleNavigate('membership')}
             >
               <Crown size={18} />
-              {plan.id === 'free' ? 'Upgrade Premium' : `${plan.badge} active`}
+              {plan.id === 'free' ? 'Nâng cấp Premium' : `${plan.badge} đang sử dụng`}
             </button>
 
             <div className="sidebar-account">
@@ -529,8 +397,8 @@ export default function Sidebar({
                 )}
 
                 <div>
-                  <strong>{authUser ? userName : 'Guest'}</strong>
-                  <span>{authUser ? 'Signed in' : 'Not signed in'}</span>
+                  <strong>{authUser ? userName : 'Khách'}</strong>
+                  <span>{authUser ? 'Đã đăng nhập' : 'Chưa đăng nhập'}</span>
                 </div>
               </div>
 
@@ -551,7 +419,7 @@ export default function Sidebar({
                       }}
                     >
                       <LogOut size={18} />
-                      Sign out
+                      Đăng xuất
                     </button>
                   </>
                 ) : (
@@ -565,7 +433,7 @@ export default function Sidebar({
                       }}
                     >
                       <Lock size={18} />
-                      Sign in
+                      Đăng nhập
                     </button>
 
                     <button
@@ -576,7 +444,7 @@ export default function Sidebar({
                         onCloseMobile?.();
                       }}
                     >
-                      Register
+                      Đăng ký
                     </button>
                   </>
                 )}
@@ -585,6 +453,7 @@ export default function Sidebar({
           </>
         )}
       </aside>
+      </NavigationContainer>
     </>
   );
 }

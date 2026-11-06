@@ -1,4 +1,7 @@
-﻿export const COACH_MODES = [
+import { reviewLabel } from '../data/review.js';
+import { Chess } from 'chess.js';
+
+export const COACH_MODES = [
   { id: 'basic', label: 'Cơ bản', focus: 'Nền tảng', depth: 'Ván đầy đủ: quân treo, nhập thành, trung tâm và nước an toàn.' },
   { id: 'opening', label: 'Khai cuộc', focus: 'Mở ván', depth: 'Bắt đầu từ đầu ván, ưu tiên phát triển quân, trung tâm và vua an toàn.' },
   { id: 'middlegame', label: 'Trung cuộc', focus: 'Chiến thuật', depth: 'Bắt đầu từ một thế trung cuộc ngẫu nhiên để luyện kế hoạch và đòn phối hợp.' },
@@ -110,7 +113,7 @@ export function coachLessonFromMode(coachMode) {
       fen: null,
       playerColor: 'w',
       variant: 'standard',
-      goal: behavior.start === 'opening'
+      goal: coachMode === 'opening'
         ? 'Đi theo nguyên tắc khai cuộc và so với Stockfish.'
         : 'Chơi ván đầy đủ và để Stockfish sửa từng nước.'
     };
@@ -131,7 +134,7 @@ export const COACH_LEVELS = [
   { elo: 2000, label: 'Chuyên gia khai cuộc' },
   { elo: 2400, label: 'Bậc thầy trung cuộc' },
   { elo: 2800, label: 'Đại sư phân tích' },
-  { elo: 3190, label: 'Stockfish tối thượng' }
+  { elo: 3190, label: 'Đối thủ 3190 Elo' }
 ];
 
 function coachAvatarImage() {
@@ -168,347 +171,57 @@ export function coachDifficultyFromElo(elo) {
   return 'Tối thượng';
 }
 
-const COACH_LINE_BANK = {
-  brilliant: [
-    '{move} là Brilliant: Stockfish xác nhận ý tưởng hy sinh vẫn giữ lợi thế thắng.',
-    'Brilliant với {move}. Bạn đã tìm được nước mạnh dù chấp nhận để đối thủ ăn vật chất.'
-  ],
-  great: [
-    '{move} là Great: nước tốt nhất trong một vị trí có lợi thế quyết định.',
-    'Great move với {move}. Stockfish cho thấy áp lực của bạn đã rất lớn.'
-  ],
-  book: [
-    '{move} là nước Book, nằm trong kho khai cuộc chuẩn đang được dùng.',
-    'Book move: {move}. Bạn vẫn đang đi theo lý thuyết khai cuộc mạnh.'
-  ],
-  ready: [
-    'Mình sẽ dùng Stockfish để soi từng nước của bạn, không đoán mò.',
-    'Đi nước đầu tiên đi, mình sẽ đánh giá theo thế cờ thật trên bàn.',
-    'Bắt đầu từ trung tâm, phát triển quân nhẹ và giữ vua an toàn.',
-    'Mình sẽ nhắc khi có quân treo, nước ép buộc hoặc cơ hội chiến thuật.',
-    'Trước mỗi nước hãy quét nhanh: chiếu, ăn quân, đe dọa.',
-    'Ván này mình sẽ ưu tiên chỉ ra lý do nước đi tốt hoặc chưa tốt.',
-    'Đừng chỉ nhìn nước hay nhất; hãy hiểu vì sao nó hay.',
-    'Nếu có sai lầm, mình sẽ nói thẳng điểm yếu vừa xuất hiện.',
-    'Nếu bạn đi đúng hướng, mình sẽ chỉ ra điểm mạnh của kế hoạch.',
-    'Mục tiêu là chơi chắc hơn sau mỗi nước, không chỉ thắng ván này.',
-    'Hãy bắt đầu bằng một nước có mục đích rõ ràng.',
-    'Mình đang sẵn sàng phân tích từng nước bằng engine.'
-  ],
-  opponent: [
-    '{move} vừa đổi cấu trúc thế cờ. Trước khi đáp lại, hãy tìm đe dọa trực tiếp nhất.',
-    'Sau {move}, kiểm tra xem quân nào của bạn đang bị tấn công hoặc bị ghim.',
-    '{move} đặt câu hỏi vào vị trí của bạn. Đừng trả lời bằng cảm tính.',
-    'Đối thủ vừa đi {move}. Hãy tìm nước chiếu, nước ăn quân và nước phòng thủ chủ động.',
-    'Sau {move}, nếu có thể giành tempo thì ưu tiên nước ép buộc.',
-    '{move} có thể mở đường cho một ý đồ mới. Hãy xác định quân nào vừa được kích hoạt.',
-    'Đừng vội phản công sau {move}; đầu tiên phải biết mình đang bị dọa gì.',
-    '{move} làm thay đổi ô yếu. Nhìn lại các ô quanh vua và trung tâm.',
-    'Sau {move}, nước tốt thường là nước vừa hóa giải đe dọa vừa cải thiện quân.',
-    'Đối thủ vừa tạo nhịp bằng {move}. Nếu bạn bỏ qua đe dọa, thế cờ có thể xấu nhanh.',
-    '{move} không chỉ là một nước đi; nó có thể là bước đầu của kế hoạch.',
-    'Hãy hỏi: sau {move}, đối thủ muốn đi gì tiếp theo?',
-    'Nếu {move} tấn công quân của bạn, đừng chỉ chạy quân; tìm nước phản công có tempo.',
-    'Sau {move}, kiểm tra hàng ngang, đường chéo và cột mở quanh vua.',
-    'Nếu thế cờ căng sau {move}, ưu tiên nước đơn giản và chắc.',
-    '{move} khiến bạn phải tính cụ thể. Đừng chọn nước đẹp nếu bỏ quên quân treo.',
-    'Vị trí sau {move} cần được xử lý bằng thứ tự rõ ràng: vua, quân treo, trung tâm.',
-    'Hãy dùng {move} như tín hiệu để rà lại toàn bộ mối đe dọa.'
-  ],
-  pending: [
-    'Hãy so {move} với các nước chiếu, ăn quân và đe dọa trực tiếp.',
-    'Câu hỏi chính của {move}: nước này tạo thêm hoạt động hay để lộ điểm yếu?',
-    'Sau {move}, hãy tự kiểm tra quân treo trước khi chọn kế hoạch tiếp.',
-    'Nếu có nước ép buộc tốt hơn {move}, nó thường bắt đầu bằng chiếu hoặc ăn quân.',
-    'Sau {move}, nhìn xem vua của hai bên có an toàn không.',
-    'Thử tìm ứng viên khác có tempo thay vì chỉ nhìn một nước.',
-    '{move} cần được so với nước phát triển quân hoặc nhập thành.',
-    'Hãy xem {move} có làm quân nào bị quá tải không.',
-    'Tạm thời đánh giá cấu trúc tốt và ô yếu sau {move}.',
-    '{move} có thể liên quan tới chiến thuật, nên hãy rà đường chéo và cột mở.',
-    'Nếu điểm số đổi mạnh sau {move}, thường có một đòn chiến thuật bị bỏ sót.',
-    'Sau {move}, hãy tìm nước vừa phòng thủ vừa tạo đe dọa.'
-  ],
-  best: [
-    '{move} trùng hướng Stockfish. Nước này giữ thế chủ động và không cho phản công rõ.',
-    'Rất chuẩn: {move} xử lý đúng yêu cầu của vị trí.',
-    '{move} là lựa chọn sạch. Bạn không tạo điểm yếu mới.',
-    'Stockfish đồng ý với {move}; kế hoạch này đáng tin.',
-    '{move} giữ nhịp tốt và không bỏ sót đe dọa chính.',
-    'Nước {move} rất chính xác, đặc biệt vì nó giữ quân phối hợp.',
-    'Bạn chọn đúng nước then chốt với {move}.',
-    '{move} là nước có tính kỹ thuật: ít rủi ro, hiệu quả rõ.',
-    'Đây là nước tốt nhất hoặc gần nhất với tốt nhất: {move}.',
-    '{move} cho thấy bạn đã nhìn đúng trọng tâm thế cờ.',
-    'Nước này không màu mè nhưng rất mạnh: {move}.',
-    '{move} giữ quyền kiểm soát các ô quan trọng.'
-  ],
-  excellent: [
-    '{move} rất tốt. {detail}',
-    'Nước {move} cải thiện vị trí mà không làm yếu vua.',
-    '{move} là nước chắc, giữ cấu trúc khỏe và quân phối hợp.',
-    'Tốt lắm: {move} giữ thế cờ ổn định.',
-    '{move} không hẳn là tuyệt đối nhất, nhưng rất thực chiến.',
-    'Bạn đang đi đúng hướng với {move}.',
-    '{move} làm quân của bạn hoạt động tốt hơn.',
-    'Nước này hợp lý vì nó không cho đối thủ mục tiêu dễ đánh.',
-    '{move} giữ áp lực vừa đủ mà không quá mạo hiểm.',
-    'Đây là lựa chọn rất lành mạnh: {move}.',
-    '{move} giúp thế cờ dễ chơi hơn ở nước tiếp theo.',
-    'Stockfish đánh giá {move} là nước mạnh, sai số rất nhỏ.'
-  ],
-  good: [
-    '{move} chơi được. {detail}',
-    '{move} giữ thế cờ trong vùng an toàn, nhưng có thể còn nước chủ động hơn.',
-    'Nước này ổn, nhưng hãy hỏi xem quân xấu nhất của bạn đã được cải thiện chưa.',
-    '{move} không phá thế, tuy nhiên chưa gây nhiều vấn đề cho đối thủ.',
-    'Bạn vẫn giữ được nhịp sau {move}.',
-    '{move} là nước thực chiến được, miễn là kế hoạch tiếp theo rõ ràng.',
-    'Ổn với {move}; bây giờ cần chú ý phản ứng của đối thủ.',
-    '{move} không phải lỗi lớn. Hãy tiếp tục quét nước ép buộc.',
-    'Nước này giữ thế cân bằng nhưng chưa tối đa hóa áp lực.',
-    '{move} là lựa chọn bình tĩnh, phù hợp nếu bạn muốn chơi chắc.',
-    'Sau {move}, hãy theo dõi quân nào có thể bị quá tải.',
-    'Nước {move} chấp nhận được, nhưng đừng tự động lặp kế hoạch cũ.'
-  ],
-  inaccuracy: [
-    '{move} hơi thiếu chính xác. {detail}',
-    'Với {move}, bạn nhường một phần nhịp cho đối thủ.',
-    '{move} vẫn chơi được, nhưng có vẻ bỏ qua một nước ép buộc hơn.',
-    'Nước này hơi chậm; hãy xem lại các nước chiếu và ăn quân.',
-    '{move} cho đối thủ thêm khoảng thở.',
-    'Bạn chưa thua gì ngay sau {move}, nhưng lợi thế bị giảm.',
-    '{move} làm kế hoạch của bạn kém sắc hơn một chút.',
-    'Ở vị trí này, {move} có thể chưa giải quyết đe dọa chính.',
-    'Nước {move} cần được kiểm tra lại vì nó không tạo tempo rõ.',
-    'Hãy cẩn thận: {move} có thể để lại ô yếu hoặc quân treo.',
-    'Sau {move}, đối thủ có nhiều lựa chọn dễ chịu hơn.',
-    'Đây là sai số nhỏ, nhưng lặp lại nhiều lần sẽ thành vấn đề.'
-  ],
-  mistake: [
-    '{move} là sai lầm thực chiến. {detail}',
-    'Cẩn thận: {move} cho đối thủ cơ hội cụ thể.',
-    'Sau {move}, hãy tìm cách giảm thiệt hại thay vì tiếp tục tấn công.',
-    'Nước này làm mất kiểm soát một ô hoặc một quân quan trọng.',
-    '{move} có vẻ bỏ quên một đe dọa trực tiếp.',
-    'Bạn cần dừng lại sau {move} và rà lại quân nào đang bị treo.',
-    'Nước {move} làm thế cờ khó phòng thủ hơn.',
-    'Đây là lúc nên chọn nước đơn giản để ổn định lại.',
-    '{move} cho đối thủ một nhịp rõ ràng. Hãy tìm nước phòng thủ chủ động.',
-    'Sai lầm ở đây thường đến từ việc bỏ qua nước ép buộc của đối thủ.',
-    'Sau {move}, ưu tiên an toàn vua và quân bị tấn công.',
-    'Đừng cố sửa bằng nước đẹp; hãy sửa bằng nước chắc.'
-  ],
-  miss: [
-    '{move} bỏ lỡ cơ hội lớn. {best}',
-    'Ở đây bạn có nước mạnh hơn {move}. Hãy tìm nước chiếu, ăn quân hoặc đe dọa trước.',
-    '{move} để thời điểm trôi qua; vị trí có ý tưởng sắc hơn.',
-    'Bạn vừa bỏ qua một cơ hội tạo áp lực thật sự.',
-    'Sau {move}, đối thủ có thể thoát khỏi thế khó.',
-    'Nước này không tận dụng hết vấn đề của đối thủ.',
-    'Có vẻ bạn đã chọn nước yên tĩnh khi vị trí cần nước ép buộc.',
-    '{move} làm mất tempo quan trọng trong một thế cờ đang có cơ hội.',
-    'Hãy xem lại ứng viên forcing; Stockfish cho thấy có cơ hội tốt hơn.',
-    'Bạn cần luyện thói quen kiểm tra nước mạnh trước nước đẹp.',
-    '{move} không tệ về hình thức, nhưng bỏ lỡ trọng tâm chiến thuật.',
-    'Đây là kiểu cơ hội cần bắt ngay, vì một nước sau có thể biến mất.'
-  ],
-  blunder: [
-    '{move} là blunder. {detail}',
-    'Nước này nguy hiểm: {move} cho đối thủ lợi thế lớn.',
-    'Sau {move}, hãy ưu tiên cứu vua hoặc cứu quân quan trọng.',
-    'Đừng tiếp tục kế hoạch cũ; vị trí đã đổi nghiêm trọng.',
-    '{move} có thể mất quân, vua không an toàn hoặc mất thế chủ động.',
-    'Đây là lỗi lớn. Hãy tìm nước phòng thủ tốt hơn.',
-    'Sau {move}, mục tiêu là giảm thiệt hại trước.',
-    'Hãy kiểm tra mọi nước chiếu.',
-    '{move} làm thế cờ xấu nhanh. Bình tĩnh và tìm nước tốt hơn.',
-    'Nếu còn cơ hội đổi quân để giảm áp lực, hãy cân nhắc ngay.',
-    'Blunder thường đến từ bỏ sót quân không được bảo vệ; hãy rà lại toàn bàn.',
-    'Sau lỗi này, đừng đánh theo cảm xúc. Chọn nước chắc nhất.'
-  ],
-  plan: [
-    'Kế hoạch tiếp theo: cải thiện quân kém hoạt động nhất.',
-    'Nếu không có chiến thuật, hãy tăng kiểm soát trung tâm.',
-    'Nhìn lại an toàn vua trước khi mở thêm đường.',
-    'Ưu tiên quân treo và ô yếu hơn là nước tấn công xa.',
-    'Nếu đối thủ có vua yếu, hãy đưa thêm quân vào trước khi hy sinh.',
-    'Nếu đang hơn vật chất, đổi quân là một kế hoạch hợp lý.',
-    'Nếu đang kém thế, tìm phản công có tempo thay vì phòng thủ bị động.',
-    'Hãy đặt câu hỏi: nước tiếp theo của đối thủ là gì?',
-    'Tìm nước vừa phòng thủ vừa tạo đe dọa.',
-    'Đừng di chuyển cùng một quân nhiều lần nếu quân khác chưa phát triển.',
-    'Khi vị trí kín, cải thiện quân xấu nhất thường tốt hơn lao vào ăn tốt.',
-    'Khi vị trí mở, an toàn vua và đường chéo quan trọng hơn.'
-  ],
-  opening: [
-    'Chế độ khai cuộc: phát triển quân nhẹ, tranh trung tâm và nhập thành đúng lúc.',
-    'Đừng đi cùng một quân quá nhiều lần nếu quân khác còn ngủ ở hàng đầu.',
-    'Nếu Stockfish chọn nước khai cuộc khác, hãy xem nó kiểm soát trung tâm hay mở đường cho quân nào.'
-  ],
-  principle: [
-    'Ưu tiên phát triển quân nhẹ, nhập thành và tranh trung tâm trước khi săn tốt.',
-    'Hãy kiểm tra quân đang bị treo trước; một nước chắc thường tốt hơn một nước đẹp.',
-    'Nếu chưa có chiến thuật rõ, cải thiện quân kém hoạt động nhất là lựa chọn đúng.'
-  ],
-  safety: [
-    'Trước nước tiếp theo, rà vua của bạn, quân bị tấn công và các ô quanh vua.',
-    'Đừng để một quân không được bảo vệ đứng trên đường mở.',
-    'Nếu đối thủ vừa tạo đe dọa, hãy hóa giải bằng nước có tempo nếu có thể.'
-  ],
-  tactics: [
-    'Chế độ chiến thuật: kiểm tra theo thứ tự chiếu, ăn quân, đe dọa trước mọi nước yên tĩnh.',
-    'Tìm đòn ghim, xiên, quá tải hoặc nước trung gian trước khi quyết định.',
-    'Nếu Stockfish chênh lớn với nước bạn đi, thường có một nước ép buộc bị bỏ sót.'
-  ],
-  forcing: [
-    'Ưu tiên candidate forcing: chiếu, ăn quân, đe dọa trực tiếp.',
-    'Hãy tính phản ứng bắt buộc của đối thủ thay vì chỉ nhìn nước đầu tiên.',
-    'Một nước mạnh phải khiến đối thủ trả lời câu hỏi cụ thể ngay lập tức.'
-  ],
-  positional: [
-    'Chế độ thế trận: nhìn cấu trúc tốt, ô yếu và quân xấu nhất trước.',
-    'Nếu không có chiến thuật, hãy tăng áp lực lên ô yếu hoặc cột mở.',
-    'Đừng đổi quân tốt lấy quân xấu nếu điều đó làm kế hoạch dài hạn kém đi.'
-  ],
-  attack: [
-    'Chế độ tấn công: chỉ mở đường khi đã có đủ quân tham gia.',
-    'Nếu vua đối thủ yếu, đưa thêm quân vào vùng tấn công trước khi hy sinh.',
-    'Tạo đe dọa liên tục quan trọng hơn một nước ăn vật chất chậm.'
-  ],
-  endgame: [
-    'Chế độ tàn cuộc: kích hoạt vua, tạo tốt thông và tính ô phong cấp.',
-    'Trong tàn cuộc, mỗi tempo rất đắt; hãy tránh nước quân lặp lại không cần thiết.',
-    'Nếu hơn vật chất, đổi quân nhưng giữ tốt; nếu kém, tìm phản công bằng tốt thông.'
-  ],
-  conversion: [
-    'Chuyển lợi thế thành thắng bằng cách giảm phản công trước rồi mới ăn thêm.',
-    'Đặt quân sau tốt thông và đưa vua tới trung tâm.',
-    'Khi hơn quân, ép đổi hậu thường làm nhiệm vụ dễ hơn.'
-  ],
-  critical: [
-    'Chỉ nhắc điểm quan trọng: nước này cần xem lại ngay.',
-    'Có tín hiệu lớn từ Stockfish; hãy dừng và kiểm tra nước ép buộc.',
-    'Vị trí vừa đổi mạnh, ưu tiên sửa lỗi cụ thể trước.'
-  ]
+const PRINCIPLES = {
+  basic: 'Trước nước tiếp theo, kiểm tra quân bị tấn công và sự an toàn của vua.',
+  opening: 'Hãy phát triển quân nhẹ, kiểm soát trung tâm và chuẩn bị nhập thành.',
+  middlegame: 'Thử xét các nước chiếu, ăn quân và đe dọa; tính cả phản ứng của đối thủ.',
+  endgame: 'Chú ý đường đi của vua, tốt thông và ô phong cấp trước khi đổi quân.'
 };
 
-function renderCoachLine(template, values) {
-  return template
-    .replaceAll('{move}', values.move || 'nước vừa rồi')
-    .replaceAll('{detail}', values.detail || '')
-    .replaceAll('{best}', values.best || '')
-    .replace(/\s+/g, ' ')
-    .trim();
+function finite(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
 }
 
-function pickCoachTemplate(group, historyLength, latestMove, offset = 0) {
-  const lines = COACH_LINE_BANK[group] ?? COACH_LINE_BANK.good;
-  const seed = `${historyLength}-${latestMove?.san || ''}-${latestMove?.from || ''}${latestMove?.to || ''}-${group}-${offset}`;
-  const hash = Array.from(seed).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 1000003, 17);
-  return lines[hash % lines.length];
-}
-
-function formatEngineScore(score) {
-  if (!Number.isFinite(Number(score))) return '';
-  const pawns = Number(score) / 100;
-  return `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
-}
-
-export function buildCoachInsight({ analysis, latestMove, historyLength, playerColor, aiElo, coachMode }) {
-  const mode = COACH_MODES.find((item) => item.id === coachMode) ?? COACH_MODES[0];
+export function buildCoachInsight({ analysis, latestMove, playerColor, aiElo, coachMode, lesson }) {
+  const mode = COACH_MODES.find((item) => item.id === coachMode) || COACH_MODES[0];
   const behavior = coachBehaviorFromMode(coachMode);
   const difficulty = coachDifficultyFromElo(Number(aiElo));
-  const moveSan = latestMove?.san || 'nước vừa rồi';
-  const bestMove = analysis?.bestMove || analysis?.bestSan || '';
-  const loss = Number(analysis?.winLoss ?? analysis?.centipawnLoss);
-  const scoreText = formatEngineScore(analysis?.whiteScore ?? analysis?.score);
-  const detail = Number.isFinite(loss)
-    ? loss < 20
-      ? 'Stockfish cho thấy nước này gần như không làm mất chất lượng thế cờ.'
-      : `Stockfish ước tính bạn nhường khoảng ${loss.toFixed(loss > 30 ? 0 : 1)}${analysis?.winLoss !== undefined ? '% cơ hội thắng' : ' centipawn'}.`
-    : 'Stockfish vẫn xem thế cờ này là có thể chơi được.';
-  const bestText = bestMove && latestMove && !String(bestMove).startsWith(`${latestMove.from}${latestMove.to}`)
-    ? `Stockfish gợi ý ${bestMove}; hãy so sánh xem nước đó tạo hoặc chặn đe dọa gì.`
-    : 'Nước của bạn đáp ứng khá tốt yêu cầu của vị trí.';
-  const modeGroup = behavior.messageGroups[historyLength % behavior.messageGroups.length] ?? 'plan';
-  const modeLine = renderCoachLine(pickCoachTemplate(modeGroup, historyLength, latestMove, 9), { move: moveSan, detail, best: bestText });
-  const isCriticalTone = ['brilliant', 'great', 'miss', 'blunder', 'mistake'].includes(analysis?.tone);
-  const shouldShowMessage = behavior.speech !== 'critical' || !latestMove || isCriticalTone;
-
-  if (!latestMove) {
-    const firstLine = renderCoachLine(pickCoachTemplate('ready', historyLength, latestMove), { move: moveSan });
-    const secondLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 1), { move: moveSan });
-    return {
-      tone: 'excellent',
-      quality: 'Sẵn sàng',
-      evaluation: '0.0',
-      messages: shouldShowMessage ? [firstLine, secondLine] : ['Ít lời: mình đang theo dõi và sẽ nhắc khi có lỗi lớn hoặc cơ hội rõ ràng.'],
-      voiceMessages: shouldShowMessage ? [firstLine, secondLine] : [],
-      message: firstLine,
-      warning: 'Vị trí bắt đầu',
-      plan: 'Phát triển quân nhẹ, tranh trung tâm và giữ vua an toàn.',
-      difficulty,
-      mode,
-      behavior
-    };
+  const plan = lesson?.goal || PRINCIPLES[mode.id];
+  const base = { mode, behavior, difficulty, plan, evaluation: '', bestMove: '', loss: '', warning: '' };
+  const result = (tone, quality, messages, voiceMessages = messages, extra = {}) => ({
+    ...base, tone, quality, messages, voiceMessages, message: messages[0], ...extra
+  });
+  if (!latestMove) return result('excellent', 'Sẵn sàng', [
+    'Mình sẽ cùng bạn luyện tập và nhận xét từng nước đi bằng tiếng Việt.', plan
+  ]);
+  if (latestMove.color !== playerColor) return result('good', 'Tới lượt bạn', [
+    'Đối thủ vừa đi ' + latestMove.san + '. Hãy kiểm tra đe dọa trước khi đáp lại.', PRINCIPLES[mode.id]
+  ]);
+  if (!analysis?.tone) return result('loading', 'Đang phân tích', [
+    'Đang xem xét nước ' + latestMove.san + ' của bạn. Bạn có thể tiếp tục chơi.'
+  ], []);
+  const quality = reviewLabel(analysis.tone);
+  const messages = ['Nước ' + latestMove.san + ': ' + quality.toLowerCase() + ' theo kết quả phân tích.'];
+  let bestMove = analysis.bestSan || analysis.bestMove || '';
+  if (!analysis.bestSan && (latestMove.before || analysis.fen) && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) {
+    try {
+      const board = new Chess(latestMove.before || analysis.fen);
+      bestMove = board.move({from:bestMove.slice(0,2),to:bestMove.slice(2,4),promotion:bestMove[4]})?.san || bestMove;
+    } catch { /* A missing position keeps the engine coordinate notation intact. */ }
   }
-
-  if (latestMove.color !== playerColor) {
-    const firstLine = renderCoachLine(pickCoachTemplate('opponent', historyLength, latestMove), { move: moveSan });
-    const secondLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 2), { move: moveSan });
-    return {
-      tone: 'good',
-      quality: 'Tới lượt bạn',
-      evaluation: scoreText,
-      messages: shouldShowMessage ? [firstLine, secondLine] : ['Ít lời: tới lượt bạn, hãy tự quét chiếu, ăn quân và đe dọa.'],
-      voiceMessages: shouldShowMessage ? [firstLine, secondLine] : [],
-      message: firstLine,
-      warning: 'Đối thủ vừa đi',
-      plan: mode.id === 'middlegame'
-        ? 'Tìm nước ép buộc trước: chiếu, ăn quân, đe dọa. Sau đó mới chọn kế hoạch yên tĩnh.'
-        : mode.depth,
-      difficulty,
-      mode,
-      behavior
-    };
-  }
-
-  if (!analysis?.tone) {
-    const firstLine = renderCoachLine(pickCoachTemplate('pending', historyLength, latestMove), { move: moveSan });
-    const secondLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 3), { move: moveSan });
-    return {
-      tone: 'good',
-      quality: 'Đợi kết quả',
-      evaluation: '',
-      messages: shouldShowMessage ? [firstLine, secondLine] : ['Ít lời: đang phân tích, mình chỉ báo khi có điểm quan trọng.'],
-      voiceMessages: shouldShowMessage ? [firstLine, secondLine] : [],
-      message: firstLine,
-      warning: 'Đang chờ phân tích',
-      plan: mode.depth,
-      difficulty,
-      mode,
-      behavior
-    };
-  }
-
-  const tone = analysis.tone;
-  const quality = analysis.label ?? 'Ổn';
-  const firstLine = renderCoachLine(pickCoachTemplate(tone, historyLength, latestMove), { move: moveSan, detail, best: bestText });
-  const bestLine = renderCoachLine(pickCoachTemplate(tone === 'best' ? 'plan' : tone, historyLength, latestMove, 4), { move: moveSan, detail, best: bestText });
-  const planLine = modeLine || renderCoachLine(pickCoachTemplate('plan', historyLength, latestMove, 5), { move: moveSan, detail, best: bestText });
-
-  return {
-    tone,
-    quality,
-    evaluation: scoreText,
-    messages: shouldShowMessage ? [firstLine, tone === 'best' || tone === 'excellent' ? planLine : bestLine] : ['Ít lời: nước ổn, tiếp tục chơi.'],
-    voiceMessages: shouldShowMessage ? [firstLine, tone === 'best' || tone === 'excellent' ? planLine : bestLine] : [],
-    message: firstLine,
-    warning: ['mistake', 'blunder', 'miss', 'inaccuracy'].includes(tone) ? 'Thời điểm quan trọng' : 'Thế cờ ổn định',
-    plan: mode.depth,
-    difficulty,
-    mode,
-    behavior
-  };
+  const lan = latestMove.from + latestMove.to + (latestMove.promotion || '');
+  const isAlternative = bestMove && bestMove !== latestMove.san && bestMove !== lan;
+  const loss = finite(analysis.winLoss)
+    ? 'Chỉ số cơ hội thắng giảm khoảng ' + Math.max(0, Number(analysis.winLoss)).toFixed(1) + ' điểm phần trăm.'
+    : finite(analysis.centipawnLoss)
+      ? 'Đánh giá giảm khoảng ' + (Math.max(0, Number(analysis.centipawnLoss)) / 100).toFixed(2) + ' điểm tốt.' : '';
+  if (loss && ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(analysis.tone)) messages.push(loss);
+  if (isAlternative) messages.push('Thử so sánh với ' + bestMove + ': đối thủ có thể đáp lại thế nào?');
+  else messages.push(PRINCIPLES[mode.id]);
+  const score = analysis.whiteScore;
+  const evaluation = finite(score) ? Math.abs(Number(score)) > 90000 ? (Number(score) > 0 ? 'Chiếu hết cho Trắng' : 'Chiếu hết cho Đen') : (Number(score) > 0 ? '+' : '') + (Number(score) / 100).toFixed(2) : '';
+  return result(analysis.tone, quality, messages, messages, {
+    evaluation, bestMove: isAlternative ? bestMove : '', loss,
+    warning: ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(analysis.tone) ? 'Nước đáng xem lại' : 'Nhận xét nước đi'
+  });
 }

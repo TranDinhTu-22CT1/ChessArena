@@ -1,0 +1,33 @@
+.modern-pricing-page .pm-hero { max-width: 780px; margin: 12px auto 32px; }
+.modern-pricing-page .pm-hero h1 { font-size: clamp(27px, 3.2vw, 42px); line-height: 1.2; letter-spacing: -.035em; }
+.modern-pricing-page .pm-hero > p { font-size: 15px; line-height: 1.8; max-width: 690px; margin-inline: auto; }
+.membership-account-card { max-width: 940px; margin: 0 auto; background: #fff; border: 1px solid #dce6df; border-radius: 20px; padding: 26px; box-shadow: 0 8px 28px #2c4c3410; text-align: left; color: #263c30; animation: membership-enter .35s ease-out both; }
+.membership-account-head { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
+.membership-plan-identity { display: flex; gap: 14px; align-items: center; }
+.membership-plan-emblem { display: grid; place-items: center; width: 56px; height: 56px; background: #edf4ec; border: 1px solid #d8e6d5; border-radius: 16px; color: #497b4d; }
+.membership-plan-identity span:not(.membership-plan-emblem) { font-size: 12px; font-weight: 600; color: #637266; }
+.membership-plan-identity h2 { font-size: 25px; margin: 4px 0 0; line-height: 1.15; }
+.membership-status-pill { display: inline-flex; align-items: center; gap: 7px; background: #f3f1eb; color: #766239; border: 1px solid #e5dfce; font-size: 12px; font-weight: 650; border-radius: 30px; padding: 8px 12px; }
+.membership-status-pill.active { background: #edf6ef; border-color: #d4e9da; color: #337450; }
+.membership-account-facts { margin: 24px 0 0; padding: 20px 0; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 22px; border-block: 1px solid #ebefea; }
+.membership-account-facts div + div { border-left: 1px solid #e6ede6; padding-left: 24px; }
+.membership-account-facts dt { display: flex; gap: 7px; align-items: center; color: #6d786f; font-size: 12px; line-height: 1.5; }
+.membership-account-facts dd { margin: 8px 0 0; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.membership-account-footer { display: flex; justify-content: space-between; align-items: center; gap: 28px; margin-top: 18px; }
+.membership-account-footer p { display: flex; align-items: flex-start; gap: 9px; max-width: 580px; margin: 0; color: #68756b; font-size: 12px; line-height: 1.75; }
+.membership-account-footer p svg { flex-shrink: 0; margin-top: 2px; color: #649071; }
+.membership-account-card button { min-height: 42px; padding: 10px 16px; display: inline-flex; justify-content: center; align-items: center; gap: 8px; border-radius: 10px; border: 1px solid #dbe4dd; background: #fff; color: #3d5244; font-weight: 600; font-size: 12px; cursor: pointer; transition: background .18s, border-color .18s; white-space: nowrap; }
+.membership-account-card button:hover { background: #f2f6f2; border-color: #a8c3af; }
+.membership-account-card button:disabled { cursor: wait; opacity: .65; }
+.membership-account-card button:focus-visible, .membership-checkout-help button:focus-visible { outline: 3px solid #6e9d7a; outline-offset: 3px; }
+.membership-cancel-confirm { margin-top: 20px; background: #faf7f0; border: 1px solid #e8dcc7; border-radius: 12px; padding: 18px; display: grid; gap: 14px; }
+.membership-cancel-confirm strong { color: #775b30; font-size: 14px; }
+.membership-cancel-confirm p { margin: 6px 0 0; color: #826c4c; font-size: 13px; line-height: 1.6; }
+.membership-confirm-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.membership-account-card .confirm-stop { color: #934734; border-color: #d9b2a0; background: #fffaf7; }
+.membership-checkout-help { max-width: 940px; margin: 14px auto 30px; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: #758075; align-items: center; }
+.membership-checkout-help button { border: 0; background: transparent; color: #567a5e; cursor: pointer; padding: 8px 0; text-decoration: underline; text-underline-offset: 3px; }
+.membership-free-note { margin: 20px 0 0; font-size: 14px; line-height: 1.7; color: #6d786f; }
+@keyframes membership-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (max-width: 650px) { .membership-account-card { padding: 20px; border-radius: 16px; } .membership-account-facts { grid-template-columns: 1fr 1fr; gap: 18px; } .membership-account-facts div:first-child { grid-column: 1/-1; } .membership-account-facts div + div { padding-left: 0; border: 0; } .membership-account-footer { align-items: stretch; flex-direction: column; gap: 14px; } .membership-confirm-actions { flex-direction: column-reverse; } .membership-checkout-help { justify-content: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .membership-account-card { animation: none; } .membership-account-card button { transition: none; } }

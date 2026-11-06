@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Dumbbell,
   ExternalLink,
+  Flag,
   History,
   ImagePlus,
   Loader2,
@@ -20,14 +21,16 @@ import {
   UserMinus,
   UserPlus,
   UserRound,
-  Users
+  Users,
+  X
 } from 'lucide-react';
-import { createAppeal, fetchMyAppeals } from '../../api/fairPlay';
+
 import { fetchFriends, removeFriendship, sendFriendRequest } from '../../api/friends';
-import { createFriendGame } from '../../api/online';
-import { fetchProfile, fetchPublicProfile, saveProfile } from '../../api/profile';
+import { sendGameInvitation } from '../../api/gameInvitations';
+import { createPlayerReport, fetchProfile, fetchPublicProfile, fetchReportOptions, saveProfile } from '../../api/profile';
 import { changeFollow, fetchActivityFeed, fetchFollowSummary } from '../../api/social';
 import MembershipBadge from '../../components/MembershipBadge';
+import Modal from '../../components/Modal';
 
 const MODE_LABELS = {
   bullet: 'Bullet',
@@ -46,6 +49,21 @@ const ACHIEVEMENT_TEXT = {
 
 const MAX_AVATAR_UPLOAD_SIZE = 5 * 1024 * 1024;
 const AVATAR_EDGE = 128;
+
+const REPORT_CATEGORY_LABELS = {
+  harassment: 'Quấy rối', toxic: 'Ngôn từ xúc phạm', stalling: 'Cố tình kéo dài trận',
+  match_abuse: 'Lạm dụng trận đấu', username: 'Tên không phù hợp', avatar: 'Ảnh không phù hợp', other: 'Khác'
+};
+
+const REPORT_REASONS = [
+  ['harassment', 'Quấy rối', 'Đe dọa, làm phiền hoặc công kích cá nhân'],
+  ['toxic', 'Ngôn từ xúc phạm', 'Tin nhắn hoặc nội dung không phù hợp'],
+  ['stalling', 'Cố tình kéo dài', 'Câu giờ hoặc trì hoãn ván đấu'],
+  ['match_abuse', 'Lạm dụng trận đấu', 'Dàn xếp hoặc hành vi bất thường'],
+  ['username', 'Tên không phù hợp', 'Tên hiển thị vi phạm quy tắc'],
+  ['avatar', 'Ảnh không phù hợp', 'Ảnh đại diện có nội dung vi phạm'],
+  ['other', 'Lý do khác', 'Vấn đề chưa có trong danh sách']
+];
 
 function formattedDate(value, includeTime = false) {
   if (!value) return '-';
@@ -124,9 +142,7 @@ function skillProfile(profile, summary) {
     {
       label: 'Sẵn sàng phân tích',
       value: reviewReadiness,
-      note: lab.totalRefundedRating
-        ? `${weakSpot} Fair-play đã hoàn ${lab.totalRefundedRating} rating.`
-        : weakSpot
+      note: weakSpot
     }
   ];
 }
@@ -172,6 +188,195 @@ function ProfileSectionHead({ eyebrow, title, icon: Icon, action }) {
   );
 }
 
+function readReportImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, mimeType: file.type, size: file.size, dataUrl: reader.result });
+    reader.onerror = () => reject(new Error(`Không thể đọc ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+}
+
+const reportAttachmentDrafts = new Map();
+
+function reportDraftKey(reporterId, playerId) { return `chessarena:report-draft:${reporterId || 'guest'}:${playerId}`; }
+
+function readReportDraft(reporterId, playerId) {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(reportDraftKey(reporterId, playerId)) || '{}');
+    return {
+      category: REPORT_CATEGORY_LABELS[parsed.category] ? parsed.category : 'harassment',
+      description: String(parsed.description || '').slice(0, 1600),
+      gameId: String(parsed.gameId || ''),
+      evidenceUrl: String(parsed.evidenceUrl || '').slice(0, 500)
+    };
+  } catch {
+    return { category: 'harassment', description: '', gameId: '', evidenceUrl: '' };
+  }
+}
+
+function PlayerReportModal({ player, reporterId, onClose, onSubmitted }) {
+  const attachmentDraftKey = reportDraftKey(reporterId, player.id);
+  const draft = React.useMemo(() => readReportDraft(reporterId, player.id), [player.id, reporterId]);
+  const [category, setCategory] = React.useState(draft.category);
+  const [description, setDescription] = React.useState(draft.description);
+  const [gameId, setGameId] = React.useState(draft.gameId);
+  const [evidenceUrl, setEvidenceUrl] = React.useState(draft.evidenceUrl);
+  const [games, setGames] = React.useState([]);
+  const [attachments, setAttachments] = React.useState(() => reportAttachmentDrafts.get(attachmentDraftKey) || []);
+  const attachmentsRef = React.useRef(reportAttachmentDrafts.get(attachmentDraftKey) || []);
+  const [readingImages, setReadingImages] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    let active = true;
+    fetchReportOptions(player.id).then((data) => {
+      if (active) setGames(data.games || []);
+    }).catch((loadError) => {
+      if (active) setError(loadError.message);
+    });
+    return () => { active = false; };
+  }, [player.id]);
+
+  React.useEffect(() => {
+    window.sessionStorage.setItem(attachmentDraftKey, JSON.stringify({ category, description, gameId, evidenceUrl }));
+  }, [attachmentDraftKey, category, description, evidenceUrl, gameId]);
+
+  React.useEffect(() => {
+    attachmentsRef.current = attachments;
+    if (attachments.length) reportAttachmentDrafts.set(attachmentDraftKey, attachments);
+    else reportAttachmentDrafts.delete(attachmentDraftKey);
+  }, [attachmentDraftKey, attachments]);
+
+  const addImages = async (fileList) => {
+    const files = Array.from(fileList || []).slice(0, Math.max(0, 3 - attachments.length));
+    if (!files.length) return;
+    if (files.some((file) => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+      setError('Chỉ nhận PNG, JPG, WebP hoặc GIF, tối đa 5 MB mỗi ảnh.');
+      return;
+    }
+    setReadingImages(true);
+    try {
+      const nextImages = await Promise.all(files.map(readReportImage));
+      setAttachments((current) => {
+        const next = [...current, ...nextImages].slice(0, 3);
+        attachmentsRef.current = next;
+        return next;
+      });
+    } catch (readError) {
+      setError(readError.message);
+    } finally {
+      setReadingImages(false);
+    }
+  };
+
+  const selectImages = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    await addImages(files);
+  };
+
+  const highestRating = Math.max(0, ...(player.ratings || []).map((item) => Number(item.rating) || 0));
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const evidenceAttachments = attachmentsRef.current.length ? attachmentsRef.current : attachments;
+      await createPlayerReport({ reportedUserId: player.id, category, description, gameId, evidenceUrl, attachments: evidenceAttachments });
+      window.sessionStorage.removeItem(attachmentDraftKey);
+      reportAttachmentDrafts.delete(attachmentDraftKey);
+      onSubmitted?.();
+      onClose();
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} className="surface-dialog player-report-dialog" aria-label="Báo cáo người chơi">
+      <form className="player-report-form" onSubmit={submit}>
+        <header>
+          <div>
+            <span>AN TOÀN CỘNG ĐỒNG</span>
+            <h2>Báo cáo người chơi</h2>
+            <small>Thông tin của bạn được gửi riêng cho đội ngũ kiểm duyệt.</small>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
+        </header>
+        <div className="player-report-player">
+          {player.photoURL || player.photo_url ? <img src={player.photoURL || player.photo_url} alt="" /> : <span><UserRound size={23} /></span>}
+          <div><strong>{player.displayName || player.display_name || player.username || 'Người chơi'}</strong><small>@{player.username || 'player'}{highestRating > 0 ? ` · ${highestRating} rating` : ''}</small></div>
+          <ShieldCheck size={20} aria-label="Tài khoản đã xác thực" />
+        </div>
+
+        <fieldset>
+          <legend><b>1</b><span>Lý do báo cáo<small>Chọn lý do phù hợp nhất</small></span></legend>
+          <div className="player-report-reasons">
+            {REPORT_REASONS.map(([value, label, helper]) => (
+              <label className={category === value ? 'selected' : ''} key={value}>
+                <input type="radio" name="report-reason" value={value} checked={category === value} onChange={() => setCategory(value)} />
+                <span><strong>{label}</strong><small>{helper}</small></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend><b>2</b><span>Mô tả chi tiết<small>Giúp admin hiểu rõ điều đã xảy ra</small></span></legend>
+          <label className="player-report-textarea">
+            <textarea aria-label="Mô tả chi tiết" rows={5} maxLength={1600} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Mô tả hành vi, thời điểm và những chi tiết quan trọng (ít nhất 12 ký tự)…" />
+            <small><span>Tối thiểu 12 ký tự</span><span>{description.length}/1600</span></small>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend><b>3</b><span>Trận đấu liên quan<small>Không bắt buộc</small></span></legend>
+          <label>
+            <select aria-label="Trận đấu liên quan" value={gameId} onChange={(event) => setGameId(event.target.value)}>
+              <option value="">Không đính kèm trận</option>
+              {games.map((game) => (
+                <option value={game.id} key={game.id}>{game.white_name} – {game.black_name} · {game.result || '*'} · {game.time_control}</option>
+              ))}
+            </select>
+            <small>Chỉ các trận mà hai tài khoản đã cùng tham gia mới được chấp nhận.</small>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend><b>4</b><span>Bằng chứng<small>Ảnh hoặc liên kết giúp việc xử lý chính xác hơn</small></span></legend>
+          <label className="player-report-upload" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addImages(event.dataTransfer.files); }}>
+            <ImagePlus size={24} />
+            <strong>{readingImages ? 'Đang xử lý ảnh…' : 'Thả ảnh vào đây hoặc nhấn để chọn'}</strong>
+            <small>PNG, JPG, WebP, GIF · tối đa 3 ảnh · 5 MB/ảnh</small>
+            <input aria-label="Chọn ảnh bằng chứng" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple onChange={selectImages} />
+          </label>
+          {attachments.length > 0 && (
+            <div className="player-report-previews">
+              {attachments.map((attachment, index) => (
+                <button type="button" title={`Xóa ${attachment.name}`} aria-label={`Xóa ảnh ${attachment.name}`} onClick={() => setAttachments((current) => { const next = current.filter((_, itemIndex) => itemIndex !== index); attachmentsRef.current = next; return next; })} key={`${attachment.name}-${index}`}>
+                  <img src={attachment.dataUrl} alt={attachment.name} /><X size={14} /><small>{attachment.name}</small>
+                </button>
+              ))}
+            </div>
+          )}
+          <label className="player-report-url"><span>Liên kết bằng chứng</span><input type="url" maxLength={500} value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label>
+        </fieldset>
+        {error && <p className="player-report-error" role="alert">{error}</p>}
+        <footer>
+          <button type="button" onClick={onClose}>Hủy</button>
+          <button className="primary" type="submit" disabled={busy || readingImages || description.trim().length < 12}>{busy ? 'Đang gửi…' : readingImages ? 'Đang xử lý ảnh…' : 'Gửi báo cáo'}</button>
+        </footer>
+      </form>
+    </Modal>
+  );
+}
+
 export default function ProfilePage({ authUser, profileUserId = '', onLogin, onNavigate, onProfileUpdated }) {
   const [profile, setProfile] = React.useState(null);
   const [form, setForm] = React.useState({ displayName: '', photoURL: '' });
@@ -182,8 +387,9 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
   const [socialBusy, setSocialBusy] = React.useState(false);
   const [followSummary, setFollowSummary] = React.useState({ followers: 0, following: 0, followed: false });
   const [activities, setActivities] = React.useState([]);
-  const [fairPlay, setFairPlay] = React.useState({ reports: [], appeals: [] });
-  const [appealForm, setAppealForm] = React.useState({ reportId: '', message: '' });
+  const [reportOpen, setReportOpen] = React.useState(false);
+
+
   const [isOwnProfile, setIsOwnProfile] = React.useState(!profileUserId);
   const isPublicProfile = Boolean(profileUserId) && !isOwnProfile;
 
@@ -280,22 +486,6 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     };
   }, [authUser, profile?.id]);
 
-  React.useEffect(() => {
-    if (!authUser || isPublicProfile) return undefined;
-
-    let cancelled = false;
-    fetchMyAppeals().then((data) => {
-      if (!cancelled) {
-        setFairPlay(data);
-        setAppealForm((current) => ({ ...current, reportId: current.reportId || data.reports?.[0]?.id || '' }));
-      }
-    }).catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authUser, isPublicProfile]);
-
   const submitProfile = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -347,13 +537,8 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     setSocialBusy(true);
     setMessage('');
     try {
-      const data = await createFriendGame('600+0', 'random', profile?.id || '');
-      const link = `${window.location.origin}/play/online?invite=${data.inviteCode}`;
-      await navigator.clipboard.writeText(link).catch(() => {});
-      const expiresAt = data.expiresAt
-        ? new Date(data.expiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-        : '10 phút';
-      setMessage(`Đã tạo lời thách đấu ${data.inviteCode}. Liên kết hết hạn lúc ${expiresAt} và đã được sao chép.`);
+      await sendGameInvitation(profile?.id);
+      setMessage('Đã gửi lời mời chơi 10 phút, màu quân ngẫu nhiên. Hai bạn sẽ vào trận khi lời mời được chấp nhận.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -399,21 +584,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
     }
   };
 
-  const submitAppeal = async (event) => {
-    event.preventDefault();
-    setSocialBusy(true);
-    setMessage('');
-    try {
-      const result = await createAppeal(appealForm);
-      setFairPlay((current) => ({ ...current, appeals: [result.appeal, ...(current.appeals || [])] }));
-      setAppealForm((current) => ({ ...current, message: '' }));
-      setMessage('Đã gửi khiếu nại thành công.');
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setSocialBusy(false);
-    }
-  };
+
 
   if (!authUser && !profileUserId) {
     return (
@@ -506,6 +677,9 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
                 {followSummary.followed ? <UserMinus size={16} /> : <UserPlus size={16} />}
                 {followSummary.followed ? 'Bỏ theo dõi' : 'Theo dõi'}
               </button>
+              <button className="danger" type="button" onClick={() => setReportOpen(true)}>
+                <Flag size={16} /> Báo cáo người chơi
+              </button>
               {friendship?.status === 'friends' ? (
                 <>
                   <button className="primary" type="button" disabled={socialBusy} onClick={challengeFriend}>
@@ -581,6 +755,16 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
             </div>
           )}
         </section>
+
+        {!isPublicProfile && (
+          <section className="player-profile-card player-my-reports-entry">
+            <ProfileSectionHead eyebrow="Trung tâm người dùng" title="Ticket & Báo cáo" icon={Flag} />
+            <p className="player-profile-section-description">Theo dõi ticket hỗ trợ và các báo cáo người chơi tại trang quản lý thống nhất.</p>
+            <button className="player-profile-primary-button" type="button" onClick={() => onNavigate?.('supportTickets')}>
+              Mở Ticket & Báo cáo <ExternalLink size={15} />
+            </button>
+          </section>
+        )}
         </div>
 
         <div className="player-profile-insights-grid">
@@ -633,63 +817,7 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
         </section>
         </div>
 
-        {!isPublicProfile && (
-          <div className="player-profile-main-grid player-profile-support-grid">
-          <section className="player-profile-card training">
-            <ProfileSectionHead eyebrow="Lộ trình cá nhân" title="Luyện tập tiếp theo" icon={Dumbbell} />
-            <p className="player-profile-training-copy">
-              {profile.training?.nextAction || 'Review ván online đã kết thúc để hệ thống tạo bài tập.'}
-            </p>
-            <div className="player-profile-training-stats">
-              <div><strong>{profile.training?.newPersonalPuzzles || 0}</strong><span>Bài mới</span></div>
-              <div><strong>{profile.training?.personalPuzzles || 0}</strong><span>Tổng bài</span></div>
-              <div><strong>{profile.training?.reviewedGames || 0}</strong><span>Đã review</span></div>
-            </div>
-            <button className="player-profile-primary-button" type="button" onClick={() => onNavigate?.('personal-puzzles')}>
-              <Dumbbell size={17} /> Mở Puzzle cá nhân
-            </button>
-          </section>
 
-          {(fairPlay.reports?.length > 0 || fairPlay.appeals?.length > 0) && (
-            <section className="player-profile-card fair-play">
-              <ProfileSectionHead eyebrow="Hỗ trợ tài khoản" title="Khiếu nại Fair-play" icon={ShieldCheck} />
-              {fairPlay.reports?.length > 0 && (
-                <form className="player-profile-appeal-form" onSubmit={submitAppeal}>
-                  <select
-                    value={appealForm.reportId}
-                    onChange={(event) => setAppealForm((current) => ({ ...current, reportId: event.target.value }))}
-                  >
-                    {fairPlay.reports.map((report) => (
-                      <option value={report.id} key={report.id}>
-                        Báo cáo #{report.id.slice(0, 8)} · Mức rủi ro {report.risk_score}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    required
-                    minLength={20}
-                    rows={3}
-                    value={appealForm.message}
-                    onChange={(event) => setAppealForm((current) => ({ ...current, message: event.target.value }))}
-                    placeholder="Trình bày lý do khiếu nại..."
-                  />
-                  <button type="submit" disabled={socialBusy}>Gửi khiếu nại</button>
-                </form>
-              )}
-              {fairPlay.appeals?.length > 0 && (
-                <div className="player-profile-appeal-list">
-                  {fairPlay.appeals.map((appeal) => (
-                    <article key={appeal.id}>
-                      <strong>Khiếu nại #{appeal.id.slice(0, 8)} · {appeal.status}</strong>
-                      <p>{appeal.admin_note || appeal.message}</p>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-          </div>
-        )}
 
         <div className="player-profile-timeline-grid">
         <section className="player-profile-card">
@@ -754,6 +882,17 @@ export default function ProfilePage({ authUser, profileUserId = '', onLogin, onN
         )}
         </div>
       </div>
+      {reportOpen && isPublicProfile && authUser && (
+        <PlayerReportModal
+          player={profile}
+          reporterId={authUser.uid || authUser.id}
+          onClose={() => setReportOpen(false)}
+          onSubmitted={() => {
+            window.dispatchEvent(new window.CustomEvent('chessarena:report-submitted'));
+            setMessage('Báo cáo đã được gửi. Theo dõi kết quả tại Ticket & Báo cáo.');
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -2,13 +2,13 @@ import { apiUrl } from './config';
 
 async function readJson(response) {
   const data = await response.json().catch(() => ({
-    error: response.ok ? '' : `Support request failed with HTTP ${response.status}.`
+    error: response.ok ? '' : `Không thể gửi yêu cầu, mã lỗi ${response.status}.`
   }));
   if (!response.ok || data.ok === false) {
     if (response.status === 404) {
-      throw new Error('API hỗ trợ chưa khả dụng trên deployment hiện tại. Kiểm tra VITE_API_URL hoặc redeploy backend để có /api/support/requests.');
+      throw new Error('Hệ thống hỗ trợ chưa sẵn sàng. Vui lòng thử lại sau.');
     }
-    throw new Error(data.error || 'Support request failed.');
+    throw new Error(data.error || 'Chưa thực hiện được yêu cầu hỗ trợ.');
   }
   return data;
 }

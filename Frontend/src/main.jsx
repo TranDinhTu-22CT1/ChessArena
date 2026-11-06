@@ -5,11 +5,13 @@ import SystemStatePage from './components/SystemStatePage.jsx';
 import './styles.css';
 import './styles/profile-history.css';
 import './styles/social-center.css';
-import './styles/learning-tournaments.css';
+import './styles/learning.css';
 import './styles/puzzle-premium.css';
 import './styles/leaderboard.css';
 import './styles/auth.css';
 import './styles/system-states.css';
+import './styles/interface.css';
+import './styles/play-workspace.css';
 
 class AppErrorBoundary extends React.Component {
   constructor(props) {
@@ -21,6 +23,17 @@ class AppErrorBoundary extends React.Component {
     return { error };
   }
 
+  retry = () => {
+    this.setState({ error: null });
+  };
+
+  goHome = () => {
+    window.history.pushState(null, '', '/');
+    this.setState({ error: null }, () => {
+      window.dispatchEvent(new window.PopStateEvent('popstate'));
+    });
+  };
+
   render() {
     if (this.state.error) {
       return (
@@ -28,12 +41,12 @@ class AppErrorBoundary extends React.Component {
           variant="runtime"
           eyebrow="ChessArena gặp sự cố"
           title="Không thể hiển thị nội dung"
-          description="Một thành phần giao diện vừa gặp lỗi. Bạn có thể tải lại trang; dữ liệu tài khoản và các ván đã lưu không bị ảnh hưởng."
+          description="Một thành phần giao diện vừa gặp lỗi. Hãy thử dựng lại giao diện; dữ liệu tài khoản và các ván đã lưu vẫn được giữ nguyên."
           icon="error"
-          primaryLabel="Tải lại trang"
-          onPrimary={() => window.location.reload()}
+          primaryLabel="Thử hiển thị lại"
+          onPrimary={this.retry}
           secondaryLabel="Về trang chủ"
-          onSecondary={() => window.location.assign('/')}
+          onSecondary={this.goHome}
         />
       );
     }

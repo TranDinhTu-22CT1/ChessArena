@@ -402,28 +402,10 @@
   transform: translateY(-2px);
 }
 
-.player-profile-hero-actions button.primary,
-.player-profile-primary-button,
-.player-profile-appeal-form button,
-.history-refresh-button {
-  color: #fff !important;
-  background: var(--ph-green) !important;
-  border-color: var(--ph-green) !important;
-  box-shadow: 0 10px 22px rgba(22, 139, 86, 0.2);
-}
-
 .player-profile-hero-actions button.danger {
   color: #9b4f43;
   background: #faece8;
   border-color: rgba(155, 79, 67, 0.14);
-}
-
-.player-profile-hero-actions button:disabled,
-.player-profile-primary-button:disabled,
-.player-profile-appeal-form button:disabled,
-.history-refresh-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
 }
 
 .player-profile-summary {
@@ -487,20 +469,6 @@
 .profile-route-shell .player-profile-hero-actions button:hover:not(:disabled),
 .profile-route-shell .player-profile-text-button:hover:not(:disabled) {
   background: #edf2ec;
-}
-
-.profile-route-shell .player-profile-form input[type="text"],
-.profile-route-shell .player-profile-form input[type="file"],
-.profile-route-shell .player-profile-appeal-form select,
-.profile-route-shell .player-profile-appeal-form textarea {
-  background: #e5ece5 !important;
-  border-color: rgba(45, 87, 57, 0.16) !important;
-}
-
-.profile-route-shell .player-profile-form input:focus,
-.profile-route-shell .player-profile-appeal-form select:focus,
-.profile-route-shell .player-profile-appeal-form textarea:focus {
-  background: #edf2ec !important;
 }
 
 .profile-route-shell .player-profile-skill-grid article,
@@ -766,12 +734,6 @@
   border: 0;
 }
 
-.player-profile-form,
-.player-profile-appeal-form {
-  display: grid;
-  gap: 12px;
-}
-
 .player-profile-overview-grid .player-profile-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
@@ -791,31 +753,6 @@
   color: #476151 !important;
   font-size: 0.74rem;
   font-weight: 800;
-}
-
-.player-profile-form input[type="text"],
-.player-profile-form input[type="file"],
-.player-profile-appeal-form select,
-.player-profile-appeal-form textarea {
-  width: 100%;
-  min-height: 43px;
-  padding: 10px 12px;
-  color: var(--ph-ink) !important;
-  background: #f4f9f1 !important;
-  border: 1px solid rgba(38, 103, 62, 0.13) !important;
-  border-radius: 11px;
-  outline: none;
-  font: inherit;
-  font-size: 0.8rem;
-  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
-}
-
-.player-profile-form input:focus,
-.player-profile-appeal-form select:focus,
-.player-profile-appeal-form textarea:focus {
-  background: #fff !important;
-  border-color: rgba(22, 139, 86, 0.48) !important;
-  box-shadow: 0 0 0 3px rgba(22, 139, 86, 0.09);
 }
 
 .player-profile-upload small,
@@ -861,32 +798,6 @@
 .player-profile-details small {
   color: #75857b;
   font-size: 0.63rem;
-}
-
-.player-profile-primary-button,
-.player-profile-appeal-form button {
-  display: inline-flex;
-  width: fit-content;
-  min-width: 152px;
-  min-height: 42px;
-  padding: 0 17px;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 850;
-  cursor: pointer;
-  transition: transform 180ms ease, box-shadow 180ms ease;
-}
-
-.player-profile-primary-button:hover:not(:disabled),
-.player-profile-appeal-form button:hover:not(:disabled),
-.history-refresh-button:hover:not(:disabled) {
-  box-shadow: 0 14px 28px rgba(22, 139, 86, 0.26);
-  transform: translateY(-2px);
 }
 
 .player-profile-skill-grid strong,
@@ -1065,38 +976,6 @@
 .player-profile-training-stats span {
   color: var(--ph-muted) !important;
   font-size: 0.63rem;
-}
-
-.player-profile-appeal-form textarea {
-  min-height: 82px;
-  resize: vertical;
-}
-
-.player-profile-card.fair-play .player-profile-appeal-form button {
-  background: #a85445 !important;
-}
-
-.player-profile-appeal-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 13px;
-}
-
-.player-profile-appeal-list article {
-  padding: 12px;
-  background: #faf2ef;
-  border-radius: 11px;
-}
-
-.player-profile-appeal-list strong {
-  color: #714339;
-  font-size: 0.72rem;
-}
-
-.player-profile-appeal-list p {
-  margin: 4px 0 0;
-  color: #76625d;
-  font-size: 0.68rem;
 }
 
 .player-profile-game-list,
@@ -1370,7 +1249,8 @@
   font-weight: 800;
 }
 
-.history-toolbar select {
+.history-toolbar select,
+.history-date-control {
   width: 100%;
   min-height: 41px;
   padding: 0 11px;
@@ -1382,10 +1262,88 @@
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
-.history-toolbar select:focus {
+.history-toolbar select:focus,
+.history-date-control:focus-within {
   background: #fff !important;
   border-color: rgba(22, 139, 86, 0.46) !important;
   box-shadow: 0 0 0 3px rgba(22, 139, 86, 0.08);
+}
+
+.history-date-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: #547263 !important;
+}
+
+.history-date-control input {
+  width: 100%;
+  min-width: 0;
+  height: 39px;
+  padding: 0;
+  color: var(--ph-ink);
+  color-scheme: light;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-weight: 700;
+}
+
+.history-date-control input::-webkit-calendar-picker-indicator {
+  opacity: .62;
+  cursor: pointer;
+}
+
+.my-report-list {
+  display: grid;
+  gap: 9px;
+}
+
+.my-report-list > button {
+  display: grid;
+  grid-template-columns: auto minmax(130px, .8fr) minmax(180px, 1.3fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px;
+  color: var(--ph-ink);
+  text-align: left;
+  background: #f8faf7;
+  border: 1px solid rgba(38, 103, 62, .11);
+  border-radius: 13px;
+  box-shadow: none;
+}
+
+.my-report-list > button:hover { background: #f0f6ef; transform: translateY(-1px); }
+.my-report-list > button > span:nth-child(2) { display: grid; gap: 4px; }
+.my-report-list strong { font-size: .82rem; }
+.my-report-list small, .my-report-list p { margin: 0; color: var(--ph-muted); font-size: .7rem; line-height: 1.5; }
+.my-report-status { padding: 6px 9px; color: #786539 !important; background: #f6f0dd; border-radius: 999px; font-size: .63rem; font-weight: 850; white-space: nowrap; }
+.my-report-status.resolved { color: #2e7551 !important; background: #e5f3e8; }
+.my-report-status.dismissed { color: #7c6262 !important; background: #f1e8e8; }
+.my-report-status.in_review, .my-report-status.escalated { color: #4f6684 !important; background: #e6edf7; }
+
+.my-report-dialog { width: min(680px, calc(100vw - 24px)); padding: 0; color: var(--ph-ink); background: #fff; border: 1px solid rgba(38,103,62,.17); border-radius: 20px; box-shadow: 0 24px 70px rgba(27,55,39,.22); }
+.my-report-dialog > article { display: grid; gap: 18px; padding: 22px; }
+.my-report-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.my-report-dialog header span { color: var(--ph-muted); font-size: .66rem; font-weight: 850; letter-spacing: .08em; }
+.my-report-dialog h2 { margin: 5px 0 0; font-size: 1.25rem; }
+.my-report-dialog header button { display: grid; width: 36px; height: 36px; padding: 0; place-items: center; border-radius: 10px; }
+.my-report-dialog dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 0; }
+.my-report-dialog dl > div { padding: 11px; background: #f6f8f5; border-radius: 11px; }
+.my-report-dialog dt { color: var(--ph-muted); font-size: .65rem; font-weight: 800; }
+.my-report-dialog dd { margin: 5px 0 0; font-size: .78rem; font-weight: 700; }
+.my-report-dialog section { display: grid; gap: 7px; }
+.my-report-dialog section p { margin: 0; line-height: 1.7; }
+.my-report-images { display: flex; flex-wrap: wrap; gap: 9px; }
+.my-report-images img { width: 110px; height: 82px; object-fit: cover; border: 1px solid rgba(38,103,62,.14); border-radius: 11px; }
+
+@media (max-width: 650px) {
+  .my-report-list > button { grid-template-columns: 1fr; }
+  .my-report-dialog dl { grid-template-columns: 1fr; }
 }
 
 .history-message {

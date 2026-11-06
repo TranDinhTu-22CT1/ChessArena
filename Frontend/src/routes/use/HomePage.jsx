@@ -160,13 +160,15 @@ export default function HomePage({
                 onReviewGame();
               } else if (card.tone === 'puzzle') {
                 onNavigate('puzzles');
+              } else if (card.tone === 'lesson') {
+                onNavigate('beginnerGuide');
               } else {
                 onNavigate('bot');
               }
             }}
           >
             <div className={`home-mini-board ${card.tone}`}>
-              <img src={card.image} alt={card.title} loading="lazy" />
+              <img src={card.image} alt="" loading="lazy" />
             </div>
             <span>{card.title}</span>
             <small>{card.copy}</small>

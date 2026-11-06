@@ -15,10 +15,10 @@ export async function fetchFriends() {
   return readJson(response);
 }
 
-export async function searchUsers(query) {
+export async function searchUsers(query, { signal } = {}) {
   const params = new URLSearchParams({ q: query });
   const response = await fetch(apiUrl(`/api/users/search?${params.toString()}`), {
-    credentials: 'include'
+    credentials: 'include', signal
   });
   return readJson(response);
 }

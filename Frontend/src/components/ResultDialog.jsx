@@ -1,8 +1,10 @@
 import React from 'react';
+import Modal from './Modal';
 
 export default function ResultDialog({
   outcome,
   activeBotPersona,
+  isCoachGame,
   reviewStats,
   onReviewGame,
   onNewBot,
@@ -11,26 +13,25 @@ export default function ResultDialog({
   if (!outcome) return null;
 
   return (
-    <div className="result-backdrop" role="dialog" aria-modal="true" aria-label="Game result">
+    <Modal open className="play-result-modal" aria-label="Kết quả ván đấu">
       <div className="result-dialog compact-result" data-result={outcome.type}>
-        <button className="result-share" aria-label="Share result">?</button>
-        <h2>{outcome.type === 'win' ? `You Beat ${activeBotPersona.name}!` : outcome.type === 'loss' ? `${activeBotPersona.name} Won` : 'Draw Game'}</h2>
+        <h2>{outcome.title || (outcome.type === 'win' ? `Bạn thắng ${activeBotPersona.name}` : outcome.type === 'loss' ? `${activeBotPersona.name} thắng` : 'Hòa cờ')}</h2>
         <small>{outcome.detail}</small>
         <div className="result-coach">
           <div className="review-coach-avatar">GM</div>
-          <p>{outcome.type === 'win' ? 'You had a nice tactical find in this game. Let us review!' : outcome.type === 'loss' ? 'Good effort. Review the critical moment and try a rematch.' : 'Balanced game. A review can show where both sides missed chances.'}</p>
+          <p>Xem lại các nước cờ để nhận ra điều đã làm tốt và tìm điểm cần cải thiện cho ván tiếp theo.</p>
         </div>
         <div className="result-stats">
-          <span><b>{reviewStats.stats.w.best + reviewStats.stats.b.best}</b>Best</span>
-          <span><b>{reviewStats.stats.w.excellent + reviewStats.stats.b.excellent}</b>Excellent</span>
-          <span><b>{reviewStats.stats.w.good + reviewStats.stats.b.good}</b>Good</span>
+          <span><b>{reviewStats.stats.w.best + reviewStats.stats.b.best}</b>Tốt nhất</span>
+          <span><b>{reviewStats.stats.w.excellent + reviewStats.stats.b.excellent}</b>Rất tốt</span>
+          <span><b>{reviewStats.stats.w.good + reviewStats.stats.b.good}</b>Tốt</span>
         </div>
         <div className="result-actions">
-          <button onClick={onReviewGame}>Game Review</button>
-          <button onClick={onNewBot}>New Bot</button>
-          <button onClick={onRematch}>Rematch</button>
+          <button onClick={onReviewGame}>Đánh giá ván đấu</button>
+          <button onClick={onNewBot}>{isCoachGame ? 'Chọn bài học' : 'Chọn bot khác'}</button>
+          <button onClick={onRematch}>{isCoachGame ? 'Luyện lại bài này' : 'Chơi lại'}</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

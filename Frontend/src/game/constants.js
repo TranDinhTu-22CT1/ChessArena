@@ -6,7 +6,7 @@ export const AI_LEVELS = [
   { elo: 2000, label: '2000 Stockfish Expert', search: 'UCI limited strength' },
   { elo: 2400, label: '2400 Stockfish Master', search: 'UCI limited strength' },
   { elo: 2800, label: '2800 Stockfish Elite', search: 'UCI limited strength' },
-  { elo: 3190, label: 'Maximum Stockfish', search: 'Unlimited engine strength' }
+  { elo: 3190, label: '3190 Stockfish', search: 'UCI limited strength' }
 ];
 
 export const PIECE_VALUES = {
