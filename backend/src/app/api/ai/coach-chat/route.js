@@ -22,7 +22,7 @@ export async function POST(request) {
   const signal=globalThis.AbortSignal.any([request.signal,globalThis.AbortSignal.timeout(18000)]);
   try{
     const websiteSettings=await readWebsiteSettings(auth.supabase).catch(()=>null);
-    const result=await answerCoachQuestion(question,{messages,gameContext,websiteSettings,viewer:{displayName:auth.user.displayName},signal});
+    const result=await answerCoachQuestion(question,{messages,playerListState:payload.playerListState,gameContext,websiteSettings,viewer:{displayName:auth.user.displayName},signal});
     return Response.json({ok:true,...result},{headers:{'Cache-Control':'no-store'}});
   }catch(error){
     return Response.json({ok:false,error:signal.aborted?'Xử lý câu hỏi quá lâu. Hãy thử lại.':'Chưa xử lý được câu hỏi. Hãy thử lại.'},{status:error.status||503,headers:{'Cache-Control':'no-store'}});

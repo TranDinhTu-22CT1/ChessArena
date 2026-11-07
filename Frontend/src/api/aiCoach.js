@@ -1,14 +1,14 @@
 import { apiUrl, handleApiSession } from './config';
 import { apiFetch } from './request';
 
-export async function askAiCoach({ question, messages = [], context = {}, signal }) {
+export async function askAiCoach({ question, messages = [], playerListState, context = {}, signal }) {
   const response = await apiFetch(apiUrl('/api/ai/coach-chat'), {
     timeoutMs: 22000,
     method: 'POST',
     credentials: 'include',
     signal,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, messages, context })
+    body: JSON.stringify({ question, messages, playerListState, context })
   });
   handleApiSession(response);
   const data = await response.json().catch(() => ({}));

@@ -162,6 +162,7 @@ export default function AiCoachChat({
 
   const taskRef = React.useRef(null);
   const pendingRef = React.useRef(null);
+  const playerListStateRef = React.useRef({version:1,seen:{},last:null});
 
   const identity =
     authUser?.uid ||
@@ -178,6 +179,7 @@ export default function AiCoachChat({
 
     taskRef.current = null;
     pendingRef.current = null;
+    playerListStateRef.current = {version:1,seen:{},last:null};
 
     setMessages(initialMessages());
     setInput('');
@@ -280,6 +282,9 @@ export default function AiCoachChat({
         return;
       }
 
+      // Keep bounded selection history for this chat even when visible messages are trimmed.
+      // Update only for a successful, current response; retries reuse the original payload.
+      playerListStateRef.current = data.playerListState;
       setMessages((current) =>
         [
           ...current,
@@ -342,6 +347,7 @@ export default function AiCoachChat({
 
     const payload = {
       question: text,
+      playerListState: playerListStateRef.current,
 
       messages: messages
         .filter(
