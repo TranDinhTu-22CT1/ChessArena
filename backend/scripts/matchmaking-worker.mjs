@@ -21,6 +21,7 @@ const supabase = createClient(
 );
 
 let stopping = false;
+let nextCleanupAt = 0;
 process.on('SIGINT', () => { stopping = true; });
 process.on('SIGTERM', () => { stopping = true; });
 
@@ -50,7 +51,7 @@ async function runIteration() {
   if (error) throw error;
 
   await parallel(tickets, async (ticket) => {
-    const { error: matchError } = await supabase.rpc('quick_match_find_game_v2', {
+    const { error: matchError } = await supabase.rpc('quick_match_find_game_v3', {
       p_user_id: ticket.user_id,
       p_time_control: ticket.time_control,
       p_mode: ticket.mode,
@@ -75,6 +76,11 @@ async function runIteration() {
 
 while (!stopping) {
   try {
+    if (Date.now() >= nextCleanupAt) {
+      nextCleanupAt = Date.now() + 30_000;
+      const { error } = await supabase.rpc('reconcile_matchmaking_v2');
+      if (error) console.error('[matchmaking-worker] cleanup failed:', error.message);
+    }
     const processed = await runIteration();
     await new Promise((resolve) => setTimeout(
       resolve,

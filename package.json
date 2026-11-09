@@ -1,0 +1,11 @@
+{
+  "name": "chessarena-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "local:host": "node scripts/start-local.mjs",
+    "local:host:fast": "npm --prefix backend run build && node scripts/start-local.mjs --production",
+    "local:client": "node scripts/start-local.mjs --client",
+    "local:check": "node scripts/check-local.mjs"
+  }
+}

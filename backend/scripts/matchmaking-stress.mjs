@@ -66,7 +66,7 @@ function findParams(user, index, sessionSuffix = 'match') {
 
 async function cancelAndRequeue(users) {
   const first = await parallel(users, (user, index) => (
-    supabase.rpc('quick_match_find_game_v2', findParams(user, index, 'cancel'))
+    supabase.rpc('quick_match_find_game_v3', findParams(user, index, 'cancel'))
   ));
   await parallel(first, async (result, index) => {
     const ticketId = result.data?.queue_ticket_id;
@@ -88,7 +88,7 @@ async function matchUsers(users) {
     await parallel(users, async (user, index) => {
       if (states.has(user.id)) return;
       const { data, error } = await supabase.rpc(
-        'quick_match_find_game_v2',
+        'quick_match_find_game_v3',
         findParams(user, index)
       );
       if (error) {
